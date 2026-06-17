@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Palette, Check, Lightbulb, Send, Trophy, Loader2, Hourglass } from 'lucide-react';
 import { socket } from '../../socket';
 import { renderSilhouette, hsbToCss } from './ColorSilhouettes';
 import './ColorStyles.css';
 
 const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar_${i + 1}.webp`);
 
+const SPRING = { type: 'spring', stiffness: 130, damping: 17 };
+
 /**
- * Champ 2D Saturation × Luminosité (façon sélecteur de couleur standard).
- * Glisser le curseur ajuste S (gauche→droite) et B (haut→bas). Bien plus
- * intuitif que trois sliders linéaires séparés pour atteindre une couleur.
+ * 2D Saturation × Brightness field. Dragging adjusts S (left→right) and
+ * B (top→bottom) — far more intuitive than three linear sliders.
  */
 function SBField({ h, s, b, onChange }) {
     const ref = useRef(null);
@@ -19,40 +22,26 @@ function SBField({ h, s, b, onChange }) {
         const y = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
         onChange(Math.round(x * 100), Math.round((1 - y) * 100)); // s, b
     };
-    const onDown = (e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        apply(e.clientX, e.clientY);
-    };
-    const onMove = (e) => {
-        if (e.buttons === 0) return; // uniquement pendant le glissé
-        apply(e.clientX, e.clientY);
-    };
+    const onDown = (e) => { e.currentTarget.setPointerCapture(e.pointerId); apply(e.clientX, e.clientY); };
+    const onMove = (e) => { if (e.buttons === 0) return; apply(e.clientX, e.clientY); };
     return (
-        <div ref={ref} className="sb-square" onPointerDown={onDown} onPointerMove={onMove}
-             style={{
-                 background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)`
-             }}>
-            <div className="sb-thumb" style={{ left: `${s}%`, top: `${100 - b}%`, background: hsbToCss(h, s, b) }} />
+        <div ref={ref} className="cm-field" onPointerDown={onDown} onPointerMove={onMove}
+             style={{ background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)` }}>
+            <div className="cm-field-thumb" style={{ left: `${s}%`, top: `${100 - b}%`, background: hsbToCss(h, s, b) }} />
         </div>
     );
 }
 
-/**
- * Calculates a contrast color (black or white) based on HSB values
- * to ensure all text remains highly readable regardless of background color.
- */
+/** Black or white text, whichever stays readable over the given HSB color. */
 function getContrastColor(h, s, b) {
     const isLightColor = b > 65 && (s < 40 || (h > 35 && h < 170));
-    return isLightColor ? '#1A1A2E' : '#ffffff';
+    return isLightColor ? '#13131a' : '#ffffff';
 }
 
 function getImageUrl(imagePath) {
     if (!imagePath) return '';
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath;
-    // Assets frontend (dossier client/public, buildés avec le client) : chemin relatif,
-    // servi par Vite en dev et par le static en prod — surtout pas l'origine de l'API.
     if (imagePath.startsWith('/color/')) return imagePath;
-    // Anciennes images uploadées via l'admin, servies par l'API (/uploads/...)
     const isHttps = window.location.protocol === 'https:';
     const serverPort = isHttps ? 3443 : 3005;
     const base = import.meta.env.VITE_SERVER_URL
@@ -61,9 +50,19 @@ function getImageUrl(imagePath) {
     return `${base}${imagePath}`;
 }
 
+function scoreLabel(score) {
+    if (score >= 9.5) return 'Parfait';
+    if (score >= 9.0) return 'Excellent';
+    if (score >= 8.0) return 'Très proche';
+    if (score >= 6.5) return 'Pas mal';
+    if (score >= 4.0) return 'À côté';
+    return 'Raté';
+}
+
 function ColorPlayerView() {
     const { roomCode: paramRoomCode } = useParams();
     const navigate = useNavigate();
+    const reduce = useReducedMotion();
 
     // Connection state
     const [roomCode, setRoomCode] = useState(paramRoomCode || '');
@@ -84,7 +83,7 @@ function ColorPlayerView() {
     const [myScore, setMyScore] = useState(0);
     const [roundScore, setRoundScore] = useState(null);
 
-    // Color Sliders
+    // Color picker
     const [h, setH] = useState(180);
     const [s, setS] = useState(50);
     const [b, setB] = useState(50);
@@ -92,7 +91,7 @@ function ColorPlayerView() {
     const [hintText, setHintText] = useState('');
     const [hasGuessed, setHasGuessed] = useState(false);
 
-    // Reactions and chat
+    // Social
     const [chatMsg, setChatMsg] = useState('');
     const [imageError, setImageError] = useState(false);
 
@@ -176,15 +175,15 @@ function ColorPlayerView() {
         if (chosen === 'H') {
             const minH = Math.max(0, character.target_h - 25);
             const maxH = Math.min(360, character.target_h + 25);
-            text = `💡 Teinte : entre ${minH}° et ${maxH}°`;
+            text = `Teinte entre ${minH}° et ${maxH}°`;
         } else if (chosen === 'S') {
             const minS = Math.max(0, character.target_s - 15);
             const maxS = Math.min(100, character.target_s + 15);
-            text = `💡 Saturation : entre ${minS}% et ${maxS}%`;
+            text = `Saturation entre ${minS}% et ${maxS}%`;
         } else {
             const minB = Math.max(0, character.target_b - 15);
             const maxB = Math.min(100, character.target_b + 15);
-            text = `💡 Luminosité : entre ${minB}% et ${maxB}%`;
+            text = `Luminosité entre ${minB}% et ${maxB}%`;
         }
         setHintText(text); setHintUsed(true);
     };
@@ -213,254 +212,233 @@ function ColorPlayerView() {
 
     const guessCssColor = hsbToCss(h, s, b);
     const contrastColor = getContrastColor(h, s, b);
+    const isLive = gameState === 'PLAYING' || gameState === 'ROUND_END';
+    const live = isLive ? guessCssColor : '#f59e0b';
+    const liveInk = isLive ? contrastColor : '#20160a';
 
     return (
-        <div className="color-game-bg w-full h-[100dvh] overflow-y-auto py-5 px-4 flex flex-col justify-start items-center relative">
-            <div className="toon-dots" />
+        <div className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col items-center px-4 py-5 select-none"
+             style={{ '--live': live, '--live-ink': liveInk }}>
+            <div className="cm-bg-grid" />
+            <div className="cm-bg-pool" style={{ background: `radial-gradient(70% 45% at 50% 0%, ${live}1f, transparent 72%)` }} />
 
-            {/* ════ JOIN FORM ════ */}
+            {/* ════════ JOIN ════════ */}
             {!joined ? (
-                <main className="w-full max-w-[420px] toon-card p-6 my-auto z-10">
-                    <div className="text-center mb-6">
-                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-3 toon-bounce"
-                             style={{ background:'#FFD93D', border:'3px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                            <span style={{ fontSize:32 }}>🎨</span>
+                <motion.main
+                    initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                    className="cm-panel relative z-10 w-full max-w-[420px] p-6 my-auto">
+                    <div className="flex flex-col items-center text-center mb-6">
+                        <div className="cm-glass w-14 h-14 rounded-2xl grid place-items-center mb-3"
+                             style={{ boxShadow: '0 16px 44px -22px #f59e0b' }}>
+                            <Palette className="w-6 h-6 text-[var(--cm-accent)]" />
                         </div>
-                        <h2 className="text-2xl font-black"
-                            style={{ fontFamily:"'Fredoka One','Nunito',sans-serif", color:'#1A1A2E' }}>
-                            Rejoindre la partie
-                        </h2>
+                        <h2 className="text-2xl font-bold">Rejoindre la partie</h2>
+                        <p className="text-sm text-[var(--cm-ink-2)] mt-1">Entre le code affiché sur le grand écran.</p>
                     </div>
 
                     <form onSubmit={handleJoin} className="flex flex-col gap-4">
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Code du salon</label>
+                            <label className="cm-label">Code du salon</label>
                             <input type="text" maxLength={6} placeholder="ABCDEF" value={roomCode}
                                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                                   className="w-full p-3 rounded-xl font-mono text-center font-black text-2xl uppercase focus:outline-none tracking-[0.2em]"
-                                   style={{ background:'#F9FAFB', border:'3px solid #1A1A2E', color:'#1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }} />
+                                   className="cm-input cm-mono text-center text-2xl font-bold uppercase tracking-[0.4em]" />
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Votre pseudo</label>
+                            <label className="cm-label">Ton pseudo</label>
                             <input type="text" maxLength={14} placeholder="SuperJoueur" value={pseudo}
-                                   onChange={(e) => setPseudo(e.target.value)}
-                                   className="w-full p-3 rounded-xl font-extrabold text-sm focus:outline-none"
-                                   style={{ background:'#F9FAFB', border:'3px solid #1A1A2E', color:'#1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }} />
+                                   onChange={(e) => setPseudo(e.target.value)} className="cm-input font-semibold" />
                         </div>
 
-                        <div className="flex flex-col gap-1.5">
-                            <label className="text-xs font-extrabold uppercase tracking-wider text-gray-400">Choisissez un avatar</label>
-                            <div className="grid grid-cols-6 gap-2 p-3 rounded-xl max-h-[120px] overflow-y-auto"
-                                 style={{ background:'#F9FAFB', border:'3px solid #1A1A2E' }}>
-                                {PRESET_AVATARS.map((avUrl, i) => (
-                                    <button key={i} type="button" onClick={() => setAvatar(avUrl)}
-                                            className="relative rounded-full overflow-hidden aspect-square transition-transform"
-                                            style={{
-                                                border: avatar === avUrl ? '3px solid #FF5263' : '2px solid #1A1A2E',
-                                                transform: avatar === avUrl ? 'scale(1.08)' : 'scale(1)',
-                                            }}>
-                                        <img src={avUrl} alt={`avatar-${i}`} className="w-full h-full object-cover" />
-                                    </button>
-                                ))}
+                        <div className="flex flex-col gap-2">
+                            <label className="cm-label">Choisis un avatar</label>
+                            <div className="cm-scroll flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1" style={{ scrollSnapType: 'x mandatory' }}>
+                                {PRESET_AVATARS.map((avUrl, i) => {
+                                    const sel = avatar === avUrl;
+                                    return (
+                                        <button key={i} type="button" onClick={() => setAvatar(avUrl)}
+                                                className="relative shrink-0 rounded-full overflow-hidden transition-transform duration-200"
+                                                style={{ width: 52, height: 52, scrollSnapAlign: 'start',
+                                                         outline: sel ? '2px solid var(--cm-accent)' : '1px solid var(--cm-line-strong)',
+                                                         outlineOffset: sel ? 2 : 0, transform: sel ? 'scale(1.04)' : 'scale(1)' }}>
+                                            <img src={avUrl} alt={`avatar ${i + 1}`} className="w-full h-full object-cover" />
+                                        </button>
+                                    );
+                                })}
                             </div>
                         </div>
 
-                        {error && (
-                            <div className="px-3 py-2 rounded-xl text-xs font-extrabold text-center"
-                                 style={{ background:'#FEF2F2', color:'#DC2626', border:'2px solid #FF5263' }}>
-                                {error}
-                            </div>
-                        )}
+                        <AnimatePresence>
+                            {error && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                                            className="text-sm font-semibold text-center px-3 py-2 rounded-[var(--cm-r-sm)]"
+                                            style={{ background: 'rgba(251,113,133,0.1)', color: 'var(--cm-bad)', border: '1px solid rgba(251,113,133,0.3)' }}>
+                                    {error}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                        <button type="submit" disabled={isLoading}
-                                className="toon-btn w-full py-4 text-base"
-                                style={{ background:'#FF5263', color:'#fff' }}>
-                            {isLoading ? 'Connexion…' : '🚀 Rejoindre'}
+                        <button type="submit" disabled={isLoading} className="cm-btn cm-btn-primary w-full py-3.5 mt-1">
+                            {isLoading ? <><Loader2 className="w-4 h-4 cm-spin" /> Connexion</> : 'Rejoindre'}
                         </button>
                     </form>
-                </main>
+                </motion.main>
             ) : (
-                <div className="w-full max-w-[440px] flex flex-col gap-4 z-10 pb-12">
+                <div className="relative z-10 w-full max-w-[440px] flex flex-col gap-4 pb-10">
 
-                    {/* ════ LOBBY ════ */}
+                    {/* ════════ LOBBY ════════ */}
                     {gameState === 'LOBBY' && (
-                        <div className="toon-card p-6 text-center flex flex-col items-center gap-3">
-                            <img src={avatar} alt="avatar" className="w-24 h-24 rounded-full object-cover float-up"
-                                 style={{ border:'4px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }} />
-                            <h3 className="text-2xl font-black" style={{ fontFamily:"'Fredoka One','Nunito',sans-serif", color:'#1A1A2E' }}>{pseudo}</h3>
-                            <span className="text-xs font-extrabold uppercase tracking-widest px-4 py-1.5 rounded-full"
-                                  style={{ background:'#FFD93D', color:'#1A1A2E', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                Salon · {roomCode}
-                            </span>
-                            <p className="text-sm font-bold text-gray-400 mt-2">
-                                Prêt à jouer ! En attente de l'hôte <span className="dots" />
-                            </p>
-                        </div>
+                        <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                    className="cm-panel p-7 mt-8 flex flex-col items-center text-center gap-3">
+                            <div className="relative">
+                                <div className="absolute -inset-2 rounded-full cm-breathe" style={{ background: 'radial-gradient(circle, #f59e0b40, transparent 70%)' }} />
+                                <img src={avatar} alt="avatar" className="cm-avatar relative w-24 h-24" />
+                            </div>
+                            <h3 className="text-2xl font-bold">{pseudo}</h3>
+                            <span className="cm-chip"><span className="cm-mono tracking-[0.2em] text-[var(--cm-accent)]">{roomCode}</span></span>
+                            <p className="text-sm text-[var(--cm-ink-2)] mt-1 flex items-center">En attente de l'hôte<span className="cm-dots" /></p>
+                        </motion.div>
                     )}
 
-                    {/* ════ PLAYING ════ */}
+                    {/* ════════ PLAYING ════════ */}
                     {gameState === 'PLAYING' && character && (
-                        <div className="flex flex-col gap-4">
-                            {/* Question */}
-                            <div className="speech-bubble text-center mb-3">
-                                <p className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-0.5">Recrée la couleur de</p>
-                                <h3 className="text-lg font-black leading-tight" style={{ color:'#1A1A2E' }}>
-                                    <span style={{ color:'#00C2B3' }}>{character.name}</span>
-                                    {' · '}
-                                    <span style={{ color:'#FF5263' }}>{character.part}</span>
-                                </h3>
+                        <motion.div key={currentRound} initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                    className="flex flex-col gap-4 mt-1">
+                            <div className="flex items-center justify-between">
+                                <div className="flex flex-col">
+                                    <span className="cm-label">Recrée la couleur de</span>
+                                    <h3 className="text-lg font-bold leading-tight">
+                                        {character.name} <span className="text-[var(--cm-ink-2)] font-medium">· {character.part}</span>
+                                    </h3>
+                                </div>
+                                <span className="cm-chip cm-mono shrink-0">{currentRound}/{totalRounds}</span>
                             </div>
 
-                            {/* Live character */}
-                            <div className="character-box w-full max-w-[260px] mx-auto">
-                                <div className="absolute inset-0 z-0" style={{ backgroundColor: guessCssColor }} />
+                            <div className="cm-viewport w-full max-w-[280px] mx-auto">
+                                <div className="cm-viewport-fill" style={{ backgroundColor: guessCssColor }} />
                                 <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
-                                     style={{ display: imageError ? 'none':'block', width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:5 }} alt="character" />
+                                     className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
                                 {imageError && renderSilhouette(character.id, guessCssColor)}
                             </div>
 
-                            {/* Picker panel */}
                             <div className="relative">
-                                <div className="toon-card p-4 flex flex-col gap-3 relative">
-                                    {/* Round badge */}
-                                    <div className="absolute top-3 right-4 text-xs font-black opacity-40" style={{ color:'#1A1A2E' }}>{currentRound}/{totalRounds}</div>
-
-                                    {/* 2D Saturation × Brightness field */}
+                                <div className="cm-panel p-4 flex flex-col gap-3.5">
                                     <SBField h={h} s={s} b={b} onChange={(ns, nb) => { setS(ns); setB(nb); }} />
-
-                                    {/* Hue slider */}
                                     <input type="range" min={0} max={359} value={h}
-                                           onChange={(e) => setH(parseInt(e.target.value))}
-                                           className="hue-slider" aria-label="Teinte" />
+                                           onChange={(e) => setH(parseInt(e.target.value))} className="cm-hue" aria-label="Teinte" />
 
-                                    {/* Readout + actions */}
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="w-9 h-9 rounded-lg flex-shrink-0" style={{ background: guessCssColor, border:'3px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }} />
-                                            <span className="font-mono font-black text-sm truncate" style={{ color:'#1A1A2E' }}>H{h} S{s} B{b}</span>
-                                        </div>
-                                        <button onClick={handleGetHint} disabled={hintUsed}
-                                                className="w-11 h-11 rounded-full flex items-center justify-center font-black text-lg transition-transform hover:scale-110 active:scale-95 disabled:opacity-40 flex-shrink-0"
-                                                style={{ background:'#FFD93D', color:'#1A1A2E', border:'3px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                            💡
+                                    <div className="flex items-center gap-2.5">
+                                        <span className="cm-swatch w-10 h-10 shrink-0" style={{ background: guessCssColor }} />
+                                        <span className="cm-mono text-sm font-semibold text-[var(--cm-ink-2)] flex-1">H{h} · S{s} · B{b}</span>
+                                        <button onClick={handleGetHint} disabled={hintUsed} title="Indice"
+                                                className="cm-icon-btn w-11 h-11 disabled:opacity-40">
+                                            <Lightbulb className="w-5 h-5" style={{ color: hintUsed ? undefined : 'var(--cm-accent)' }} />
                                         </button>
-                                        <button onClick={handleSubmitGuess}
-                                                className="h-11 px-5 rounded-full flex items-center justify-center gap-1 font-black text-sm uppercase transition-transform hover:scale-105 active:scale-95 flex-shrink-0"
-                                                style={{ background:'#4ADE80', color:'#1A1A2E', border:'3px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                                            <span className="material-symbols-outlined text-xl font-black">check</span>
-                                            Valider
+                                        <button onClick={handleSubmitGuess} className="cm-btn cm-btn-live h-11 px-5">
+                                            <Check className="w-5 h-5" /> Valider
                                         </button>
                                     </div>
 
-                                    {hintText && (
-                                        <div className="rounded-xl p-2 text-[11px] font-extrabold text-center"
-                                             style={{ background:'#1A1A2E', color:'#fff' }}>
-                                            {hintText}
-                                        </div>
-                                    )}
+                                    <AnimatePresence>
+                                        {hintText && (
+                                            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                                                        className="flex items-center gap-2 text-xs font-semibold rounded-[var(--cm-r-sm)] px-3 py-2"
+                                                        style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd34d' }}>
+                                                <Lightbulb className="w-3.5 h-3.5 shrink-0" /> {hintText}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
 
-                                {/* Validated overlay */}
-                                {hasGuessed && (
-                                    <div className="absolute inset-0 backdrop-blur-sm rounded-[24px] flex flex-col items-center justify-center text-center p-4 z-20"
-                                         style={{ background:'rgba(26,26,46,0.85)' }}>
-                                        <span className="text-5xl mb-2 toon-bounce">✅</span>
-                                        <span className="text-white font-black text-base uppercase tracking-wide">Validé !</span>
-                                        <span className="text-gray-300 text-xs mt-0.5">En attente du grand écran…</span>
-                                    </div>
-                                )}
+                                <AnimatePresence>
+                                    {hasGuessed && (
+                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                                    className="absolute inset-0 grid place-items-center text-center p-4 rounded-[var(--cm-r-lg)] z-[var(--z-overlay)]"
+                                                    style={{ background: 'rgba(7,7,11,0.82)', backdropFilter: 'blur(8px)' }}>
+                                            <motion.div initial={reduce ? false : { scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={SPRING}
+                                                        className="flex flex-col items-center gap-2">
+                                                <span className="w-14 h-14 rounded-full grid place-items-center" style={{ background: '#34d399', color: '#052e22' }}>
+                                                    <Check className="w-7 h-7" strokeWidth={3} />
+                                                </span>
+                                                <span className="text-lg font-bold">Couleur validée</span>
+                                                <span className="text-sm text-[var(--cm-ink-2)] flex items-center"><Hourglass className="w-3.5 h-3.5 mr-1.5" />En attente du grand écran</span>
+                                            </motion.div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
-                    {/* ════ ROUND END ════ */}
+                    {/* ════════ ROUND END ════════ */}
                     {gameState === 'ROUND_END' && character && (
-                        <div className="flex flex-col gap-4">
-                            <div className="speech-bubble text-center mb-3">
-                                <p className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-0.5">Résultat manche {currentRound}</p>
-                                <h3 className="text-lg font-black" style={{ color:'#1A1A2E' }}>
-                                    {character.name} · <span style={{ color:'#FF5263' }}>{character.part}</span>
-                                </h3>
+                        <motion.div initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                    className="flex flex-col gap-4 mt-1">
+                            <div className="flex flex-col">
+                                <span className="cm-label">Résultat · Manche {currentRound}</span>
+                                <h3 className="text-lg font-bold">{character.name} <span className="text-[var(--cm-ink-2)] font-medium">· {character.part}</span></h3>
                             </div>
 
-                            <div className="character-box w-full max-w-[260px] mx-auto">
-                                <div className="absolute inset-0 z-0" style={{ backgroundColor: guessCssColor }} />
-                                <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
-                                     style={{ display: imageError ? 'none':'block', width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:5 }} alt="character" />
-                                {imageError && renderSilhouette(character.id, guessCssColor)}
-                            </div>
-
-                            {/* Split compare card */}
-                            <div className="rounded-[24px] overflow-hidden flex flex-col relative"
-                                 style={{ border:'3px solid #1A1A2E', boxShadow:'4px 4px 0px #1A1A2E', minHeight:200 }}>
-                                {/* Your selection */}
-                                <div className="flex-1 p-4 flex justify-between items-center"
-                                     style={{ background: guessCssColor, color: contrastColor }}>
+                            <div className="cm-panel overflow-hidden">
+                                {/* Your guess */}
+                                <div className="p-4 flex items-center justify-between" style={{ background: guessCssColor, color: contrastColor }}>
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-75">Ta proposition</span>
-                                        <span className="text-base font-black font-mono">H{h} S{s} B{b}</span>
+                                        <span className="text-[11px] font-bold uppercase tracking-wide opacity-70">Ta proposition</span>
+                                        <span className="cm-mono text-sm font-bold">H{h} S{s} B{b}</span>
                                     </div>
                                     <div className="flex flex-col items-end">
-                                        <span className="text-4xl font-black">{roundScore !== null ? roundScore.toFixed(1) : '0.0'}</span>
-                                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
-                                            {roundScore >= 9.5 ? '🎯 Parfait !' :
-                                             roundScore >= 9.0 ? '🔥 Excellent !' :
-                                             roundScore >= 8.0 ? '😎 Très proche !' :
-                                             roundScore >= 6.5 ? '👍 Pas mal !' :
-                                             roundScore >= 4.0 ? '😅 À côté' : '😬 Oups !'}
-                                        </span>
+                                        <motion.span initial={reduce ? false : { scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ ...SPRING, delay: 0.15 }}
+                                                     className="text-4xl font-bold leading-none">
+                                            {roundScore !== null ? roundScore.toFixed(1) : '0.0'}
+                                        </motion.span>
+                                        <span className="text-[11px] font-bold uppercase tracking-wide">{roundScore !== null ? scoreLabel(roundScore) : ''}</span>
                                     </div>
                                 </div>
-                                {/* Original */}
-                                <div className="flex-1 p-4 flex justify-between items-center"
-                                     style={{ background: hsbToCss(character.target_h, character.target_s, character.target_b), color: getContrastColor(character.target_h, character.target_s, character.target_b), borderTop:'3px solid #1A1A2E' }}>
+                                {/* Real color */}
+                                <div className="p-4 flex items-center justify-between border-t border-black/20"
+                                     style={{ background: hsbToCss(character.target_h, character.target_s, character.target_b), color: getContrastColor(character.target_h, character.target_s, character.target_b) }}>
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-75">Couleur réelle</span>
-                                        <span className="text-base font-black font-mono">H{character.target_h} S{character.target_s} B{character.target_b}</span>
+                                        <span className="text-[11px] font-bold uppercase tracking-wide opacity-70">Couleur réelle</span>
+                                        <span className="cm-mono text-sm font-bold">H{character.target_h} S{character.target_s} B{character.target_b}</span>
                                     </div>
-                                    <span className="text-2xl">🎨</span>
+                                    <Palette className="w-5 h-5 opacity-80" />
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
-                    {/* ════ GAME END ════ */}
+                    {/* ════════ GAME END ════════ */}
                     {gameState === 'GAME_END' && (
-                        <div className="toon-card p-6 text-center flex flex-col items-center gap-3">
-                            <span className="text-6xl toon-bounce">🏆</span>
-                            <h3 className="text-2xl font-black uppercase" style={{ fontFamily:"'Fredoka One','Nunito',sans-serif", color:'#1A1A2E' }}>
-                                Partie terminée !
-                            </h3>
-                            <p className="text-sm font-bold text-gray-400">Le classement est sur le grand écran 📺</p>
-                            <div className="px-6 py-4 rounded-2xl flex flex-col items-center mt-2"
-                                 style={{ background:'#FFD93D', border:'3px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color:'#1A1A2E' }}>Ton score final</span>
-                                <span className="text-4xl font-black" style={{ color:'#1A1A2E' }}>{myScore.toFixed(1)}</span>
-                                <span className="text-xs font-extrabold" style={{ color:'#1A1A2E' }}>points</span>
+                        <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                    className="cm-panel p-7 mt-8 flex flex-col items-center text-center gap-3">
+                            <span className="w-16 h-16 rounded-2xl grid place-items-center" style={{ background: 'rgba(245,158,11,0.12)' }}>
+                                <Trophy className="w-8 h-8 text-[var(--cm-accent)]" />
+                            </span>
+                            <h3 className="text-2xl font-bold">Partie terminée</h3>
+                            <p className="text-sm text-[var(--cm-ink-2)]">Le classement final est sur le grand écran.</p>
+                            <div className="mt-2 w-full rounded-[var(--cm-r-md)] py-4 flex flex-col items-center" style={{ background: 'var(--cm-bg-2)', border: '1px solid var(--cm-line)' }}>
+                                <span className="cm-label">Ton score final</span>
+                                <span className="text-4xl font-bold text-[var(--cm-accent)]">{myScore.toFixed(1)}</span>
+                                <span className="text-xs text-[var(--cm-ink-2)]">points</span>
                             </div>
-                        </div>
+                        </motion.div>
                     )}
 
-                    {/* ════ SOCIAL PANEL ════ */}
-                    <div className="toon-card p-4 flex flex-col gap-3">
-                        <div className="flex justify-between gap-1.5 p-2 rounded-xl"
-                             style={{ background:'#F9FAFB', border:'2px solid #1A1A2E' }}>
+                    {/* ════════ SOCIAL ════════ */}
+                    <div className="cm-panel p-3.5 flex flex-col gap-3 mt-1">
+                        <div className="flex justify-between gap-1">
                             {['👍','🔥','😂','😱','😮','🎉'].map(emoji => (
                                 <button key={emoji} type="button" onClick={() => sendReaction(emoji)}
-                                        className="text-2xl flex-1 hover:scale-125 active:scale-90 transition-transform">
+                                        className="flex-1 text-2xl py-1.5 rounded-[var(--cm-r-sm)] transition-transform duration-150 hover:scale-125 active:scale-90">
                                     {emoji}
                                 </button>
                             ))}
                         </div>
                         <form onSubmit={sendChatMessage} className="flex gap-2">
-                            <input type="text" maxLength={40} placeholder="Message…" value={chatMsg}
-                                   onChange={(e) => setChatMsg(e.target.value)}
-                                   className="flex-1 px-3 py-2.5 rounded-xl font-extrabold text-xs focus:outline-none"
-                                   style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', color:'#1A1A2E' }} />
-                            <button type="submit" className="toon-btn px-4 py-2.5 text-xs"
-                                    style={{ background:'#00C2B3', color:'#1A1A2E' }}>
-                                Envoyer
+                            <input type="text" maxLength={40} placeholder="Envoyer un message…" value={chatMsg}
+                                   onChange={(e) => setChatMsg(e.target.value)} className="cm-input flex-1 py-2.5 text-sm" />
+                            <button type="submit" className="cm-icon-btn w-11 shrink-0" aria-label="Envoyer">
+                                <Send className="w-4 h-4" />
                             </button>
                         </form>
                     </div>

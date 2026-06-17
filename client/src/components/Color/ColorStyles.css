@@ -1,371 +1,435 @@
-/* ═══════════════════════════════════════════
-   CouleurMoi — Super Toon Design System
-   ═══════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:ital,wght@0,700;0,800;0,900;1,900&display=swap');
+/* ═══════════════════════════════════════════════════════════════
+   Couleur Moi — "Chroma" design system
+   Dark, premium, color-reactive. Aligned with GAME_HUB house style
+   (near-black surfaces, hairline borders, Space Grotesk + Jakarta Sans,
+   amber #f59e0b brand accent). The color the player mixes becomes the
+   live light of the interface via the --live custom property.
+   Everything is scoped under .cm-root so it never leaks into the
+   other games and can safely reset the global uppercase heading rule.
+   ═══════════════════════════════════════════════════════════════ */
 
-:root {
-  --t-dark:   #1A1A2E;
-  --t-coral:  #FF5263;
-  --t-teal:   #00C2B3;
-  --t-yellow: #FFD93D;
-  --t-green:  #4ADE80;
-  --t-purple: #C084FC;
-  --t-orange: #FF9A3C;
-  --t-bg:     #FFFBEB;
-  --t-white:  #FFFFFF;
-  --t-sh:     4px 4px 0px var(--t-dark);
-  --t-sh-sm:  2px 2px 0px var(--t-dark);
-  --t-sh-lg:  7px 7px 0px var(--t-dark);
+.cm-root {
+    /* Surfaces (near-black graphite ramp) */
+    --cm-bg:          #07070b;
+    --cm-bg-2:        #0a0a10;
+    --cm-surface:     #101017;   /* solid panel */
+    --cm-elev:        #16161f;   /* raised element */
+    --cm-glass:       rgba(255, 255, 255, 0.03);
+    --cm-line:        rgba(255, 255, 255, 0.08);
+    --cm-line-strong: rgba(255, 255, 255, 0.14);
+
+    /* Ink (all pass WCAG AA on --cm-bg) */
+    --cm-ink:    #f4f4f5;   /* primary text        ~17:1 */
+    --cm-ink-2:  #a1a1aa;   /* secondary text      ~7:1  */
+    --cm-faint:  #8b8b94;   /* tertiary / labels   ~4.8:1 */
+
+    /* Brand + semantic */
+    --cm-accent:      #f59e0b;   /* CouleurMoi amber (from the hub) */
+    --cm-accent-ink:  #20160a;   /* text on amber, ~10:1 */
+    --cm-accent-rgb:  245, 158, 11;
+    --cm-good:        #34d399;
+    --cm-good-ink:    #052e22;
+    --cm-bad:         #fb7185;
+
+    /* Live color = the picked/target color. Defaults to brand until set. */
+    --live:     var(--cm-accent);
+    --live-ink: var(--cm-accent-ink);
+
+    /* Radius scale (locked: panels 20, controls 14, chips 10, pills full) */
+    --cm-r-lg: 20px;
+    --cm-r-md: 14px;
+    --cm-r-sm: 10px;
+
+    /* Motion */
+    --cm-ease:    cubic-bezier(0.23, 1, 0.32, 1);   /* strong ease-out */
+    --cm-ease-io: cubic-bezier(0.77, 0, 0.175, 1);  /* strong ease-in-out */
+
+    /* Z-index scale (semantic, no magic 9999) */
+    --z-sticky: 20;
+    --z-overlay: 30;
+    --z-reaction: 50;
+
+    background-color: var(--cm-bg);
+    color: var(--cm-ink);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
-/* ── Base ── */
-.color-game-bg {
-    background-color: var(--t-bg) !important;
-    font-family: 'Nunito', 'Space Grotesk', sans-serif !important;
-    min-height: 100vh;
-    color: var(--t-dark);
-    overflow-x: hidden;
+/* Reset the global cyberpunk heading rule (index.css uppercases every h1-h6). */
+.cm-root h1, .cm-root h2, .cm-root h3,
+.cm-root h4, .cm-root h5, .cm-root h6 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    text-transform: none;
+    letter-spacing: -0.02em;
+    margin: 0;
 }
 
-.color-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px;
-}
+.cm-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 
-/* ── Halftone background dots ── */
-.toon-dots {
+/* ── Ambient background: faint grid + a single soft pool of the live color ── */
+.cm-bg-grid {
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 0;
-    background-image: radial-gradient(circle, rgba(26,26,46,0.10) 1.5px, transparent 1.5px);
-    background-size: 22px 22px;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at 50% 18%, #000 0%, transparent 78%);
+    -webkit-mask-image: radial-gradient(circle at 50% 18%, #000 0%, transparent 78%);
+}
+.cm-bg-pool {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(60% 50% at 50% 0%, rgba(var(--cm-accent-rgb), 0.10), transparent 70%);
+    transition: background 0.6s var(--cm-ease);
 }
 
-/* ── Cards ── */
-.toon-card {
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    border-radius: 18px;
-    box-shadow: var(--t-sh-lg);
+/* ── Panel ── */
+.cm-panel {
+    background: var(--cm-surface);
+    border: 1px solid var(--cm-line);
+    border-radius: var(--cm-r-lg);
+}
+.cm-glass {
+    background: var(--cm-glass);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid var(--cm-line);
+    border-radius: var(--cm-r-lg);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+@media (prefers-reduced-transparency: reduce) {
+    .cm-glass { background: var(--cm-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 
 /* ── Buttons ── */
-.toon-btn {
+.cm-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-family: 'Nunito', sans-serif;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    border: 3px solid var(--t-dark);
-    border-radius: 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.95rem;
+    letter-spacing: -0.01em;
+    border-radius: var(--cm-r-md);
+    border: 1px solid transparent;
     cursor: pointer;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
-    box-shadow: var(--t-sh);
-    position: relative;
     white-space: nowrap;
+    transition: transform 0.16s var(--cm-ease), background 0.2s ease,
+                border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
 }
+.cm-btn:active { transform: scale(0.975); }
+.cm-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--cm-accent-rgb), 0.45); }
+.cm-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
-.toon-btn:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0px var(--t-dark); }
-.toon-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0px var(--t-dark); }
-.toon-btn:disabled {
-    background: #D1D5DB !important; color: #9CA3AF !important;
-    border-color: #9CA3AF !important; box-shadow: 2px 2px 0px #9CA3AF !important;
-    cursor: not-allowed; transform: none !important;
+.cm-btn-primary {
+    background: var(--cm-accent);
+    color: var(--cm-accent-ink);
+    box-shadow: 0 8px 24px -10px rgba(var(--cm-accent-rgb), 0.7);
 }
-
-/* ── Shadows util ── */
-.toon-shadow    { box-shadow: var(--t-sh); }
-.toon-shadow-sm { box-shadow: var(--t-sh-sm); }
-.toon-shadow-lg { box-shadow: var(--t-sh-lg); }
-
-/* ── Timer bar ── */
-.timer-container {
-    height: 16px;
-    width: 100%;
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    box-shadow: var(--t-sh-sm);
-    border-radius: 99px;
-    overflow: hidden;
-    margin-bottom: 16px;
+.cm-btn-primary:hover:not(:disabled) {
+    background: #fbb338;
+    box-shadow: 0 12px 30px -10px rgba(var(--cm-accent-rgb), 0.85);
 }
-
-.timer-bar {
-    height: 100%;
-    background: var(--t-teal);
-    transition: width 0.1s linear, background-color 0.5s;
-    border-radius: 99px;
+.cm-btn-ghost {
+    background: var(--cm-glass);
+    border-color: var(--cm-line-strong);
+    color: var(--cm-ink);
 }
+.cm-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.22); }
 
-/* ── Horizontal HSB sliders (player view) ── */
-.hsb-slider-container { margin-bottom: 16px; }
-
-.hsb-slider-label {
-    display: flex;
-    justify-content: space-between;
-    font-weight: 900;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-    margin-bottom: 5px;
-    letter-spacing: 0.06em;
-    color: var(--t-dark);
+/* Live-tinted action: glows with the currently picked color */
+.cm-btn-live {
+    background: var(--live);
+    color: var(--live-ink);
+    box-shadow: 0 10px 30px -10px var(--live);
+    transition: background 0.15s linear, color 0.15s linear,
+                box-shadow 0.2s ease, transform 0.16s var(--cm-ease);
 }
+.cm-btn-live:hover:not(:disabled) { filter: brightness(1.08); }
 
-.hsb-slider-track {
-    position: relative;
-    height: 38px;
-    border: 3px solid var(--t-dark);
-    box-shadow: var(--t-sh-sm);
-    border-radius: 12px;
-    display: flex;
+.cm-icon-btn {
+    display: inline-flex;
     align-items: center;
-    overflow: hidden;
+    justify-content: center;
+    border-radius: var(--cm-r-md);
+    border: 1px solid var(--cm-line);
+    background: var(--cm-glass);
+    color: var(--cm-ink-2);
+    cursor: pointer;
+    transition: transform 0.16s var(--cm-ease), color 0.2s, border-color 0.2s, background 0.2s;
+}
+.cm-icon-btn:hover { color: var(--cm-ink); border-color: var(--cm-line-strong); }
+.cm-icon-btn:active { transform: scale(0.94); }
+.cm-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--cm-accent-rgb), 0.4); }
+
+/* ── Inputs ── */
+.cm-input {
+    width: 100%;
+    background: var(--cm-bg-2);
+    border: 1px solid var(--cm-line-strong);
+    border-radius: var(--cm-r-md);
+    color: var(--cm-ink);
+    padding: 0.8rem 1rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.cm-input::placeholder { color: var(--cm-faint); }
+.cm-input:focus {
+    outline: none;
+    border-color: rgba(var(--cm-accent-rgb), 0.7);
+    box-shadow: 0 0 0 3px rgba(var(--cm-accent-rgb), 0.18);
+    background: var(--cm-surface);
+}
+.cm-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--cm-faint);
 }
 
-.hsb-slider-input {
+/* ── Chips & badges ── */
+.cm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--cm-line);
+    background: var(--cm-glass);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--cm-ink-2);
+}
+.cm-room-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    color: var(--cm-ink);
+}
+
+/* ── The color viewport (character lit by the live color) ── */
+.cm-viewport {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: var(--cm-r-lg);
+    overflow: hidden;
+    border: 1px solid var(--cm-line);
+    background: var(--cm-bg-2);
+    box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.4),
+        0 30px 80px -40px var(--live);
+    transition: box-shadow 0.4s var(--cm-ease);
+}
+.cm-viewport-fill {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    transition: background-color 0.12s linear;
+}
+.cm-viewport-img {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+/* Fallback silhouette SVG (shown only if the image fails to load) */
+.cm-viewport > svg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+}
+/* subtle top sheen so flat color reads as a lit surface, not a paint bucket */
+.cm-viewport::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 28%);
+}
+
+/* ── 2D Saturation × Brightness field ── */
+.cm-field {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1.35 / 1;
+    border-radius: var(--cm-r-md);
+    border: 1px solid var(--cm-line-strong);
+    cursor: crosshair;
+    touch-action: none;
+    overflow: hidden;
+}
+.cm-field-thumb {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    transition: box-shadow 0.2s ease;
+}
+
+/* ── Hue slider ── */
+.cm-hue {
     -webkit-appearance: none;
     appearance: none;
     width: 100%;
-    height: 100%;
-    background: transparent;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--cm-line-strong);
     outline: none;
-    position: relative;
-    z-index: 10;
     cursor: pointer;
     margin: 0;
-    padding: 0;
+    background: linear-gradient(to right,
+        #ff0040 0%, #ffee00 17%, #00ff66 33%, #00e5ff 50%, #2b6bff 67%, #c800ff 83%, #ff0040 100%);
 }
-
-.hsb-slider-input::-webkit-slider-thumb {
+.cm-hue::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 26px;
-    height: 42px;
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    border-radius: 8px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: #fff;
+    border: 3px solid rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.5);
     cursor: pointer;
-    box-shadow: 2px 2px 0px var(--t-dark);
-    transition: transform 0.1s;
+    transition: transform 0.12s var(--cm-ease);
 }
-.hsb-slider-input::-webkit-slider-thumb:hover { transform: scaleY(1.08); }
-.hsb-slider-input::-moz-range-thumb {
-    width: 26px; height: 42px;
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    border-radius: 8px;
+.cm-hue::-webkit-slider-thumb:hover { transform: scale(1.12); }
+.cm-hue::-moz-range-thumb {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: #fff; border: 3px solid rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.5);
     cursor: pointer;
-    box-shadow: 2px 2px 0px var(--t-dark);
+}
+.cm-hue:focus-visible { box-shadow: 0 0 0 3px rgba(var(--cm-accent-rgb), 0.4); }
+
+/* ── Swatch ── */
+.cm-swatch {
+    border-radius: var(--cm-r-sm);
+    border: 1px solid var(--cm-line-strong);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
-/* ── Character display box ── */
-.character-box {
-    position: relative;
-    border: 3px solid var(--t-dark);
-    box-shadow: var(--t-sh-lg);
-    border-radius: 18px;
+/* ── Timer ── */
+.cm-timer-track {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--cm-line);
     overflow: hidden;
-    aspect-ratio: 1;
-    background-color: var(--t-white);
+}
+.cm-timer-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.95s linear, background-color 0.5s ease;
+}
+
+/* ── Player answer status pill ── */
+.cm-status {
     display: flex;
     align-items: center;
-    justify-content: center;
-    transition: background-color 0.15s ease;
+    gap: 8px;
+    padding: 0.55rem 0.7rem;
+    border-radius: var(--cm-r-sm);
+    border: 1px solid var(--cm-line);
+    background: var(--cm-glass);
+    transition: border-color 0.3s var(--cm-ease), background 0.3s var(--cm-ease);
+}
+.cm-status[data-done='true'] {
+    border-color: rgba(52, 211, 153, 0.45);
+    background: rgba(52, 211, 153, 0.08);
 }
 
-/* ── Flip card reveal ── */
-.flip-card { background: transparent; perspective: 1000px; }
-.flip-card-inner {
-    position: relative; width: 100%; height: 100%; text-align: center;
-    transition: transform 0.8s cubic-bezier(0.175,0.885,0.32,1.275);
-    transform-style: preserve-3d;
-}
-.flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
-.flip-card-front, .flip-card-back {
-    position: absolute; width: 100%; height: 100%;
-    -webkit-backface-visibility: hidden; backface-visibility: hidden;
-    border-radius: 18px; border: 3px solid var(--t-dark); box-shadow: var(--t-sh);
-}
-.flip-card-front { background: var(--t-white); }
-.flip-card-back  { background: var(--t-bg); transform: rotateY(180deg); }
-
-/* ── Floating emoji reactions ── */
-@keyframes floatReaction {
-    0%   { transform: translateY(105vh) translateX(0) scale(0.3) rotate(0deg); opacity:0; }
-    10%  { opacity:1; transform: translateY(80vh) translateX(var(--reaction-drift-x-1,15px)) scale(1.5) rotate(var(--reaction-rot-1,10deg)); }
-    50%  { transform: translateY(40vh) translateX(var(--reaction-drift-x-2,-15px)) scale(1.2) rotate(var(--reaction-rot-2,-10deg)); }
-    90%  { opacity:1; }
-    100% { transform: translateY(-15vh) translateX(var(--reaction-drift-x-3,5px)) scale(0.7) rotate(0deg); opacity:0; }
-}
-.floating-reaction {
-    position: fixed; bottom: -50px; font-size: 3.5rem;
-    pointer-events: none; z-index: 1000;
-    animation: floatReaction 4.5s ease-in-out forwards;
+/* ── Avatar ── */
+.cm-avatar {
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--cm-elev);
+    border: 1px solid var(--cm-line-strong);
 }
 
-/* ── Chat overlay ── */
-.host-chat-container {
-    position: absolute; bottom: 24px; left: 24px;
-    width: 300px; max-height: 250px;
-    overflow: hidden; z-index: 50;
-    display: flex; flex-direction: column-reverse; gap: 8px;
-    pointer-events: none;
-}
-.host-chat-bubble {
-    background: var(--t-white);
-    border: 2.5px solid var(--t-dark);
-    box-shadow: var(--t-sh-sm);
-    padding: 7px 12px;
-    border-radius: 10px;
-    animation: slideInChat 0.3s cubic-bezier(0.18,0.89,0.32,1.28) forwards;
-    pointer-events: auto;
-}
-@keyframes slideInChat {
-    from { transform: translateY(30px) scale(0.8); opacity:0; }
-    to   { transform: translateY(0) scale(1);     opacity:1; }
-}
-
-/* ── Vertical sliders (player gameplay panel) ── */
-.vertical-slider-wrap {
-    position: relative; width: 38px; height: 190px;
-    border: 3px solid var(--t-dark); border-radius: 99px;
-    overflow: hidden; box-shadow: var(--t-sh-sm);
-    background: var(--t-white);
-}
-.vertical-slider-track-bg { position: absolute; inset: 0; z-index: 1; }
-.vertical-slider-field {
-    position: absolute; top: 50%; left: 50%;
-    width: 190px; height: 38px;
-    transform: translate(-50%,-50%) rotate(-90deg);
-    -webkit-appearance: none; appearance: none;
-    background: transparent; outline: none;
-    cursor: pointer; margin: 0; z-index: 5;
-}
-.vertical-slider-field::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
-    transition: transform 0.1s;
-}
-.vertical-slider-field::-webkit-slider-thumb:hover { transform: scale(1.15); }
-.vertical-slider-field::-moz-range-thumb {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--t-white); border: 3px solid var(--t-dark);
-    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
-}
-
-/* ── 2D color picker (player gameplay) ── */
-.sb-square {
-    position: relative; width: 100%; aspect-ratio: 1 / 1;
-    border: 3px solid var(--t-dark); border-radius: 16px;
-    box-shadow: var(--t-sh-sm);
-    cursor: crosshair; touch-action: none;
-}
-.sb-thumb {
-    position: absolute; width: 24px; height: 24px;
-    transform: translate(-50%, -50%);
-    border-radius: 50%; border: 3px solid #fff;
-    box-shadow: 0 0 0 2.5px var(--t-dark), 0 2px 5px rgba(0,0,0,0.5);
-    pointer-events: none;
-}
-.hue-slider {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 26px; border-radius: 99px;
-    border: 3px solid var(--t-dark); box-shadow: var(--t-sh-sm);
-    outline: none; cursor: pointer; margin: 0;
-    background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%);
-}
-.hue-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--t-white); border: 3px solid var(--t-dark);
-    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
-}
-.hue-slider::-moz-range-thumb {
-    width: 30px; height: 30px; border-radius: 50%;
-    background: var(--t-white); border: 3px solid var(--t-dark);
-    cursor: pointer; box-shadow: 2px 2px 0px var(--t-dark);
-}
-
-/* ── Speech bubble ── */
-.speech-bubble {
-    position: relative;
-    background: var(--t-white);
-    border: 3px solid var(--t-dark);
-    border-radius: 18px;
-    box-shadow: var(--t-sh);
-    padding: 16px 20px;
-}
-.speech-bubble::after {
-    content: '';
-    position: absolute; bottom: -17px; left: 50%;
-    transform: translateX(-50%);
-    border-left: 12px solid transparent; border-right: 12px solid transparent;
-    border-top: 17px solid var(--t-dark);
-}
-.speech-bubble::before {
-    content: ''; z-index: 1;
-    position: absolute; bottom: -13px; left: 50%;
-    transform: translateX(-50%);
-    border-left: 10px solid transparent; border-right: 10px solid transparent;
-    border-top: 14px solid var(--t-white);
-}
-
-/* ── Silhouette fallback ── */
+/* ── Silhouette fallback (used by ColorSilhouettes.renderSilhouette) ── */
 .silhouette-fallback {
-    position: relative; width: 100%; height: 100%;
+    position: relative;
+    width: 100%; height: 100%;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 24px; text-align: center; font-weight: 800;
+    padding: 24px; text-align: center;
+    font-weight: 700; color: var(--cm-ink);
 }
-.silhouette-fallback svg { width: 100px; height: 100px; margin-bottom: 12px; opacity: 0.6; }
+.silhouette-fallback svg { width: 96px; height: 96px; margin-bottom: 12px; opacity: 0.85; }
 
-/* ── Waiting dots ── */
-@keyframes waitDots { 0%,20%{content:'.';} 40%{content:'..';} 60%,100%{content:'...';} }
-.dots::after { content:'.'; animation: waitDots 1.5s steps(5,end) infinite; }
-
-/* ── Animations ── */
-@keyframes toonBounce {
-    0%,100% { transform: scale(1) rotate(-1.5deg); }
-    50%     { transform: scale(1.05) rotate(1.5deg); }
+/* ── Floating emoji reactions (host) ── */
+@keyframes cmFloatReaction {
+    0%   { transform: translateY(8vh) scale(0.4); opacity: 0; }
+    12%  { opacity: 1; transform: translateY(-6vh) scale(1.2); }
+    100% { transform: translateY(-78vh) translateX(var(--drift, 0)) scale(0.9); opacity: 0; }
 }
-.toon-bounce { animation: toonBounce 2.5s ease-in-out infinite; }
-
-@keyframes popIn {
-    0%  { transform: scale(0.4); opacity:0; }
-    70% { transform: scale(1.12); }
-    100%{ transform: scale(1);   opacity:1; }
+.cm-reaction {
+    position: fixed;
+    bottom: 0;
+    z-index: var(--z-reaction);
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: cmFloatReaction 4.2s var(--cm-ease) forwards;
 }
-.pop-in { animation: popIn 0.4s cubic-bezier(0.18,0.89,0.32,1.28) forwards; }
 
-@keyframes wiggle {
-    0%,100%{ transform: rotate(0deg); }
-    25%    { transform: rotate(-6deg); }
-    75%    { transform: rotate(6deg); }
+/* ── Keyframes ── */
+@keyframes cmPulseDot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.cm-dots::after {
+    content: '';
+    display: inline-block;
+    width: 4px; height: 4px; margin-left: 4px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: cmPulseDot 1.2s ease-in-out infinite;
+    vertical-align: middle;
 }
-.wiggle { animation: wiggle 0.55s ease-in-out; }
 
-@keyframes floatUp {
-    0%,100%{ transform: translateY(0); }
-    50%    { transform: translateY(-8px); }
-}
-.float-up { animation: floatUp 3s ease-in-out infinite; }
+@keyframes cmBreathe { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 0.9; } }
+.cm-breathe { animation: cmBreathe 3.2s ease-in-out infinite; }
 
-@keyframes pulse-title {
-    0%,100% { transform: scale(1) rotate(-1deg); }
-    50%     { transform: scale(1.03) rotate(1deg); }
-}
-.pulse-title { animation: pulse-title 3s ease-in-out infinite; }
+@keyframes cmSpinSlow { to { transform: rotate(360deg); } }
+.cm-spin { animation: cmSpinSlow 0.9s linear infinite; }
 
-@keyframes starSpin {
-    0%   { transform: rotate(0deg)   scale(1); }
-    50%  { transform: rotate(180deg) scale(1.2); }
-    100% { transform: rotate(360deg) scale(1); }
+@keyframes cmShimmer { 100% { background-position: 200% 0; } }
+.cm-skeleton {
+    background: linear-gradient(90deg, var(--cm-elev) 25%, rgba(255,255,255,0.06) 37%, var(--cm-elev) 63%);
+    background-size: 200% 100%;
+    animation: cmShimmer 1.4s linear infinite;
+    border-radius: var(--cm-r-sm);
 }
-.star-spin { display: inline-block; animation: starSpin 6s linear infinite; color: var(--t-yellow); }
+
+/* ── Scrollbar ── */
+.cm-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.cm-scroll::-webkit-scrollbar-track { background: transparent; }
+.cm-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+.cm-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* ── Reduced motion: keep meaning, drop movement ── */
+@media (prefers-reduced-motion: reduce) {
+    .cm-root *,
+    .cm-root *::before,
+    .cm-root *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    .cm-reaction { animation: none; opacity: 1; bottom: 40vh; }
+}

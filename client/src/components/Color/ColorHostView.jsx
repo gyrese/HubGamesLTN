@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { socket } from '../../socket';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
+import {
+    Palette, Users, Minus, Plus, Play, ArrowRight, Trophy, Crown,
+    Clock, Check, X, RotateCcw, LogOut, Hash
+} from 'lucide-react';
+import { socket } from '../../socket';
 import { renderSilhouette, hsbToCss } from './ColorSilhouettes';
 import './ColorStyles.css';
 
 function getImageUrl(imagePath) {
     if (!imagePath) return '';
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath;
-    // Assets frontend (dossier client/public, buildés avec le client) : chemin relatif,
-    // servi par Vite en dev et par le static en prod — surtout pas l'origine de l'API.
     if (imagePath.startsWith('/color/')) return imagePath;
-    // Anciennes images uploadées via l'admin, servies par l'API (/uploads/...)
     const isHttps = window.location.protocol === 'https:';
     const serverPort = isHttps ? 3443 : 3005;
     const base = import.meta.env.VITE_SERVER_URL
@@ -21,11 +23,24 @@ function getImageUrl(imagePath) {
     return `${base}${imagePath}`;
 }
 
-// Palette cyclique pour les joueurs
-const PLAYER_COLORS = ['#FF5263','#00C2B3','#FFD93D','#C084FC','#4ADE80','#FF9A3C','#60A5FA','#F472B6'];
+// Cyclic palette to differentiate players' avatar rings.
+const PLAYER_COLORS = ['#f59e0b','#34d399','#60a5fa','#c084fc','#fb7185','#22d3ee','#a3e635','#f472b6'];
+const SPRING = { type: 'spring', stiffness: 120, damping: 16 };
+const MEDALS = ['#f5b544', '#c9cdd6', '#cd8b5a']; // gold, silver, bronze
+
+function Avatar({ src, name, idx, size = 36, ring }) {
+    return (
+        <div className="cm-avatar grid place-items-center overflow-hidden shrink-0 font-bold text-[#0b0b11]"
+             style={{ width: size, height: size, background: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+                      borderColor: ring || 'var(--cm-line-strong)', borderWidth: ring ? 2 : 1, fontSize: size * 0.4 }}>
+            {src ? <img src={src} alt={name} className="w-full h-full object-cover" /> : (name?.charAt(0).toUpperCase() || '?')}
+        </div>
+    );
+}
 
 function ColorHostView() {
     const navigate = useNavigate();
+    const reduce = useReducedMotion();
     const [searchParams] = useSearchParams();
     const [roomCode, setRoomCode] = useState('');
     const [gameState, setGameState] = useState('LOBBY');
@@ -41,7 +56,6 @@ function ColorHostView() {
     const [imageError, setImageError] = useState(false);
     const [reactions, setReactions] = useState([]);
     const [chatMessages, setChatMessages] = useState([]);
-    const [isRestored, setIsRestored] = useState(false);
 
     const playSound = (type) => {
         try {
@@ -66,8 +80,10 @@ function ColorHostView() {
                 gain.gain.setValueAtTime(0.15, ctx.currentTime);
                 osc.start(); osc.stop(ctx.currentTime + 0.25);
             }
-        } catch (e) {}
+        } catch { /* AudioContext unavailable */ }
     };
+
+    const triggerEndRound = () => socket.emit('color-end-round', { roomCode });
 
     useEffect(() => {
         const urlCode = searchParams.get('code');
@@ -86,7 +102,6 @@ function ColorHostView() {
                         const elapsed = Math.round((Date.now() - response.roundStartTime) / 1000);
                         setTimer(Math.max(0, response.timePerRound - elapsed));
                     }
-                    setIsRestored(true);
                 }
             });
         } else { createFreshRoom(); }
@@ -144,14 +159,10 @@ function ColorHostView() {
         });
         socket.on('color-reaction', ({ emoji, playerName }) => {
             const id = Date.now() + Math.random();
-            const left = Math.random() * 80 + 10;
-            const driftX1 = (Math.random() - 0.5) * 60;
-            const driftX2 = (Math.random() - 0.5) * 80;
-            const driftX3 = (Math.random() - 0.5) * 40;
-            const rot1 = (Math.random() - 0.5) * 30;
-            const rot2 = (Math.random() - 0.5) * 45;
-            setReactions(prev => [...prev, { id, emoji, playerName, left, driftX1, driftX2, driftX3, rot1, rot2 }]);
-            setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 4500);
+            const left = Math.random() * 76 + 12;
+            const drift = `${(Math.random() - 0.5) * 120}px`;
+            setReactions(prev => [...prev, { id, emoji, playerName, left, drift }]);
+            setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 4200);
         });
         socket.on('color-chat-message', (msg) => {
             setChatMessages(prev => [msg, ...prev].slice(0, 5));
@@ -177,7 +188,6 @@ function ColorHostView() {
         return () => clearInterval(interval);
     }, [gameState, timer]);
 
-    const triggerEndRound = () => socket.emit('color-end-round', { roomCode });
     const handleStartGame = () => socket.emit('color-start-game', { roomCode, settings: { roundsCount: totalRounds, timePerRound } });
     const handleNextRound = () => socket.emit('color-next-round', { roomCode });
     const handleRestartGame = () => socket.emit('color-restart-game', { roomCode });
@@ -191,107 +201,87 @@ function ColorHostView() {
     };
 
     const joinUrl = `${window.location.protocol}//${window.location.host}/join/${roomCode}`;
-    const targetHslColor = character ? hsbToCss(character.target_h, character.target_s, character.target_b) : '#fff';
+    const targetColor = character ? hsbToCss(character.target_h, character.target_s, character.target_b) : '#f59e0b';
     const timerPct = (timer / timePerRound) * 100;
-    const timerColor = timer <= 10 ? '#FF5263' : timer <= 20 ? '#FF9A3C' : '#00C2B3';
+    const timerColor = timer <= 10 ? '#fb7185' : timer <= 20 ? '#f59e0b' : '#34d399';
+    // The room is lit by the target color only at the reveal; neutral otherwise.
+    const live = gameState === 'ROUND_END' ? targetColor : '#f59e0b';
 
     return (
-        <div className="color-game-bg flex flex-col min-h-screen relative overflow-hidden">
-            <div className="toon-dots" />
+        <div className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col select-none"
+             style={{ '--live': live }}>
+            <div className="cm-bg-grid" />
+            <div className="cm-bg-pool" style={{ background: `radial-gradient(55% 45% at 50% 0%, ${live}1c, transparent 70%)` }} />
 
             {/* Floating reactions */}
-            <div className="pointer-events-none fixed inset-0 z-50">
+            <div className="pointer-events-none fixed inset-0" style={{ zIndex: 'var(--z-reaction)' }}>
                 {reactions.map(r => (
-                    <div key={r.id} className="floating-reaction flex flex-col items-center"
-                         style={{ left:`${r.left}%`, '--reaction-drift-x-1':`${r.driftX1}px`, '--reaction-drift-x-2':`${r.driftX2}px`, '--reaction-drift-x-3':`${r.driftX3}px`, '--reaction-rot-1':`${r.rot1}deg`, '--reaction-rot-2':`${r.rot2}deg` }}>
-                        <span>{r.emoji}</span>
-                        <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full mt-1 uppercase"
-                              style={{ background:'#1A1A2E', color:'#fff', border:'1.5px solid #1A1A2E' }}>
-                            {r.playerName}
-                        </span>
+                    <div key={r.id} className="cm-reaction" style={{ left: `${r.left}%`, '--drift': r.drift }}>
+                        <span className="text-5xl">{r.emoji}</span>
+                        <span className="cm-chip mt-1 !py-0.5 !text-[10px]">{r.playerName}</span>
                     </div>
                 ))}
             </div>
 
             {/* Chat ticker */}
-            <div className="host-chat-container">
-                {chatMessages.map(m => (
-                    <div key={m.id} className="host-chat-bubble">
-                        <span className="font-extrabold text-xs uppercase mr-1" style={{ color:'#FF5263' }}>{m.playerName} :</span>
-                        <span className="text-xs font-bold" style={{ color:'#1A1A2E' }}>{m.message}</span>
-                    </div>
-                ))}
+            <div className="fixed bottom-5 left-5 w-[300px] max-h-[250px] flex flex-col-reverse gap-2 pointer-events-none" style={{ zIndex: 'var(--z-sticky)' }}>
+                <AnimatePresence>
+                    {chatMessages.map(m => (
+                        <motion.div key={m.id} layout initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
+                                    className="cm-glass px-3 py-2 rounded-[var(--cm-r-sm)] text-sm">
+                            <span className="font-bold text-[var(--cm-accent)] mr-1.5">{m.playerName}</span>
+                            <span className="text-[var(--cm-ink-2)]">{m.message}</span>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
             </div>
 
             {/* ── HEADER ── */}
-            <header className="relative z-10 px-6 py-3 flex justify-between items-center"
-                    style={{ background:'#1A1A2E', borderBottom:'3px solid #1A1A2E' }}>
+            <header className="relative z-10 px-6 lg:px-10 h-16 flex items-center justify-between border-b border-[var(--cm-line)] shrink-0">
                 <div className="flex items-center gap-3">
-                    <span className="text-2xl toon-bounce">🎨</span>
-                    <h1 className="text-2xl font-black text-white tracking-tight"
-                        style={{ fontFamily:"'Fredoka One','Nunito',sans-serif", textShadow:'2px 2px 0px #FF5263' }}>
-                        CouleurMoi
-                    </h1>
+                    <Palette className="w-6 h-6 text-[var(--cm-accent)]" />
+                    <h1 className="text-xl font-bold">Couleur Moi</h1>
                     {gameState !== 'LOBBY' && (
-                        <span className="text-xs font-extrabold uppercase px-3 py-1 rounded-full"
-                              style={{ background:'#FFD93D', color:'#1A1A2E', border:'2px solid #FFD93D', boxShadow:'2px 2px 0px rgba(0,0,0,0.3)' }}>
-                            Manche {currentRound} / {totalRounds}
-                        </span>
+                        <span className="cm-chip ml-1">Manche <span className="cm-mono text-[var(--cm-ink)] ml-1">{currentRound}/{totalRounds}</span></span>
                     )}
                 </div>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl"
-                     style={{ background:'rgba(255,255,255,0.08)', border:'2px solid rgba(255,255,255,0.15)' }}>
-                    <span className="text-xs font-extrabold uppercase tracking-widest text-gray-400">Salon</span>
-                    <span className="text-xl font-black tracking-widest font-mono text-white">{roomCode || '…'}</span>
+                <div className="cm-chip gap-2">
+                    <Hash className="w-3.5 h-3.5 text-[var(--cm-faint)]" />
+                    <span className="cm-room-code text-base">{roomCode || '·····'}</span>
                 </div>
             </header>
 
             {/* ── MAIN ── */}
-            <main className="flex-1 color-container flex flex-col justify-center py-8 z-10 w-full">
+            <main className="relative z-10 flex-1 w-full max-w-[1280px] mx-auto px-6 lg:px-10 py-8 flex flex-col justify-center">
 
-                {/* ════ LOBBY ════ */}
+                {/* ════════ LOBBY ════════ */}
                 {gameState === 'LOBBY' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
-
-                        {/* Left: QR + Settings + Start */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch w-full">
                         <div className="lg:col-span-7 flex flex-col gap-5">
-                            <div className="toon-card p-8">
-                                <h2 className="text-xl font-black uppercase mb-1" style={{ color:'#1A1A2E' }}>
-                                    Rejoindre la partie
-                                </h2>
-                                <p className="text-sm font-bold text-gray-400 mb-6">Scannez le QR code ou saisissez le code</p>
+                            <div className="cm-panel p-7">
+                                <h2 className="text-2xl font-bold">Rejoindre la partie</h2>
+                                <p className="text-sm text-[var(--cm-ink-2)] mt-1 mb-6">Scanne le QR code ou saisis le code sur ton téléphone.</p>
 
                                 <div className="flex flex-col sm:flex-row gap-6 items-center">
-                                    {/* QR */}
-                                    <div className="p-3 rounded-xl flex-shrink-0"
-                                         style={{ background:'#fff', border:'3px solid #1A1A2E', boxShadow:'4px 4px 0px #1A1A2E' }}>
-                                        <QRCodeSVG value={joinUrl} size={140} />
+                                    <div className="p-3 rounded-[var(--cm-r-md)] bg-white shrink-0">
+                                        <QRCodeSVG value={joinUrl} size={150} />
                                     </div>
-
-                                    <div className="flex flex-col gap-3 w-full">
-                                        {/* Room code big display */}
-                                        <div className="text-center py-3 px-4 rounded-xl font-black font-mono text-3xl tracking-[0.2em]"
-                                             style={{ background:'#FFD93D', border:'3px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E', color:'#1A1A2E' }}>
-                                            {roomCode || '…'}
+                                    <div className="flex flex-col gap-4 w-full">
+                                        <div className="rounded-[var(--cm-r-md)] py-4 text-center" style={{ background: 'var(--cm-bg-2)', border: '1px solid var(--cm-line)' }}>
+                                            <div className="cm-label mb-1">Code du salon</div>
+                                            <div className="cm-room-code text-4xl">{roomCode || '·····'}</div>
                                         </div>
-
-                                        {/* Settings */}
-                                        <div className="flex gap-3">
+                                        <div className="grid grid-cols-2 gap-3">
                                             {[
-                                                { label:'Manches', field:'rounds', value:totalRounds, step:1, suffix:'' },
-                                                { label:'Temps', field:'time', value:timePerRound, step:5, suffix:'s' },
+                                                { label: 'Manches', field: 'rounds', value: totalRounds, step: 1, suffix: '' },
+                                                { label: 'Temps', field: 'time', value: timePerRound, step: 5, suffix: 's' },
                                             ].map(({ label, field, value, step, suffix }) => (
-                                                <div key={field} className="flex-1 flex flex-col items-center py-2 px-3 rounded-xl"
-                                                     style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                    <span className="text-[9px] font-extrabold uppercase tracking-wider text-gray-400 mb-1">{label}</span>
-                                                    <div className="flex items-center gap-2">
-                                                        <button onClick={() => adjustSetting(field, -step)}
-                                                                className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center hover:opacity-70 transition-opacity"
-                                                                style={{ background:'#FF5263', color:'#fff', border:'2px solid #1A1A2E' }}>−</button>
-                                                        <span className="font-black text-lg" style={{ color:'#1A1A2E', minWidth:32, textAlign:'center' }}>{value}{suffix}</span>
-                                                        <button onClick={() => adjustSetting(field, step)}
-                                                                className="w-7 h-7 rounded-full font-black text-lg flex items-center justify-center hover:opacity-70 transition-opacity"
-                                                                style={{ background:'#4ADE80', color:'#1A1A2E', border:'2px solid #1A1A2E' }}>+</button>
+                                                <div key={field} className="rounded-[var(--cm-r-md)] py-3 px-3 flex flex-col items-center gap-2" style={{ background: 'var(--cm-bg-2)', border: '1px solid var(--cm-line)' }}>
+                                                    <span className="cm-label">{label}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <button onClick={() => adjustSetting(field, -step)} className="cm-icon-btn w-8 h-8"><Minus className="w-4 h-4" /></button>
+                                                        <span className="cm-mono font-bold text-xl w-12 text-center">{value}{suffix}</span>
+                                                        <button onClick={() => adjustSetting(field, step)} className="cm-icon-btn w-8 h-8"><Plus className="w-4 h-4" /></button>
                                                     </div>
                                                 </div>
                                             ))}
@@ -300,285 +290,188 @@ function ColorHostView() {
                                 </div>
                             </div>
 
-                            {/* Start button */}
-                            <button onClick={handleStartGame} disabled={players.length === 0}
-                                    className="toon-btn w-full py-5 text-xl"
-                                    style={{ background: players.length > 0 ? '#FF5263' : undefined, color: players.length > 0 ? '#fff' : undefined }}>
-                                🚀 Commencer la partie
+                            <button onClick={handleStartGame} disabled={players.length === 0} className="cm-btn cm-btn-primary w-full py-4 text-lg">
+                                <Play className="w-5 h-5" /> Commencer la partie
                             </button>
                         </div>
 
-                        {/* Right: Players */}
-                        <div className="lg:col-span-5 toon-card p-6 flex flex-col"
-                             style={{ minHeight: 380 }}>
-                            <div className="flex justify-between items-center border-b-2 border-gray-100 pb-3 mb-4">
-                                <h2 className="font-black uppercase text-sm tracking-wide" style={{ color:'#1A1A2E' }}>Joueurs</h2>
-                                <span className="text-lg font-black px-3 py-0.5 rounded-full"
-                                      style={{ background:'#FFD93D', color:'#1A1A2E', border:'2px solid #1A1A2E', boxShadow:'1px 1px 0px #1A1A2E' }}>
-                                    {players.length}
-                                </span>
+                        {/* Players */}
+                        <div className="lg:col-span-5 cm-panel p-6 flex flex-col" style={{ minHeight: 400 }}>
+                            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[var(--cm-line)]">
+                                <h2 className="font-bold flex items-center gap-2"><Users className="w-4 h-4 text-[var(--cm-faint)]" /> Joueurs</h2>
+                                <span className="cm-chip cm-mono !text-sm text-[var(--cm-ink)]">{players.length}</span>
                             </div>
-                            <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+                            <div className="cm-scroll flex-1 overflow-y-auto flex flex-col gap-2 -mr-2 pr-2">
                                 {players.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center h-full gap-3 py-8">
-                                        <span className="text-5xl float-up">👀</span>
-                                        <p className="text-sm font-bold text-gray-400">En attente de joueurs <span className="dots" /></p>
+                                    <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center py-10">
+                                        <span className="w-16 h-16 rounded-2xl grid place-items-center cm-breathe" style={{ background: 'rgba(245,158,11,0.1)' }}>
+                                            <Users className="w-7 h-7 text-[var(--cm-accent)]" />
+                                        </span>
+                                        <p className="text-sm text-[var(--cm-ink-2)] flex items-center">En attente de joueurs<span className="cm-dots" /></p>
                                     </div>
-                                ) : players.map((p, i) => (
-                                    <div key={p.id} className="flex items-center justify-between p-3 rounded-xl"
-                                         style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm text-white border-2 border-[#1A1A2E] overflow-hidden flex-shrink-0"
-                                                 style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }}>
-                                                {p.avatar
-                                                    ? <img src={p.avatar} alt="av" className="w-full h-full object-cover" />
-                                                    : p.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span className="font-extrabold text-sm" style={{ color:'#1A1A2E' }}>{p.name}</span>
-                                        </div>
-                                        <button onClick={() => handleKickPlayer(p.id)}
-                                                className="w-7 h-7 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#FF5263] transition-all border-2 border-gray-200 hover:border-[#FF5263]">
-                                            <span className="material-symbols-outlined text-[16px]">close</span>
-                                        </button>
-                                    </div>
-                                ))}
+                                ) : (
+                                    <AnimatePresence>
+                                        {players.map((p, i) => (
+                                            <motion.div key={p.id} layout initial={reduce ? false : { opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }} transition={SPRING}
+                                                        className="cm-status group" data-done="false">
+                                                <Avatar src={p.avatar} name={p.name} idx={i} size={36} />
+                                                <span className="font-semibold flex-1 truncate">{p.name}</span>
+                                                <button onClick={() => handleKickPlayer(p.id)} aria-label={`Exclure ${p.name}`}
+                                                        className="cm-icon-btn w-8 h-8 opacity-0 group-hover:opacity-100 hover:!text-[var(--cm-bad)]">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </motion.div>
+                                        ))}
+                                    </AnimatePresence>
+                                )}
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* ════ PLAYING ════ */}
+                {/* ════════ PLAYING ════════ */}
                 {gameState === 'PLAYING' && character && (
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full">
-
-                        {/* Character box */}
-                        <div className="lg:col-span-5 flex flex-col items-center gap-4">
-                            <div className="character-box w-full max-w-[340px]">
-                                <div className="absolute inset-0 z-0"
-                                     style={{ backgroundColor: hsbToCss(character.random_h||180, character.random_s||50, character.random_b||50) }} />
-                                <img src={getImageUrl(character.image_path)}
-                                     onError={() => setImageError(true)}
-                                     style={{ display: imageError ? 'none':'block', width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:5 }}
-                                     alt="character" />
-                                {imageError && renderSilhouette(character.id, hsbToCss(character.random_h||180, character.random_s||50, character.random_b||50))}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center w-full">
+                        <div className="lg:col-span-5 flex flex-col items-center gap-5">
+                            <div className="cm-viewport w-full max-w-[380px]">
+                                <div className="cm-viewport-fill" style={{ backgroundColor: hsbToCss(character.random_h || 180, character.random_s || 50, character.random_b || 50) }} />
+                                <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
+                                     className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
+                                {imageError && renderSilhouette(character.id, hsbToCss(character.random_h || 180, character.random_s || 50, character.random_b || 50))}
                             </div>
-                            {/* Timer */}
-                            <div className="w-full max-w-[340px]">
-                                <div className="flex justify-between text-xs font-extrabold mb-1" style={{ color:'#1A1A2E' }}>
-                                    <span>⏱ Temps restant</span>
-                                    <span style={{ color: timerColor, fontSize:'1rem' }}>{timer}s</span>
+                            <div className="w-full max-w-[380px]">
+                                <div className="flex items-center justify-between mb-1.5 text-sm font-semibold">
+                                    <span className="flex items-center gap-1.5 text-[var(--cm-ink-2)]"><Clock className="w-4 h-4" /> Temps restant</span>
+                                    <span className="cm-mono text-lg font-bold" style={{ color: timerColor }}>{timer}s</span>
                                 </div>
-                                <div className="timer-container">
-                                    <div className="timer-bar" style={{ width:`${timerPct}%`, background: timerColor }} />
+                                <div className="cm-timer-track">
+                                    <div className="cm-timer-fill" style={{ width: `${timerPct}%`, background: timerColor }} />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Right: Question + Players */}
                         <div className="lg:col-span-7 flex flex-col gap-5">
-                            {/* Speech bubble question */}
-                            <div className="speech-bubble mb-4">
-                                <p className="text-[10px] font-extrabold uppercase tracking-widest text-gray-400 mb-1">{character.source}</p>
-                                <h2 className="text-xl font-black" style={{ color:'#1A1A2E', fontFamily:"'Nunito',sans-serif" }}>
-                                    Quelle est la couleur de{' '}
-                                    <span style={{ color:'#FF5263' }}>{character.part}</span>
-                                    {' '}de{' '}
-                                    <span style={{ color:'#00C2B3' }}>{character.name}</span> ?
+                            <div>
+                                <span className="cm-label">{character.source}</span>
+                                <h2 className="text-3xl lg:text-4xl font-bold leading-tight mt-1 text-balance">
+                                    Quelle est la couleur de <span style={{ color: 'var(--cm-accent)' }}>{character.part}</span> de {character.name} ?
                                 </h2>
                             </div>
 
-                            {/* Player statuses */}
-                            <div className="toon-card p-5">
-                                <h3 className="text-xs font-extrabold uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-2 mb-3">
-                                    Réponses
-                                </h3>
+                            <div className="cm-panel p-5">
+                                <h3 className="cm-label mb-3">Réponses · {players.filter(p => p.hasGuessed).length}/{players.length}</h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                     {players.map((p, i) => (
-                                        <div key={p.id}
-                                             className="flex items-center gap-2 p-2.5 rounded-xl transition-all"
-                                             style={{
-                                                 background: p.hasGuessed ? '#F0FDF4' : '#F9FAFB',
-                                                 border: `2px solid ${p.hasGuessed ? '#4ADE80' : '#E5E7EB'}`,
-                                                 boxShadow: p.hasGuessed ? '2px 2px 0px #4ADE80' : '2px 2px 0px #E5E7EB',
-                                             }}>
-                                            <div className="w-7 h-7 rounded-full border-2 border-[#1A1A2E] flex items-center justify-center font-black text-xs text-white flex-shrink-0 overflow-hidden"
-                                                 style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }}>
-                                                {p.avatar
-                                                    ? <img src={p.avatar} alt="av" className="w-full h-full object-cover" />
-                                                    : p.name.charAt(0).toUpperCase()}
-                                            </div>
-                                            <span className="text-xs font-extrabold truncate" style={{ color: p.hasGuessed ? '#16A34A' : '#6B7280' }}>
-                                                {p.hasGuessed ? '✓ ' : ''}{p.name}
-                                            </span>
+                                        <div key={p.id} className="cm-status" data-done={String(!!p.hasGuessed)}>
+                                            <Avatar src={p.avatar} name={p.name} idx={i} size={28} />
+                                            <span className="text-sm font-semibold truncate flex-1" style={{ color: p.hasGuessed ? 'var(--cm-good)' : 'var(--cm-ink-2)' }}>{p.name}</span>
+                                            {p.hasGuessed && <Check className="w-4 h-4 text-[var(--cm-good)] shrink-0" strokeWidth={3} />}
                                         </div>
                                     ))}
                                 </div>
                             </div>
 
-                            {/* End round early */}
-                            <button onClick={triggerEndRound}
-                                    className="toon-btn w-full py-3 text-sm"
-                                    style={{ background:'#1A1A2E', color:'#fff' }}>
-                                Terminer la manche →
+                            <button onClick={triggerEndRound} className="cm-btn cm-btn-ghost w-full py-3">
+                                Terminer la manche <ArrowRight className="w-4 h-4" />
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* ════ ROUND END ════ */}
+                {/* ════════ ROUND END ════════ */}
                 {gameState === 'ROUND_END' && character && (
                     <div className="flex flex-col gap-6 w-full">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-
-                            {/* Target reveal */}
-                            <div className="toon-card p-6 flex flex-col items-center">
-                                <span className="text-[10px] font-extrabold uppercase tracking-widest mb-2 px-3 py-1 rounded-full"
-                                      style={{ background:'#4ADE80', color:'#1A1A2E', border:'2px solid #1A1A2E', boxShadow:'1px 1px 0px #1A1A2E' }}>
-                                    ✓ Couleur Cible
+                            <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                        className="cm-panel p-6 flex flex-col items-center">
+                                <span className="cm-chip mb-4" style={{ borderColor: 'rgba(52,211,153,0.4)', color: 'var(--cm-good)' }}>
+                                    <Check className="w-3.5 h-3.5" /> Couleur cible révélée
                                 </span>
-                                <div className="character-box w-[210px] mb-4">
-                                    <div className="absolute inset-0 z-0" style={{ backgroundColor: targetHslColor }} />
+                                <div className="cm-viewport w-[230px] mb-4">
+                                    <div className="cm-viewport-fill" style={{ backgroundColor: targetColor }} />
                                     <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
-                                         style={{ display: imageError ? 'none':'block', width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:5 }} alt="character" />
-                                    {imageError && renderSilhouette(character.id, targetHslColor)}
+                                         className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
+                                    {imageError && renderSilhouette(character.id, targetColor)}
                                 </div>
-                                <h3 className="font-black text-lg text-center" style={{ color:'#1A1A2E' }}>
-                                    {character.name} <span className="text-gray-400 font-bold">·</span> {character.part}
-                                </h3>
-                                <div className="flex gap-3 mt-2">
+                                <h3 className="text-xl font-bold text-center">{character.name} <span className="text-[var(--cm-ink-2)] font-medium">· {character.part}</span></h3>
+                                <div className="flex gap-2 mt-3">
                                     {[['H', character.target_h, '°'], ['S', character.target_s, '%'], ['B', character.target_b, '%']].map(([l, v, u]) => (
-                                        <span key={l} className="font-mono text-xs font-extrabold px-2 py-1 rounded-lg"
-                                              style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', boxShadow:'1px 1px 0px #1A1A2E', color:'#1A1A2E' }}>
-                                            {l}: {v}{u}
-                                        </span>
+                                        <span key={l} className="cm-chip cm-mono">{l} {v}{u}</span>
                                     ))}
                                 </div>
-                            </div>
+                            </motion.div>
 
-                            {/* Round scores */}
-                            <div className="toon-card p-6 flex flex-col" style={{ maxHeight:380 }}>
-                                <h3 className="font-black uppercase text-sm tracking-wide mb-4 border-b-2 border-gray-100 pb-3"
-                                    style={{ color:'#FF5263' }}>
-                                    🏅 Classement manche
-                                </h3>
-                                <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+                            <div className="cm-panel p-6 flex flex-col" style={{ maxHeight: 420 }}>
+                                <h3 className="font-bold flex items-center gap-2 pb-3 mb-3 border-b border-[var(--cm-line)]"><Trophy className="w-4 h-4 text-[var(--cm-accent)]" /> Classement de la manche</h3>
+                                <div className="cm-scroll flex-1 overflow-y-auto flex flex-col gap-2 -mr-2 pr-2">
                                     {roundResults.map((r, i) => {
-                                        const guessColor = r.guess ? hsbToCss(r.guess.h, r.guess.s, r.guess.b) : '#ccc';
-                                        const medal = ['🥇','🥈','🥉'][i] || `${i+1}.`;
+                                        const guessColor = r.guess ? hsbToCss(r.guess.h, r.guess.s, r.guess.b) : '#333';
                                         return (
-                                            <div key={r.id} className="flex items-center justify-between p-3 rounded-xl"
-                                                 style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-lg">{medal}</span>
-                                                    <div className="w-8 h-8 rounded-full border-2 border-[#1A1A2E] flex-shrink-0 overflow-hidden flex items-center justify-center font-black text-xs text-white"
-                                                         style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }}>
-                                                        {r.avatar ? <img src={r.avatar} alt="av" className="w-full h-full object-cover" /> : r.name.charAt(0)}
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-extrabold text-sm" style={{ color:'#1A1A2E' }}>{r.name}</p>
-                                                        {r.hintUsed && <p className="text-[9px] font-bold text-amber-500 uppercase">💡 Indice utilisé</p>}
-                                                    </div>
+                                            <motion.div key={r.id} initial={reduce ? false : { opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} transition={{ ...SPRING, delay: i * 0.05 }}
+                                                        className="cm-status">
+                                                <span className="cm-mono text-sm font-bold w-5 text-center" style={{ color: i < 3 ? MEDALS[i] : 'var(--cm-faint)' }}>{i + 1}</span>
+                                                <Avatar src={r.avatar} name={r.name} idx={i} size={32} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-sm truncate">{r.name}</p>
+                                                    {r.hintUsed && <p className="text-[10px] text-[var(--cm-accent)] font-semibold">Indice utilisé</p>}
                                                 </div>
-                                                <div className="flex items-center gap-2">
-                                                    {r.guess && (
-                                                        <div className="w-7 h-7 rounded-lg border-2 border-[#1A1A2E]" style={{ background: guessColor, boxShadow:'1px 1px 0px #1A1A2E' }} />
-                                                    )}
-                                                    <span className="font-black text-sm px-2.5 py-1 rounded-lg"
-                                                          style={{ background:'#FFD93D', color:'#1A1A2E', border:'2px solid #1A1A2E', boxShadow:'1px 1px 0px #1A1A2E', minWidth:60, textAlign:'center' }}>
-                                                        {r.roundScore.toFixed(2)}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                                {r.guess && <span className="cm-swatch w-7 h-7 shrink-0" style={{ background: guessColor }} />}
+                                                <span className="cm-mono font-bold text-sm w-14 text-right">{r.roundScore.toFixed(2)}</span>
+                                            </motion.div>
                                         );
                                     })}
                                 </div>
                             </div>
                         </div>
 
-                        <button onClick={handleNextRound}
-                                className="toon-btn w-full py-5 text-xl"
-                                style={{ background:'#00C2B3', color:'#1A1A2E' }}>
-                            {currentRound === totalRounds ? '🏆 Voir les résultats finaux' : '➡ Manche Suivante'}
+                        <button onClick={handleNextRound} className="cm-btn cm-btn-primary w-full py-4 text-lg">
+                            {currentRound === totalRounds ? <><Trophy className="w-5 h-5" /> Voir le classement final</> : <>Manche suivante <ArrowRight className="w-5 h-5" /></>}
                         </button>
                     </div>
                 )}
 
-                {/* ════ GAME END ════ */}
+                {/* ════════ GAME END ════════ */}
                 {gameState === 'GAME_END' && (
                     <div className="flex flex-col gap-8 w-full items-center">
-                        <h2 className="text-5xl font-black text-center pulse-title"
-                            style={{ fontFamily:"'Fredoka One','Nunito',sans-serif", color:'#1A1A2E', textShadow:'4px 4px 0px #FFD93D' }}>
-                            🏆 Classement Final
-                        </h2>
+                        <motion.h2 initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+                                   className="text-4xl lg:text-5xl font-bold text-center flex items-center gap-3">
+                            <Trophy className="w-9 h-9 text-[var(--cm-accent)]" /> Classement final
+                        </motion.h2>
 
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full items-start">
-
-                            {/* Podium */}
                             <div className="lg:col-span-7 flex flex-col gap-6 items-center">
-                                <div className="flex items-end justify-center w-full max-w-[500px] h-[320px] rounded-2xl p-6 relative"
-                                     style={{ background:'#FFFFFF', border:'3px solid #1A1A2E', boxShadow:'6px 6px 0px #1A1A2E' }}>
-
-                                    {/* 2nd */}
-                                    {finalResults[1] && (
-                                        <div className="flex flex-col items-center w-1/3">
-                                            <div className="w-12 h-12 rounded-full border-3 border-[#1A1A2E] overflow-hidden mb-1 flex items-center justify-center font-black text-white"
-                                                 style={{ background:'#C0C0C0', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                {finalResults[1].avatar ? <img src={finalResults[1].avatar} alt="av" className="w-full h-full object-cover" /> : finalResults[1].name.charAt(0)}
-                                            </div>
-                                            <span className="text-xs font-black truncate max-w-[70px] mb-1" style={{ color:'#1A1A2E' }}>{finalResults[1].name}</span>
-                                            <div className="w-full rounded-t-xl flex flex-col items-center justify-center py-4 h-[90px]"
-                                                 style={{ background:'#C0C0C0', border:'3px solid #1A1A2E', borderBottom:'none', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                <span className="text-2xl font-black" style={{ color:'#1A1A2E' }}>2</span>
-                                                <span className="text-[10px] font-bold" style={{ color:'#1A1A2E' }}>{finalResults[1].totalScore.toFixed(1)} pts</span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* 1st */}
-                                    {finalResults[0] && (
-                                        <div className="flex flex-col items-center w-1/3 z-10">
-                                            <span className="text-3xl mb-1">👑</span>
-                                            <div className="w-16 h-16 rounded-full border-4 overflow-hidden mb-1 flex items-center justify-center font-black text-white text-lg"
-                                                 style={{ borderColor:'#FFD93D', background:'#FFD93D', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                                                {finalResults[0].avatar ? <img src={finalResults[0].avatar} alt="av" className="w-full h-full object-cover" /> : finalResults[0].name.charAt(0)}
-                                            </div>
-                                            <span className="text-sm font-black truncate max-w-[90px] mb-1" style={{ color:'#1A1A2E' }}>{finalResults[0].name}</span>
-                                            <div className="w-full rounded-t-xl flex flex-col items-center justify-center py-6 h-[130px]"
-                                                 style={{ background:'#FFD93D', border:'3px solid #1A1A2E', borderBottom:'none', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                                                <span className="text-4xl font-black" style={{ color:'#1A1A2E' }}>1</span>
-                                                <span className="text-xs font-extrabold" style={{ color:'#1A1A2E' }}>{finalResults[0].totalScore.toFixed(1)} pts</span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* 3rd */}
-                                    {finalResults[2] && (
-                                        <div className="flex flex-col items-center w-1/3">
-                                            <div className="w-10 h-10 rounded-full border-2 border-[#1A1A2E] overflow-hidden mb-1 flex items-center justify-center font-black text-white"
-                                                 style={{ background:'#CD7F32', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                {finalResults[2].avatar ? <img src={finalResults[2].avatar} alt="av" className="w-full h-full object-cover" /> : finalResults[2].name.charAt(0)}
-                                            </div>
-                                            <span className="text-xs font-black truncate max-w-[70px] mb-1" style={{ color:'#6B7280' }}>{finalResults[2].name}</span>
-                                            <div className="w-full rounded-t-xl flex flex-col items-center justify-center py-3 h-[65px]"
-                                                 style={{ background:'#CD7F32', border:'3px solid #1A1A2E', borderBottom:'none', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                                <span className="text-xl font-black text-white">3</span>
-                                                <span className="text-[9px] font-bold text-white">{finalResults[2].totalScore.toFixed(1)} pts</span>
-                                            </div>
-                                        </div>
-                                    )}
+                                {/* Podium */}
+                                <div className="flex items-end justify-center gap-3 w-full max-w-[520px] h-[300px]">
+                                    {[1, 0, 2].map((rank) => {
+                                        const p = finalResults[rank];
+                                        if (!p) return <div key={rank} className="w-1/3" />;
+                                        const heights = { 0: 200, 1: 150, 2: 120 };
+                                        const delays = { 0: 0.15, 1: 0.3, 2: 0.45 };
+                                        return (
+                                            <motion.div key={p.id} initial={reduce ? false : { opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING, delay: delays[rank] }}
+                                                        className="flex flex-col items-center w-1/3">
+                                                {rank === 0 && <Crown className="w-7 h-7 mb-1" style={{ color: MEDALS[0] }} />}
+                                                <Avatar src={p.avatar} name={p.name} idx={rank} size={rank === 0 ? 60 : 46} ring={MEDALS[rank]} />
+                                                <span className="font-bold text-sm truncate max-w-full mt-2 mb-2 px-1">{p.name}</span>
+                                                <div className="w-full rounded-t-[var(--cm-r-md)] flex flex-col items-center justify-start pt-4 cm-panel !border-b-0"
+                                                     style={{ height: heights[rank], borderColor: `${MEDALS[rank]}55`, background: `linear-gradient(180deg, ${MEDALS[rank]}1f, var(--cm-surface))` }}>
+                                                    <span className="text-3xl font-bold" style={{ color: MEDALS[rank] }}>{rank === 0 ? 1 : rank === 1 ? 2 : 3}</span>
+                                                    <span className="cm-mono text-sm text-[var(--cm-ink-2)] mt-1">{p.totalScore.toFixed(1)} pts</span>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
                                 </div>
 
-                                {/* Awards */}
                                 {awards.length > 0 && (
                                     <div className="flex flex-wrap gap-3 justify-center">
                                         {awards.map(aw => (
-                                            <div key={aw.type} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                                                 style={{ background:'#fff', border:'2px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }}>
+                                            <div key={aw.type} className="cm-glass flex items-center gap-3 px-4 py-2.5 rounded-[var(--cm-r-md)]">
                                                 <span className="text-2xl">{aw.icon}</span>
                                                 <div>
-                                                    <p className="text-[9px] font-extrabold uppercase tracking-wider" style={{ color:'#FF5263' }}>{aw.title}</p>
-                                                    <p className="text-sm font-black" style={{ color:'#1A1A2E' }}>{aw.playerName}</p>
-                                                    <p className="text-[9px] text-gray-400">{aw.value}</p>
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--cm-accent)]">{aw.title}</p>
+                                                    <p className="text-sm font-bold">{aw.playerName}</p>
+                                                    <p className="text-[10px] text-[var(--cm-faint)]">{aw.value}</p>
                                                 </div>
                                             </div>
                                         ))}
@@ -586,44 +479,24 @@ function ColorHostView() {
                                 )}
                             </div>
 
-                            {/* Full leaderboard */}
-                            <div className="lg:col-span-5 toon-card p-6 flex flex-col" style={{ maxHeight:380 }}>
-                                <h3 className="font-black uppercase text-sm mb-4 border-b-2 border-gray-100 pb-3" style={{ color:'#1A1A2E' }}>
-                                    Scores finaux
-                                </h3>
-                                <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+                            <div className="lg:col-span-5 cm-panel p-6 flex flex-col" style={{ maxHeight: 400 }}>
+                                <h3 className="font-bold pb-3 mb-3 border-b border-[var(--cm-line)]">Scores finaux</h3>
+                                <div className="cm-scroll flex-1 overflow-y-auto flex flex-col gap-2 -mr-2 pr-2">
                                     {finalResults.map((r, i) => (
-                                        <div key={r.id} className="flex items-center justify-between p-3 rounded-xl"
-                                             style={{ background:'#F9FAFB', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-base">{['🥇','🥈','🥉'][i] || `${i+1}.`}</span>
-                                                <div className="w-8 h-8 rounded-full border-2 border-[#1A1A2E] flex-shrink-0 overflow-hidden flex items-center justify-center font-black text-xs text-white"
-                                                     style={{ background: PLAYER_COLORS[i % PLAYER_COLORS.length] }}>
-                                                    {r.avatar ? <img src={r.avatar} alt="av" className="w-full h-full object-cover" /> : r.name.charAt(0)}
-                                                </div>
-                                                <span className="font-extrabold text-sm" style={{ color:'#1A1A2E' }}>{r.name}</span>
-                                            </div>
-                                            <span className="font-black text-sm px-2.5 py-1 rounded-lg"
-                                                  style={{ background:'#FFD93D', color:'#1A1A2E', border:'2px solid #1A1A2E', boxShadow:'1px 1px 0px #1A1A2E' }}>
-                                                {r.totalScore.toFixed(2)} pts
-                                            </span>
+                                        <div key={r.id} className="cm-status">
+                                            <span className="cm-mono text-sm font-bold w-5 text-center" style={{ color: i < 3 ? MEDALS[i] : 'var(--cm-faint)' }}>{i + 1}</span>
+                                            <Avatar src={r.avatar} name={r.name} idx={i} size={32} />
+                                            <span className="font-semibold text-sm flex-1 truncate">{r.name}</span>
+                                            <span className="cm-mono font-bold text-sm">{r.totalScore.toFixed(2)}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-4 w-full max-w-[560px]">
-                            <button onClick={handleRestartGame}
-                                    className="toon-btn flex-1 py-4 text-lg"
-                                    style={{ background:'#FF5263', color:'#fff' }}>
-                                🔄 Rejouer
-                            </button>
-                            <button onClick={() => navigate('/color')}
-                                    className="toon-btn flex-1 py-4 text-lg"
-                                    style={{ background:'#1A1A2E', color:'#fff' }}>
-                                🚪 Quitter
-                            </button>
+                        <div className="flex gap-3 w-full max-w-[520px]">
+                            <button onClick={handleRestartGame} className="cm-btn cm-btn-primary flex-1 py-3.5"><RotateCcw className="w-4 h-4" /> Rejouer</button>
+                            <button onClick={() => navigate('/color')} className="cm-btn cm-btn-ghost flex-1 py-3.5"><LogOut className="w-4 h-4" /> Quitter</button>
                         </div>
                     </div>
                 )}

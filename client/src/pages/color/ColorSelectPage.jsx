@@ -1,115 +1,116 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
+import { Palette, MonitorPlay, Smartphone, ArrowRight, ArrowLeft } from 'lucide-react';
+import { hsbToCss } from '../../components/Color/ColorSilhouettes';
 import '../../components/Color/ColorStyles.css';
 
-const BLOBS = [
-    { top:'8%',  left:'6%',  size:80,  bg:'#FF5263', rot:'-18deg', delay:'0s' },
-    { top:'15%', right:'8%', size:56,  bg:'#00C2B3', rot:'12deg',  delay:'0.4s' },
-    { top:'70%', left:'4%',  size:64,  bg:'#C084FC', rot:'22deg',  delay:'0.8s' },
-    { top:'72%', right:'5%', size:72,  bg:'#FFD93D', rot:'-10deg', delay:'1.2s' },
-    { top:'40%', left:'2%',  size:40,  bg:'#4ADE80', rot:'35deg',  delay:'0.3s' },
-    { top:'45%', right:'3%', size:44,  bg:'#FF9A3C', rot:'-25deg', delay:'0.9s' },
-];
+/**
+ * Slowly cycles the live accent color through the hue spectrum so the whole
+ * entry screen subtly breathes color — a quiet nod to the game itself.
+ * Honors prefers-reduced-motion (locks to the brand amber).
+ */
+function useHueCycle(enabled) {
+    const [hue, setHue] = useState(38); // start near amber
+    useEffect(() => {
+        if (!enabled) return;
+        const id = setInterval(() => setHue((h) => (h + 1.2) % 360), 90);
+        return () => clearInterval(id);
+    }, [enabled]);
+    return hue;
+}
 
 function ColorSelectPage() {
     const navigate = useNavigate();
+    const reduce = useReducedMotion();
+    const hue = useHueCycle(!reduce);
+    const live = reduce ? '#f59e0b' : hsbToCss(hue, 82, 96);
+
+    const enter = {
+        hidden: { opacity: 0, y: 18 },
+        show: (i) => ({
+            opacity: 1, y: 0,
+            transition: { type: 'spring', stiffness: 120, damping: 16, delay: 0.06 * i },
+        }),
+    };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden select-none"
-             style={{ background: '#FFFBEB' }}>
+        <div
+            className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col items-center justify-center px-5 py-10 select-none"
+            style={{ '--live': live, '--live-ink': '#0c0a07' }}
+        >
+            <div className="cm-bg-grid" />
+            <div
+                className="cm-bg-pool"
+                style={{ background: `radial-gradient(60% 50% at 50% 8%, ${live}26, transparent 70%)` }}
+            />
 
-            {/* Halftone dots */}
-            <div className="toon-dots" />
+            {/* Back */}
+            <button
+                onClick={() => navigate('/')}
+                className="cm-icon-btn absolute top-5 left-5 h-10 px-3.5 gap-2 text-sm z-10"
+            >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Accueil</span>
+            </button>
 
-            {/* Decorative blobs */}
-            {BLOBS.map((b, i) => (
-                <div key={i}
-                     className="absolute rounded-full border-[3px] border-[#1A1A2E] float-up"
-                     style={{
-                         top: b.top, left: b.left, right: b.right,
-                         width: b.size, height: b.size,
-                         background: b.bg,
-                         transform: `rotate(${b.rot})`,
-                         animationDelay: b.delay,
-                         boxShadow: '3px 3px 0px #1A1A2E',
-                         zIndex: 1,
-                     }}
-                />
-            ))}
+            <main className="relative z-10 w-full max-w-md flex flex-col items-center text-center">
+                {/* Brand mark */}
+                <motion.div
+                    custom={0} variants={enter} initial="hidden" animate="show"
+                    className="cm-glass w-16 h-16 rounded-2xl flex items-center justify-center mb-6"
+                    style={{ boxShadow: `0 18px 50px -22px ${live}` }}
+                >
+                    <Palette className="w-7 h-7" style={{ color: live }} />
+                </motion.div>
 
-            {/* Stars decoration */}
-            <span className="absolute top-[22%] left-[14%] text-3xl star-spin" style={{ animationDuration:'5s', zIndex:2 }}>✦</span>
-            <span className="absolute top-[30%] right-[13%] text-2xl star-spin" style={{ animationDuration:'7s', animationDirection:'reverse', zIndex:2 }}>★</span>
-            <span className="absolute bottom-[20%] left-[18%] text-xl star-spin" style={{ animationDuration:'6s', zIndex:2 }}>✦</span>
+                <motion.h1
+                    custom={1} variants={enter} initial="hidden" animate="show"
+                    className="text-[clamp(2.6rem,11vw,3.6rem)] font-bold leading-[0.95] tracking-[-0.03em] text-balance"
+                >
+                    Couleur <span style={{ color: live, transition: 'color .2s linear' }}>Moi</span>
+                </motion.h1>
 
-            {/* Main content */}
-            <main className="w-full max-w-[460px] relative z-10 flex flex-col items-center gap-6">
+                <motion.p
+                    custom={2} variants={enter} initial="hidden" animate="show"
+                    className="mt-4 text-[15px] leading-relaxed text-[var(--cm-ink-2)] max-w-sm"
+                >
+                    Recrée la couleur exacte de personnages cultes. Le plus précis gagne.
+                </motion.p>
 
-                {/* Logo */}
-                <div className="text-center">
-                    <div className="inline-flex items-center justify-center w-28 h-28 rounded-[24px] mb-4 toon-bounce"
-                         style={{ background:'#FFD93D', border:'4px solid #1A1A2E', boxShadow:'5px 5px 0px #1A1A2E' }}>
-                        <span style={{ fontSize: 56 }}>🎨</span>
-                    </div>
-
-                    <h1 className="text-[4.5rem] font-black leading-none tracking-tight mb-2"
-                        style={{
-                            fontFamily: "'Fredoka One', 'Nunito', sans-serif",
-                            color: '#1A1A2E',
-                            textShadow: '4px 4px 0px #FF5263',
-                            transform: 'rotate(-2deg)',
-                            display: 'inline-block',
-                        }}>
-                        CouleurMoi
-                    </h1>
-
-                    <div className="flex items-center justify-center gap-2 mt-3">
-                        <span className="inline-flex items-center gap-1.5 px-4 py-1.5 font-extrabold text-xs uppercase tracking-widest text-white rounded-full"
-                              style={{ background:'#00C2B3', border:'2px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
-                            🌈 Devine la couleur exacte !
+                {/* Actions */}
+                <motion.div
+                    custom={3} variants={enter} initial="hidden" animate="show"
+                    className="mt-9 w-full flex flex-col gap-3"
+                >
+                    <button
+                        onClick={() => navigate('/color/host')}
+                        className="cm-btn cm-btn-primary group w-full p-4 justify-start gap-4"
+                    >
+                        <span className="w-11 h-11 rounded-xl grid place-items-center bg-black/15 shrink-0">
+                            <MonitorPlay className="w-5 h-5" />
                         </span>
-                    </div>
-                </div>
-
-                {/* Action card */}
-                <div className="w-full rounded-2xl p-6 flex flex-col gap-4"
-                     style={{ background:'#FFFFFF', border:'3px solid #1A1A2E', boxShadow:'7px 7px 0px #1A1A2E' }}>
-
-                    <button onClick={() => navigate('/color/host')}
-                            className="toon-btn w-full py-5 text-lg"
-                            style={{ background:'#FF5263', color:'#fff' }}>
-                        <span style={{ fontSize:22 }}>🎮</span>
-                        Créer une partie
+                        <span className="flex flex-col items-start leading-tight">
+                            <span className="text-base font-semibold">Créer une partie</span>
+                            <span className="text-xs font-medium opacity-70">Sur grand écran, en tant qu'hôte</span>
+                        </span>
+                        <ArrowRight className="w-5 h-5 ml-auto transition-transform duration-200 group-hover:translate-x-1" />
                     </button>
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex-1 h-[2px]" style={{ background:'#E5E7EB' }} />
-                        <span className="text-xs font-extrabold text-gray-400 uppercase tracking-widest">ou</span>
-                        <div className="flex-1 h-[2px]" style={{ background:'#E5E7EB' }} />
-                    </div>
-
-                    <button onClick={() => navigate('/color/play')}
-                            className="toon-btn w-full py-5 text-lg"
-                            style={{ background:'#1A1A2E', color:'#fff' }}>
-                        <span style={{ fontSize:22 }}>👾</span>
-                        Rejoindre une partie
-                    </button>
-                </div>
-
-                {/* Petit label fun */}
-                <div className="flex gap-3 flex-wrap justify-center">
-                    {['Toon', 'Multijoueur', 'Temps réel'].map(tag => (
-                        <span key={tag}
-                              className="text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full"
-                              style={{ background:'#F3F4F6', border:'2px solid #1A1A2E', color:'#1A1A2E', boxShadow:'1px 1px 0px #1A1A2E' }}>
-                            {tag}
+                    <button
+                        onClick={() => navigate('/color/play')}
+                        className="cm-btn cm-btn-ghost group w-full p-4 justify-start gap-4"
+                    >
+                        <span className="w-11 h-11 rounded-xl grid place-items-center bg-white/5 shrink-0">
+                            <Smartphone className="w-5 h-5" style={{ color: live }} />
                         </span>
-                    ))}
-                </div>
-
-                <button onClick={() => navigate('/')}
-                        className="text-xs font-extrabold text-gray-400 hover:text-gray-600 uppercase tracking-widest flex items-center gap-1 transition-colors">
-                    ← Retour au menu
-                </button>
+                        <span className="flex flex-col items-start leading-tight">
+                            <span className="text-base font-semibold">Rejoindre une partie</span>
+                            <span className="text-xs font-medium text-[var(--cm-faint)]">Sur ton téléphone, avec un code</span>
+                        </span>
+                        <ArrowRight className="w-5 h-5 ml-auto transition-transform duration-200 group-hover:translate-x-1" />
+                    </button>
+                </motion.div>
             </main>
         </div>
     );
