@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
-const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api`;
+// Même logique d'URL que le reste de l'admin : relatif en prod (servi par le serveur),
+// origine API (3443 en HTTPS, 3005 en HTTP) en dev. Le port 3001 codé en dur était faux.
+const isHttps = window.location.protocol === 'https:';
+const serverPort = isHttps ? 3443 : 3005;
+const API_URL = import.meta.env.VITE_SERVER_URL
+    ? `${import.meta.env.VITE_SERVER_URL}/api`
+    : (!import.meta.env.DEV ? '/api' : `${window.location.protocol}//${window.location.hostname}:${serverPort}/api`);
 
 function Login({ onLoginSuccess }) {
     const [password, setPassword] = useState('');
