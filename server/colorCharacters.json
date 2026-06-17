@@ -1,156 +1,6 @@
 [
   {
-    "id": "bugsbunny",
-    "name": "Bugs Bunny",
-    "part": "Le pelage",
-    "source": "Looney Tunes",
-    "target_h": 190,
-    "target_s": 7,
-    "target_b": 72,
-    "image_path": "/color/bugsbunny.webp"
-  },
-  {
-    "id": "cartman",
-    "name": "Eric Cartman",
-    "part": "Le manteau",
-    "source": "South Park",
-    "target_h": 349,
-    "target_s": 87,
-    "target_b": 84,
-    "image_path": "/color/cartman.webp"
-  },
-  {
-    "id": "donald-jacket",
-    "name": "Donald Duck",
-    "part": "La veste de marin",
-    "source": "Donald Duck",
-    "target_h": 220,
-    "target_s": 95,
-    "target_b": 70,
-    "image_path": "/color/donald.webp"
-  },
-  {
-    "id": "doraemon-body",
-    "name": "Doraemon",
-    "part": "Le corps bleu",
-    "source": "Doraemon",
-    "target_h": 200,
-    "target_s": 85,
-    "target_b": 90,
-    "image_path": "/color/doraemon.webp"
-  },
-  {
-    "id": "garfield-fur",
-    "name": "Garfield",
-    "part": "Le pelage",
-    "source": "Garfield",
-    "target_h": 28,
-    "target_s": 90,
-    "target_b": 95,
-    "image_path": "/color/garfield.webp"
-  },
-  {
-    "id": "goku-hair",
-    "name": "Goku",
-    "part": "Le kimono",
-    "source": "Dragon Ball Z",
-    "target_h": 21,
-    "target_s": 84,
-    "target_b": 94,
-    "image_path": "/color/goku.webp"
-  },
-  {
-    "id": "goofy",
-    "name": "Dingo",
-    "part": "Le chapeau",
-    "source": "Mickey Mouse",
-    "target_h": 70,
-    "target_s": 60,
-    "target_b": 86,
-    "image_path": "/color/goofy.webp"
-  },
-  {
-    "id": "homer-skin",
-    "name": "Homer Simpson",
-    "part": "La peau",
-    "source": "Les Simpson",
-    "target_h": 47,
-    "target_s": 95,
-    "target_b": 95,
-    "image_path": "/color/homer.webp"
-  },
-  {
-    "id": "luckyluke",
-    "name": "Lucky Luke",
-    "part": "La chemise jaune",
-    "source": "Lucky Luke",
-    "target_h": 52,
-    "target_s": 100,
-    "target_b": 100,
-    "image_path": "/color/luckyluke.webp"
-  },
-  {
-    "id": "luffy",
-    "name": "Luffy",
-    "part": "Le short",
-    "source": "One Piece",
-    "target_h": 223,
-    "target_s": 56,
-    "target_b": 70,
-    "image_path": "/color/luffy.webp"
-  },
-  {
-    "id": "mickey-shorts",
-    "name": "Mickey Mouse",
-    "part": "Le short",
-    "source": "Mickey Mouse",
-    "target_h": 0,
-    "target_s": 90,
-    "target_b": 85,
-    "image_path": "/color/mickey.webp"
-  },
-  {
-    "id": "minion-body",
-    "name": "Un Minion",
-    "part": "Le corps",
-    "source": "Moi, moche et méchant",
-    "target_h": 50,
-    "target_s": 90,
-    "target_b": 100,
-    "image_path": "/color/minion.webp"
-  },
-  {
-    "id": "morty",
-    "name": "Morty",
-    "part": "Le t-shirt",
-    "source": "Rick et Morty",
-    "target_h": 57,
-    "target_s": 57,
-    "target_b": 100,
-    "image_path": "/color/morty.webp"
-  },
-  {
-    "id": "patrick-body",
-    "name": "Patrick Étoile",
-    "part": "Le corps",
-    "source": "Bob l'Éponge",
-    "target_h": 350,
-    "target_s": 40,
-    "target_b": 98,
-    "image_path": "/color/patrick.webp"
-  },
-  {
-    "id": "perry-fur",
-    "name": "Perry l'Ornithorynque",
-    "part": "Le pelage",
-    "source": "Phinéas et Ferb",
-    "target_h": 180,
-    "target_s": 60,
-    "target_b": 70,
-    "image_path": "/color/perry.webp"
-  },
-  {
-    "id": "pikachu-skin",
+    "id": "pikachu",
     "name": "Pikachu",
     "part": "La peau",
     "source": "Pokémon",
@@ -160,48 +10,18 @@
     "image_path": "/color/pikachu.webp"
   },
   {
-    "id": "pinkpanther-skin",
-    "name": "La Panthère Rose",
-    "part": "La peau",
-    "source": "La Panthère Rose",
-    "target_h": 340,
-    "target_s": 35,
-    "target_b": 95,
-    "image_path": "/color/pinkpanther.webp"
-  },
-  {
-    "id": "scoobydoo-fur",
-    "name": "Sammy (Shaggy)",
-    "part": "Le t-shirt",
-    "source": "Scooby-Doo",
-    "target_h": 74,
-    "target_s": 90,
-    "target_b": 65,
-    "image_path": "/color/shaggy.webp"
-  },
-  {
-    "id": "shrek-skin",
-    "name": "Shrek",
-    "part": "La peau",
-    "source": "Shrek",
-    "target_h": 85,
-    "target_s": 55,
+    "id": "mickey_mouse",
+    "name": "Mickey",
+    "part": "Le short",
+    "source": "Disney",
+    "target_h": 0,
+    "target_s": 74,
     "target_b": 75,
-    "image_path": "/color/shrek.webp"
+    "image_path": "/color/mickey_mouse.webp"
   },
   {
-    "id": "smurf-skin",
-    "name": "Un Schtroumpf",
-    "part": "La peau",
-    "source": "Les Schtroumpfs",
-    "target_h": 205,
-    "target_s": 90,
-    "target_b": 95,
-    "image_path": "/color/smurf.webp"
-  },
-  {
-    "id": "spongebob-body",
-    "name": "Bob l'Éponge",
+    "id": "spongebob",
+    "name": "Bob l'éponge",
     "part": "Le corps",
     "source": "Bob l'Éponge",
     "target_h": 56,
@@ -210,23 +30,333 @@
     "image_path": "/color/spongebob.webp"
   },
   {
-    "id": "tom",
+    "id": "stitch",
+    "name": "Stitch",
+    "part": "La fourrure",
+    "source": "Lilo & Stitch",
+    "target_h": 212,
+    "target_s": 52,
+    "target_b": 65,
+    "image_path": "/color/stitch.webp"
+  },
+  {
+    "id": "goku",
+    "name": "Sangoku",
+    "part": "Le kimono",
+    "source": "Dragon Ball Z",
+    "target_h": 21,
+    "target_s": 84,
+    "target_b": 94,
+    "image_path": "/color/goku.webp"
+  },
+  {
+    "id": "homer_simpson",
+    "name": "Homer Simpson",
+    "part": "La peau",
+    "source": "Les Simpson",
+    "target_h": 51,
+    "target_s": 94,
+    "target_b": 100,
+    "image_path": "/color/homer_simpson.webp"
+  },
+  {
+    "id": "bugs_bunny",
+    "name": "Bugs Bunny",
+    "part": "Le pelage",
+    "source": "Looney Tunes",
+    "target_h": 190,
+    "target_s": 7,
+    "target_b": 72,
+    "image_path": "/color/bugs_bunny.webp"
+  },
+  {
+    "id": "donald_duck",
+    "name": "Donald Duck",
+    "part": "La veste de marin",
+    "source": "Disney",
+    "target_h": 200,
+    "target_s": 99,
+    "target_b": 75,
+    "image_path": "/color/donald_duck.webp"
+  },
+  {
+    "id": "eric_cartman",
+    "name": "Eric Cartman",
+    "part": "La veste",
+    "source": "South Park",
+    "target_h": 349,
+    "target_s": 87,
+    "target_b": 84,
+    "image_path": "/color/eric_cartman.webp"
+  },
+  {
+    "id": "aang",
+    "name": "Aang",
+    "part": "Les tatouages",
+    "source": "Avatar le dernier maître de l'air",
+    "target_h": 207,
+    "target_s": 35,
+    "target_b": 90,
+    "image_path": "/color/aang.webp"
+  },
+  {
+    "id": "all_might",
+    "name": "All Might",
+    "part": "Le costume de héros",
+    "source": "My Hero Academia",
+    "target_h": 230,
+    "target_s": 73,
+    "target_b": 47,
+    "image_path": "/color/all_might.webp"
+  },
+  {
+    "id": "bananaman",
+    "name": "Bananaman",
+    "part": "La cape",
+    "source": "Bananaman",
+    "target_h": 57,
+    "target_s": 100,
+    "target_b": 100,
+    "image_path": "/color/bananaman.webp"
+  },
+  {
+    "id": "beavis",
+    "name": "Beavis",
+    "part": "Les cheveux",
+    "source": "Beavis et Butt-Head",
+    "target_h": 41,
+    "target_s": 77,
+    "target_b": 87,
+    "image_path": "/color/beavis.webp"
+  },
+  {
+    "id": "ben_10",
+    "name": "Ben Tennyson",
+    "part": "Le cœur de l'Omnitrix",
+    "source": "Ben 10",
+    "target_h": 88,
+    "target_s": 91,
+    "target_b": 100,
+    "image_path": "/color/ben_10.webp"
+  },
+  {
+    "id": "tom_cat",
     "name": "Tom",
     "part": "Le pelage",
     "source": "Tom et Jerry",
     "target_h": 207,
     "target_s": 7,
     "target_b": 53,
-    "image_path": "/color/tom.webp"
+    "image_path": "/color/tom_cat.webp"
   },
   {
-    "id": "winnie",
-    "name": "Winnie l'Ourson",
+    "id": "ord_dragon",
+    "name": "Ord",
     "part": "Le corps",
+    "source": "Dragon Tales",
+    "target_h": 183,
+    "target_s": 67,
+    "target_b": 65,
+    "image_path": "/color/ord_dragon.webp"
+  },
+  {
+    "id": "kim_possible",
+    "name": "Kim Possible",
+    "part": "Le pantalon cargo",
+    "source": "Kim Possible",
+    "target_h": 64,
+    "target_s": 27,
+    "target_b": 64,
+    "image_path": "/color/kim_possible.webp"
+  },
+  {
+    "id": "winnie_pooh",
+    "name": "Winnie l'ourson",
+    "part": "Le pelage",
     "source": "Winnie l'Ourson",
     "target_h": 33,
     "target_s": 79,
     "target_b": 86,
-    "image_path": "/color/winnie.webp"
+    "image_path": "/color/winnie_pooh.webp"
+  },
+  {
+    "id": "gumball_watterson",
+    "name": "Gumball Watterson",
+    "part": "Le pelage",
+    "source": "Le Monde incroyable de Gumball",
+    "target_h": 194,
+    "target_s": 70,
+    "target_b": 89,
+    "image_path": "/color/gumball_watterson.webp"
+  },
+  {
+    "id": "patrick_star",
+    "name": "Patrick",
+    "part": "Le short",
+    "source": "Bob l'Éponge",
+    "target_h": 83,
+    "target_s": 80,
+    "target_b": 91,
+    "image_path": "/color/patrick_star.webp"
+  },
+  {
+    "id": "lois_griffin",
+    "name": "Lois Griffin",
+    "part": "Le chemisier",
+    "source": "Les Griffin",
+    "target_h": 167,
+    "target_s": 85,
+    "target_b": 89,
+    "image_path": "/color/lois_griffin.webp"
+  },
+  {
+    "id": "jake_the_dog",
+    "name": "Jake le chien",
+    "part": "Le pelage",
+    "source": "Adventure Time",
+    "target_h": 47,
+    "target_s": 100,
+    "target_b": 99,
+    "image_path": "/color/jake_the_dog.webp"
+  },
+  {
+    "id": "morty_smith",
+    "name": "Morty Smith",
+    "part": "Le t-shirt",
+    "source": "Rick et Morty",
+    "target_h": 57,
+    "target_s": 57,
+    "target_b": 100,
+    "image_path": "/color/morty_smith.webp"
+  },
+  {
+    "id": "shaggy_rogers",
+    "name": "Sammy",
+    "part": "Le t-shirt",
+    "source": "Scooby-Doo",
+    "target_h": 74,
+    "target_s": 90,
+    "target_b": 65,
+    "image_path": "/color/shaggy_rogers.webp"
+  },
+  {
+    "id": "bender",
+    "name": "Bender",
+    "part": "Le corps métallique",
+    "source": "Futurama",
+    "target_h": 184,
+    "target_s": 19,
+    "target_b": 66,
+    "image_path": "/color/bender.webp"
+  },
+  {
+    "id": "betty_boop",
+    "name": "Betty Boop",
+    "part": "La robe",
+    "source": "Betty Boop",
+    "target_h": 356,
+    "target_s": 79,
+    "target_b": 86,
+    "image_path": "/color/betty_boop.webp"
+  },
+  {
+    "id": "charlie_brown",
+    "name": "Charlie Brown",
+    "part": "Le pull",
+    "source": "Peanuts",
+    "target_h": 51,
+    "target_s": 98,
+    "target_b": 100,
+    "image_path": "/color/charlie_brown.webp"
+  },
+  {
+    "id": "dopey",
+    "name": "Simplet",
+    "part": "La tenue",
+    "source": "Blanche-Neige",
+    "target_h": 58,
+    "target_s": 83,
+    "target_b": 71,
+    "image_path": "/color/dopey.webp"
+  },
+  {
+    "id": "finn_human",
+    "name": "Finn",
+    "part": "Le sac à dos",
+    "source": "Adventure Time",
+    "target_h": 101,
+    "target_s": 77,
+    "target_b": 65,
+    "image_path": "/color/finn_human.webp"
+  },
+  {
+    "id": "goofy",
+    "name": "Dingo",
+    "part": "Le chapeau",
+    "source": "Disney",
+    "target_h": 70,
+    "target_s": 60,
+    "target_b": 86,
+    "image_path": "/color/goofy.webp"
+  },
+  {
+    "id": "johnny_bravo",
+    "name": "Johnny Bravo",
+    "part": "Le pantalon",
+    "source": "Johnny Bravo",
+    "target_h": 218,
+    "target_s": 57,
+    "target_b": 88,
+    "image_path": "/color/johnny_bravo.webp"
+  },
+  {
+    "id": "peter_griffin",
+    "name": "Peter Griffin",
+    "part": "Le pantalon",
+    "source": "Les Griffin",
+    "target_h": 102,
+    "target_s": 97,
+    "target_b": 40,
+    "image_path": "/color/peter_griffin.webp"
+  },
+  {
+    "id": "pink_panther",
+    "name": "La Panthère rose",
+    "part": "La peau",
+    "source": "La Panthère Rose",
+    "target_h": 345,
+    "target_s": 41,
+    "target_b": 100,
+    "image_path": "/color/pink_panther.webp"
+  },
+  {
+    "id": "kenny_mccormick",
+    "name": "Kenny McCormick",
+    "part": "La parka",
+    "source": "South Park",
+    "target_h": 29,
+    "target_s": 100,
+    "target_b": 93,
+    "image_path": "/color/kenny_mccormick.webp"
+  },
+  {
+    "id": "squidward",
+    "name": "Carlo Tentacule",
+    "part": "La peau",
+    "source": "Bob l'Éponge",
+    "target_h": 157,
+    "target_s": 17,
+    "target_b": 85,
+    "image_path": "/color/squidward.webp"
+  },
+  {
+    "id": "luffy",
+    "name": "Monkey D. Luffy",
+    "part": "Le short",
+    "source": "One Piece",
+    "target_h": 223,
+    "target_s": 56,
+    "target_b": 70,
+    "image_path": "/color/luffy.webp"
   }
 ]

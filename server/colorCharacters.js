@@ -14,13 +14,9 @@ async function getAll() {
 // Get a random set of count characters
 async function getRandomSet(count = 5) {
     try {
-        // Only return the 11 characters that have transparent WebP assets ready
-        const allowedIds = [
-            'spongebob-body', 'luckyluke', 'goku-hair', 'bugsbunny', 'scoobydoo-fur', 'winnie',
-            'cartman', 'tom', 'morty', 'goofy', 'luffy'
-        ];
-        const placeholders = allowedIds.map(() => '?').join(',');
-        const rows = await db.all(`SELECT * FROM color_characters WHERE id IN (${placeholders}) ORDER BY RANDOM() LIMIT ?`, [...allowedIds, count]);
+        // Tous les personnages disposent désormais d'un cutout transparent (assets Toon Tone
+        // + ceux ajoutés via l'admin) : on tire au hasard dans l'ensemble du catalogue.
+        const rows = await db.all('SELECT * FROM color_characters ORDER BY RANDOM() LIMIT ?', [count]);
         return rows;
     } catch (error) {
         console.error('[ColorCharacters] Error getting random set of characters:', error);

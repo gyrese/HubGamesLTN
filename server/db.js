@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 const DB_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DB_DIR, 'database.sqlite');
@@ -199,39 +200,40 @@ async function seedFromJSON() {
         }
 
         // 5. Seeding Color Characters
-        // Note : hors de server/data/ (volume Docker) pour être présent dans l'image et seeder même sur un volume existant
+        // Note : hors de server/data/ (volume Docker) pour être présent dans l'image et seeder même sur un volume existant.
+        // Reseed piloté par un hash du JSON : dès que colorCharacters.json change (roster, couleurs, chemins),
+        // la base est resynchronisée — y compris sur un volume déjà peuplé (VPS). Les personnages ajoutés via
+        // l'admin (image /uploads/color/char-*.webp) sont préservés ; seuls les anciens persos canoniques
+        // disparus du JSON (renommés/retirés) sont nettoyés.
         const colorJsonFile = path.join(__dirname, 'colorCharacters.json');
-        const countColors = await db.get('SELECT COUNT(*) as count FROM color_characters');
-        // Les images ont été déplacées de /uploads/color/ vers /color/ (assets frontend, hors volume Docker).
-        // On re-synchronise depuis le JSON canonique si la table est vide OU si un personnage canonique
-        // (présent dans le JSON) a encore un ancien chemin /uploads/color/ — sinon une base déjà peuplée
-        // (VPS) garde des chemins en 404. La détection est limitée aux id du JSON : les personnages
-        // ajoutés via l'admin (image /uploads/color/char-*.webp, id hors JSON) ne déclenchent PAS de
-        // reseed et sont préservés.
-        let needsColorSeed = countColors.count === 0;
-        let characters = null;
         if (fs.existsSync(colorJsonFile)) {
-            characters = JSON.parse(fs.readFileSync(colorJsonFile, 'utf8'));
-            if (!needsColorSeed) {
-                const ids = characters.map(c => c.id);
+            const rawData = fs.readFileSync(colorJsonFile, 'utf8');
+            const characters = JSON.parse(rawData);
+            const ids = characters.map(c => c.id);
+            const hash = crypto.createHash('sha1').update(rawData).digest('hex');
+
+            await db.run(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
+            const meta = await db.get(`SELECT value FROM app_meta WHERE key = 'color_seed_hash'`);
+            const countColors = await db.get('SELECT COUNT(*) as count FROM color_characters');
+
+            if (countColors.count === 0 || !meta || meta.value !== hash) {
+                const reason = countColors.count === 0 ? 'table vide' : 'colorCharacters.json modifié';
+                console.log(`[DATABASE] Migration : (re)synchronisation de colorCharacters.json vers SQLite (${reason})...`);
+                for (const char of characters) {
+                    await db.run(
+                        'INSERT OR REPLACE INTO color_characters (id, name, part, source, target_h, target_s, target_b, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        [char.id, char.name, char.part, char.source, char.target_h, char.target_s, char.target_b, char.image_path]
+                    );
+                }
+                // Nettoyage des anciens persos canoniques absents du JSON (préserve les uploads admin char-*)
                 const placeholders = ids.map(() => '?').join(',');
-                const legacyColors = await db.get(
-                    `SELECT COUNT(*) as count FROM color_characters WHERE id IN (${placeholders}) AND image_path LIKE '/uploads/color/%'`,
+                const cleanup = await db.run(
+                    `DELETE FROM color_characters WHERE id NOT IN (${placeholders}) AND (image_path LIKE '/color/%' OR (image_path LIKE '/uploads/color/%' AND image_path NOT LIKE '/uploads/color/char-%'))`,
                     ids
                 );
-                needsColorSeed = legacyColors.count > 0;
+                await db.run(`INSERT OR REPLACE INTO app_meta (key, value) VALUES ('color_seed_hash', ?)`, [hash]);
+                console.log(`[DATABASE] Migration : ${characters.length} personnages CouleurMoi synchronisés (${cleanup.changes} ancien(s) retiré(s)).`);
             }
-        }
-        if (needsColorSeed && characters) {
-            const reason = countColors.count === 0 ? 'table vide' : 'anciens chemins /uploads/color/ détectés';
-            console.log(`[DATABASE] Migration : (re)synchronisation de colorCharacters.json vers SQLite (${reason})...`);
-            for (const char of characters) {
-                await db.run(
-                    'INSERT OR REPLACE INTO color_characters (id, name, part, source, target_h, target_s, target_b, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [char.id, char.name, char.part, char.source, char.target_h, char.target_s, char.target_b, char.image_path]
-                );
-            }
-            console.log(`[DATABASE] Migration : ${characters.length} personnages CouleurMoi (re)synchronisés.`);
         }
 
     } catch (error) {
