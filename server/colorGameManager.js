@@ -5,6 +5,46 @@
 const crypto = require('crypto');
 const colorCharacters = require('./colorCharacters');
 
+// ──────────────────────────────────────────────────────────────
+// Couleur perceptuelle (CIELab) — pour un score fidèle à l'œil
+// ──────────────────────────────────────────────────────────────
+function hsbToRgb(h, s, b) {
+    s /= 100; b /= 100;
+    const c = b * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = b - c;
+    let r = 0, g = 0, bl = 0;
+    if (h < 60) { r = c; g = x; }
+    else if (h < 120) { r = x; g = c; }
+    else if (h < 180) { g = c; bl = x; }
+    else if (h < 240) { g = x; bl = c; }
+    else if (h < 300) { r = x; bl = c; }
+    else { r = c; bl = x; }
+    return [r + m, g + m, bl + m]; // 0..1
+}
+
+function rgbToLab(r, g, b) {
+    const lin = (u) => (u <= 0.04045 ? u / 12.92 : Math.pow((u + 0.055) / 1.055, 2.4));
+    r = lin(r); g = lin(g); b = lin(b);
+    // RGB linéaire -> XYZ (sRGB / D65), puis normalisation au blanc D65
+    let X = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+    let Y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.0;
+    let Z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+    const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+    const fx = f(X), fy = f(Y), fz = f(Z);
+    return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]; // L, a, b
+}
+
+function hsbToLab(h, s, b) {
+    const [r, g, bl] = hsbToRgb(h, s, b);
+    return rgbToLab(r, g, bl);
+}
+
+function deltaE76(l1, l2) {
+    const dL = l1[0] - l2[0], da = l1[1] - l2[1], db = l1[2] - l2[2];
+    return Math.sqrt(dL * dL + da * da + db * db);
+}
+
 class ColorGameManager {
     constructor() {
         this.rooms = new Map(); // Map<roomCode, ColorRoom>
@@ -231,46 +271,24 @@ class ColorGameManager {
     }
 
     calculateScore(guess, target, hintUsed) {
-        // Perceptual HSB Distance Formula
-        let hDiff = Math.abs(guess.h - target.h);
-        if (hDiff > 180) hDiff = 360 - hDiff;
-        const hDist = hDiff / 180; // 0 to 1
+        // Score perceptuel basé sur la distance CIELab (ΔE76) : il reflète l'écart RÉELLEMENT
+        // perçu entre les deux couleurs (teinte + saturation + luminosité combinées). Une moyenne
+        // pondérée en HSB pardonnait trop les erreurs de teinte (couleur clairement différente mais
+        // bonne note). En Lab, une teinte fausse sur une couleur vive donne un grand ΔE → note basse,
+        // et une teinte fausse sur un gris donne un petit ΔE → tolérée (comme à l'œil).
+        const dE = deltaE76(hsbToLab(guess.h, guess.s, guess.b), hsbToLab(target.h, target.s, target.b));
 
-        const sDist = Math.abs(guess.s - target.s) / 100; // 0 to 1
-        const bDist = Math.abs(guess.b - target.b) / 100; // 0 to 1
+        // Mapping ΔE -> note /10. ~0 = parfait ; ~16 ≈ "très proche" (8) ; ~32 ≈ "à côté" (4) ;
+        // ≥ DE_ZERO ≈ couleur clairement différente -> 0.
+        const DE_ZERO = 55;
+        let score = 10 * Math.max(0, 1 - dE / DE_ZERO);
 
-        // If either color is very low saturation or brightness, Hue matters less to the eye
-        const targetSat = target.s / 100;
-        const guessSat = guess.s / 100;
-        const targetBright = target.b / 100;
-        const guessBright = guess.b / 100;
-
-        const effectiveSat = Math.min(targetSat, guessSat);
-        const effectiveBright = Math.min(targetBright, guessBright);
-
-        // Adjust hue weight: if gray or black, hue differences are unperceivable
-        let hWeight = 0.5;
-        if (effectiveSat < 0.1 || effectiveBright < 0.1) {
-            hWeight = 0.05;
-        } else if (effectiveSat < 0.25) {
-            hWeight = 0.2;
-        }
-
-        const sWeight = 0.25;
-        const bWeight = 0.25;
-
-        const totalWeight = hWeight + sWeight + bWeight;
-        const weightedDist = Math.sqrt((hWeight * hDist * hDist + sWeight * sDist * sDist + bWeight * bDist * bDist) / totalWeight);
-
-        // Map to 0 - 10 score
-        let score = Math.max(0, 10 - weightedDist * 10);
-
-        // Deduct 1.0 point if hint was used
+        // Malus de 1 point si un indice a été utilisé
         if (hintUsed) {
             score = Math.max(0, score - 1.0);
         }
 
-        return Math.round(score * 100) / 100; // 2 decimal places
+        return Math.round(score * 100) / 100; // 2 décimales
     }
 
     endRound(roomCode) {
