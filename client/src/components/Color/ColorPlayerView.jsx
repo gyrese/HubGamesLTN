@@ -215,7 +215,7 @@ function ColorPlayerView() {
     const contrastColor = getContrastColor(h, s, b);
 
     return (
-        <div className="color-game-bg min-h-screen py-5 px-4 flex flex-col justify-between items-center relative">
+        <div className="color-game-bg w-full h-[100dvh] overflow-y-auto py-5 px-4 flex flex-col justify-start items-center relative">
             <div className="toon-dots" />
 
             {/* ════ JOIN FORM ════ */}
@@ -281,7 +281,7 @@ function ColorPlayerView() {
                     </form>
                 </main>
             ) : (
-                <div className="w-full max-w-[440px] flex flex-col gap-4 z-10">
+                <div className="w-full max-w-[440px] flex flex-col gap-4 z-10 pb-12">
 
                     {/* ════ LOBBY ════ */}
                     {gameState === 'LOBBY' && (
