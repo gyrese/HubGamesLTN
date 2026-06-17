@@ -4,9 +4,9 @@
     "name": "Bugs Bunny",
     "part": "Le pelage",
     "source": "Looney Tunes",
-    "target_h": 0,
-    "target_s": 0,
-    "target_b": 60,
+    "target_h": 190,
+    "target_s": 7,
+    "target_b": 72,
     "image_path": "/color/bugsbunny.webp"
   },
   {
@@ -14,9 +14,9 @@
     "name": "Eric Cartman",
     "part": "Le manteau",
     "source": "South Park",
-    "target_h": 0,
-    "target_s": 85,
-    "target_b": 90,
+    "target_h": 349,
+    "target_s": 87,
+    "target_b": 84,
     "image_path": "/color/cartman.webp"
   },
   {
@@ -54,9 +54,9 @@
     "name": "Goku",
     "part": "Le kimono",
     "source": "Dragon Ball Z",
-    "target_h": 24,
-    "target_s": 90,
-    "target_b": 95,
+    "target_h": 21,
+    "target_s": 84,
+    "target_b": 94,
     "image_path": "/color/goku.webp"
   },
   {
@@ -64,9 +64,9 @@
     "name": "Dingo",
     "part": "Le chapeau",
     "source": "Mickey Mouse",
-    "target_h": 100,
-    "target_s": 75,
-    "target_b": 60,
+    "target_h": 70,
+    "target_s": 60,
+    "target_b": 86,
     "image_path": "/color/goofy.webp"
   },
   {
@@ -94,9 +94,9 @@
     "name": "Luffy",
     "part": "Le short",
     "source": "One Piece",
-    "target_h": 210,
-    "target_s": 85,
-    "target_b": 75,
+    "target_h": 223,
+    "target_s": 56,
+    "target_b": 70,
     "image_path": "/color/luffy.webp"
   },
   {
@@ -124,8 +124,8 @@
     "name": "Morty",
     "part": "Le t-shirt",
     "source": "Rick et Morty",
-    "target_h": 50,
-    "target_s": 90,
+    "target_h": 57,
+    "target_s": 57,
     "target_b": 100,
     "image_path": "/color/morty.webp"
   },
@@ -174,8 +174,8 @@
     "name": "Sammy (Shaggy)",
     "part": "Le t-shirt",
     "source": "Scooby-Doo",
-    "target_h": 85,
-    "target_s": 60,
+    "target_h": 74,
+    "target_s": 90,
     "target_b": 65,
     "image_path": "/color/shaggy.webp"
   },
@@ -214,9 +214,9 @@
     "name": "Tom",
     "part": "Le pelage",
     "source": "Tom et Jerry",
-    "target_h": 200,
-    "target_s": 30,
-    "target_b": 60,
+    "target_h": 207,
+    "target_s": 7,
+    "target_b": 53,
     "image_path": "/color/tom.webp"
   },
   {
@@ -224,9 +224,9 @@
     "name": "Winnie l'Ourson",
     "part": "Le corps",
     "source": "Winnie l'Ourson",
-    "target_h": 45,
-    "target_s": 90,
-    "target_b": 100,
+    "target_h": 33,
+    "target_s": 79,
+    "target_b": 86,
     "image_path": "/color/winnie.webp"
   }
 ]
