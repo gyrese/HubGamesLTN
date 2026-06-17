@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import ColorImageStudio from './ColorImageStudio';
 
 const isHttps = window.location.protocol === 'https:';
 const serverPort = isHttps ? 3443 : 3005;
@@ -20,6 +21,7 @@ function ColorAdmin() {
     });
     
     const [imageFile, setImageFile] = useState(null);
+    const [processedBlob, setProcessedBlob] = useState(null); // WebP détouré exporté par le studio
     const [isEditing, setIsEditing] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -55,7 +57,16 @@ function ColorAdmin() {
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
             setImageFile(e.target.files[0]);
+            setProcessedBlob(null); // sera regénéré par le studio
         }
+    };
+
+    // Le studio renvoie soit le WebP détouré (blob), soit une couleur échantillonnée (hsb)
+    const handleStudioChange = ({ blob, hsb }) => {
+        if (blob) setProcessedBlob(blob);
+        if (hsb) setFormCharacter(prev => ({
+            ...prev, target_h: hsb.h, target_s: hsb.s, target_b: hsb.b
+        }));
     };
 
     const handleReset = () => {
@@ -70,6 +81,7 @@ function ColorAdmin() {
             image_path: ''
         });
         setImageFile(null);
+        setProcessedBlob(null);
         setIsEditing(false);
         setError('');
         setSuccess('');
@@ -92,10 +104,14 @@ function ColorAdmin() {
         try {
             let finalImagePath = image_path;
 
-            // 1. Upload file if selected
-            if (imageFile) {
+            // 1. Upload : on privilégie le WebP détouré par le studio, sinon le fichier brut
+            if (processedBlob || imageFile) {
                 const formData = new FormData();
-                formData.append('image', imageFile);
+                if (processedBlob) {
+                    formData.append('image', processedBlob, `${id.trim() || 'char'}.webp`);
+                } else {
+                    formData.append('image', imageFile);
+                }
 
                 const uploadRes = await fetch(`${API_URL}/admin/color/upload`, {
                     method: 'POST',
@@ -298,15 +314,22 @@ function ColorAdmin() {
                             </div>
 
                             <div className="mb-3">
-                                <label className="form-label text-muted small mb-1">Image WebP (Découpe transparente)</label>
-                                <input 
+                                <label className="form-label text-muted small mb-1">Image — détourage intégré</label>
+                                <input
                                     type="file" accept="image/*" onChange={handleFileChange}
                                     className="form-control bg-black text-white border-secondary"
                                 />
-                                {formCharacter.image_path && (
+                                {formCharacter.image_path && !imageFile && (
                                     <div className="text-muted small mt-1 truncate">
                                         Actuel : {formCharacter.image_path}
                                     </div>
+                                )}
+                                {imageFile && (
+                                    <ColorImageStudio
+                                        file={imageFile}
+                                        target={{ h: formCharacter.target_h, s: formCharacter.target_s, b: formCharacter.target_b }}
+                                        onChange={handleStudioChange}
+                                    />
                                 )}
                             </div>
 
