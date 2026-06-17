@@ -1,3 +1,8 @@
+// Charge le .env racine pour le dev local (cd server && npm run dev).
+// En prod (Docker), les variables sont déjà injectées par docker-compose ; dotenv
+// ne trouve pas de fichier et n'écrase jamais une variable déjà définie → sans effet.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
 const express = require('express');
 const path = require('path');
 const http = require('http');
