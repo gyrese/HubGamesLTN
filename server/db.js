@@ -202,8 +202,15 @@ async function seedFromJSON() {
         // Note : hors de server/data/ (volume Docker) pour être présent dans l'image et seeder même sur un volume existant
         const colorJsonFile = path.join(__dirname, 'colorCharacters.json');
         const countColors = await db.get('SELECT COUNT(*) as count FROM color_characters');
-        if (countColors.count === 0 && fs.existsSync(colorJsonFile)) {
-            console.log('[DATABASE] Migration : Importation de colorCharacters.json vers SQLite...');
+        // Les images ont été déplacées de /uploads/color/ vers /color/ (assets frontend, hors volume Docker).
+        // On re-synchronise depuis le JSON canonique si la table est vide OU si elle contient encore
+        // d'anciens chemins /uploads/color/ — sinon une base déjà peuplée (VPS) garde des chemins en 404.
+        // Les images uploadées par l'admin (/uploads/img-*.webp) ne sont pas concernées et sont préservées.
+        const legacyColors = await db.get("SELECT COUNT(*) as count FROM color_characters WHERE image_path LIKE '/uploads/color/%'");
+        const needsColorSeed = countColors.count === 0 || legacyColors.count > 0;
+        if (needsColorSeed && fs.existsSync(colorJsonFile)) {
+            const reason = countColors.count === 0 ? 'table vide' : 'anciens chemins /uploads/color/ détectés';
+            console.log(`[DATABASE] Migration : (re)synchronisation de colorCharacters.json vers SQLite (${reason})...`);
             const rawData = fs.readFileSync(colorJsonFile, 'utf8');
             const characters = JSON.parse(rawData);
             for (const char of characters) {
@@ -212,7 +219,7 @@ async function seedFromJSON() {
                     [char.id, char.name, char.part, char.source, char.target_h, char.target_s, char.target_b, char.image_path]
                 );
             }
-            console.log(`[DATABASE] Migration : ${characters.length} personnages CouleurMoi importés.`);
+            console.log(`[DATABASE] Migration : ${characters.length} personnages CouleurMoi (re)synchronisés.`);
         }
 
     } catch (error) {

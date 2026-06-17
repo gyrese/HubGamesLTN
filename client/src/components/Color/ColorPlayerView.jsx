@@ -18,6 +18,10 @@ function getContrastColor(h, s, b) {
 function getImageUrl(imagePath) {
     if (!imagePath) return '';
     if (imagePath.startsWith('http') || imagePath.startsWith('data:')) return imagePath;
+    // Assets frontend (dossier client/public, buildés avec le client) : chemin relatif,
+    // servi par Vite en dev et par le static en prod — surtout pas l'origine de l'API.
+    if (imagePath.startsWith('/color/')) return imagePath;
+    // Anciennes images uploadées via l'admin, servies par l'API (/uploads/...)
     const isHttps = window.location.protocol === 'https:';
     const serverPort = isHttps ? 3443 : 3005;
     const base = import.meta.env.VITE_SERVER_URL
