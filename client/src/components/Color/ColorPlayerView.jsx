@@ -1,10 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
 import { renderSilhouette, hsbToCss } from './ColorSilhouettes';
 import './ColorStyles.css';
 
 const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar_${i + 1}.webp`);
+
+/**
+ * Champ 2D Saturation × Luminosité (façon sélecteur de couleur standard).
+ * Glisser le curseur ajuste S (gauche→droite) et B (haut→bas). Bien plus
+ * intuitif que trois sliders linéaires séparés pour atteindre une couleur.
+ */
+function SBField({ h, s, b, onChange }) {
+    const ref = useRef(null);
+    const apply = (clientX, clientY) => {
+        const r = ref.current.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+        const y = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+        onChange(Math.round(x * 100), Math.round((1 - y) * 100)); // s, b
+    };
+    const onDown = (e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        apply(e.clientX, e.clientY);
+    };
+    const onMove = (e) => {
+        if (e.buttons === 0) return; // uniquement pendant le glissé
+        apply(e.clientX, e.clientY);
+    };
+    return (
+        <div ref={ref} className="sb-square" onPointerDown={onDown} onPointerMove={onMove}
+             style={{
+                 background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)`
+             }}>
+            <div className="sb-thumb" style={{ left: `${s}%`, top: `${100 - b}%`, background: hsbToCss(h, s, b) }} />
+        </div>
+    );
+}
 
 /**
  * Calculates a contrast color (black or white) based on HSB values
@@ -182,9 +213,6 @@ function ColorPlayerView() {
 
     const guessCssColor = hsbToCss(h, s, b);
     const contrastColor = getContrastColor(h, s, b);
-    const hueTrackBg = 'linear-gradient(to top, #ff0000, #ff00ff, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000)';
-    const satTrackBg = `linear-gradient(to top, ${hsbToCss(h, 0, b)}, ${hsbToCss(h, 100, b)})`;
-    const brightTrackBg = `linear-gradient(to top, #000000, ${hsbToCss(h, s, 100)})`;
 
     return (
         <div className="color-game-bg min-h-screen py-5 px-4 flex flex-col justify-between items-center relative">
@@ -292,56 +320,45 @@ function ColorPlayerView() {
                                 {imageError && renderSilhouette(character.id, guessCssColor)}
                             </div>
 
-                            {/* Sliders panel */}
+                            {/* Picker panel */}
                             <div className="relative">
-                                <div className="rounded-[24px] p-5 flex justify-between items-stretch relative"
-                                     style={{
-                                         background: guessCssColor, color: contrastColor,
-                                         border:'3px solid #1A1A2E', boxShadow:'4px 4px 0px #1A1A2E',
-                                         minHeight: 240,
-                                         transition:'background-color 0.1s ease, color 0.1s ease'
-                                     }}>
+                                <div className="toon-card p-4 flex flex-col gap-3 relative">
                                     {/* Round badge */}
-                                    <div className="absolute top-3 right-4 text-xs font-black opacity-60">{currentRound}/{totalRounds}</div>
+                                    <div className="absolute top-3 right-4 text-xs font-black opacity-40" style={{ color:'#1A1A2E' }}>{currentRound}/{totalRounds}</div>
 
-                                    {/* Sliders */}
-                                    <div className="flex gap-4 items-end">
-                                        {[
-                                            { bg: hueTrackBg, val: h, min:0, max:360, set:setH, label:'TEINTE' },
-                                            { bg: satTrackBg, val: s, min:0, max:100, set:setS, label:'SATUR.' },
-                                            { bg: brightTrackBg, val: b, min:0, max:100, set:setB, label:'LUMIN.' },
-                                        ].map((sl, i) => (
-                                            <div key={i} className="flex flex-col items-center gap-2">
-                                                <div className="vertical-slider-wrap">
-                                                    <div className="vertical-slider-track-bg" style={{ background: sl.bg }} />
-                                                    <input type="range" min={sl.min} max={sl.max} value={sl.val}
-                                                           onChange={(e) => sl.set(parseInt(e.target.value))}
-                                                           className="vertical-slider-field" />
-                                                </div>
-                                                <span className="text-[9px] font-black tracking-wider" style={{ opacity:0.7 }}>{sl.label}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {/* 2D Saturation × Brightness field */}
+                                    <SBField h={h} s={s} b={b} onChange={(ns, nb) => { setS(ns); setB(nb); }} />
 
-                                    {/* Hint + Submit */}
-                                    <div className="flex-1 flex flex-col justify-end items-end gap-3 pl-2">
-                                        {hintText && (
-                                            <div className="self-stretch rounded-xl p-2 text-[10px] font-extrabold text-center"
-                                                 style={{ background:'rgba(0,0,0,0.25)', color:'#fff' }}>
-                                                {hintText}
-                                            </div>
-                                        )}
+                                    {/* Hue slider */}
+                                    <input type="range" min={0} max={359} value={h}
+                                           onChange={(e) => setH(parseInt(e.target.value))}
+                                           className="hue-slider" aria-label="Teinte" />
+
+                                    {/* Readout + actions */}
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="w-9 h-9 rounded-lg flex-shrink-0" style={{ background: guessCssColor, border:'3px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }} />
+                                            <span className="font-mono font-black text-sm truncate" style={{ color:'#1A1A2E' }}>H{h} S{s} B{b}</span>
+                                        </div>
                                         <button onClick={handleGetHint} disabled={hintUsed}
-                                                className="w-12 h-12 rounded-full flex items-center justify-center font-black text-xl transition-transform hover:scale-110 active:scale-95 disabled:opacity-40"
-                                                style={{ background:'rgba(255,255,255,0.85)', color:'#1A1A2E', border:'3px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
+                                                className="w-11 h-11 rounded-full flex items-center justify-center font-black text-lg transition-transform hover:scale-110 active:scale-95 disabled:opacity-40 flex-shrink-0"
+                                                style={{ background:'#FFD93D', color:'#1A1A2E', border:'3px solid #1A1A2E', boxShadow:'2px 2px 0px #1A1A2E' }}>
                                             💡
                                         </button>
                                         <button onClick={handleSubmitGuess}
-                                                className="w-16 h-16 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95"
+                                                className="h-11 px-5 rounded-full flex items-center justify-center gap-1 font-black text-sm uppercase transition-transform hover:scale-105 active:scale-95 flex-shrink-0"
                                                 style={{ background:'#4ADE80', color:'#1A1A2E', border:'3px solid #1A1A2E', boxShadow:'3px 3px 0px #1A1A2E' }}>
-                                            <span className="material-symbols-outlined text-3xl font-black">check</span>
+                                            <span className="material-symbols-outlined text-xl font-black">check</span>
+                                            Valider
                                         </button>
                                     </div>
+
+                                    {hintText && (
+                                        <div className="rounded-xl p-2 text-[11px] font-extrabold text-center"
+                                             style={{ background:'#1A1A2E', color:'#fff' }}>
+                                            {hintText}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Validated overlay */}
