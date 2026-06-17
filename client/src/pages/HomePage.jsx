@@ -1,104 +1,74 @@
-import { Link } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { socket } from '../socket';
+import { 
+    Brain, 
+    Globe, 
+    PenTool, 
+    Palette, 
+    Beer, 
+    Lock, 
+    Sparkles, 
+    ArrowRight 
+} from 'lucide-react';
 
 const GAMES = [
     {
         id: 'quiz',
         route: '/quiz',
         name: 'NEURAL_QUIZ',
-        description: 'Test de QI interactif avec statistiques et classement en temps réel',
+        description: 'Test de QI interactif avec statistiques de réponses et classement en temps réel.',
         tags: ['Quiz', 'Multijoueur', 'Score QI'],
-        color: '#00ff41',
-        colorRgb: '0, 255, 65',
-        icon: (
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M24 4C17 4 11 9 10 16C7 17 5 20 5 23C5 27 8 30 12 30L12 36C12 38 14 40 16 40L32 40C34 40 36 38 36 36L36 30C40 30 43 27 43 23C43 20 41 17 38 16C37 9 31 4 24 4Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M17 30L17 26" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M24 30L24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M31 30L31 26" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M15 20C15 20 17 22 20 20C23 18 25 22 28 20C31 18 33 20 33 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <circle cx="18" cy="14" r="1.5" fill="currentColor"/>
-                <circle cx="30" cy="14" r="1.5" fill="currentColor"/>
-            </svg>
-        ),
+        color: '#10b981',
+        colorRgb: '16, 185, 129',
+        icon: <Brain className="w-8 h-8" />,
+        gridClass: 'md:col-span-2 lg:col-span-2'
     },
     {
         id: 'geo',
         route: '/geo',
         name: 'GEO_TRACKR',
-        description: 'Explorez le monde en Street View et devinez votre position',
+        description: 'Explorez le monde en Street View et devinez votre position sur la carte interactive.',
         tags: ['Géographie', 'Street View', 'Multijoueur'],
-        color: '#00dbde',
-        colorRgb: '0, 219, 222',
-        icon: (
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="2"/>
-                <ellipse cx="24" cy="24" rx="8" ry="18" stroke="currentColor" strokeWidth="2"/>
-                <path d="M6 24L42 24" stroke="currentColor" strokeWidth="2"/>
-                <path d="M8 16L40 16" stroke="currentColor" strokeWidth="2" strokeDasharray="2 2"/>
-                <path d="M8 32L40 32" stroke="currentColor" strokeWidth="2" strokeDasharray="2 2"/>
-                <circle cx="24" cy="12" r="3" fill="currentColor"/>
-                <path d="M24 9L24 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-        ),
+        color: '#06b6d4',
+        colorRgb: '6, 182, 212',
+        icon: <Globe className="w-8 h-8" />,
+        gridClass: 'md:col-span-1 lg:col-span-1'
     },
     {
         id: 'draw',
         route: '/draw',
         name: 'DRAW_UP',
-        description: 'Dessine et fais deviner ! Clone de Pictionary en temps réel',
+        description: 'Dessine et fais deviner ! Clone de Pictionary ultra fluide en temps réel.',
         tags: ['Dessin', 'Temps Réel', 'Multijoueur'],
-        color: '#ff6b9d',
-        colorRgb: '255, 107, 157',
-        icon: (
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M34 6L42 14L18 38L8 40L10 30L34 6Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M28 12L36 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M10 30L18 38" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <circle cx="14" cy="38" r="4" fill="none" stroke="currentColor" strokeWidth="2"/>
-                <path d="M18 42C20 43 23 43 24 42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-        ),
-    },
-    {
-        id: 'apero',
-        href: 'https://ltnhout.ltn.re',
-        name: 'APÉRO_QUIZ',
-        description: 'Quiz de bar interactif — Les équipes répondent sur leur téléphone',
-        tags: ['Quiz', 'Par Équipe', 'Bar'],
-        color: '#ffd700',
-        colorRgb: '255, 215, 0',
-        icon: (
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M14 8L18 38L30 38L34 8L14 8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M14 8C14 8 10 14 10 20C10 26 14 28 14 28" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M18 38L30 38L30 42L18 42L18 38Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                <path d="M14 42L34 42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M20 20C20 20 22 23 24 20C26 17 28 20 28 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                <path d="M18 14L30 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="2 2"/>
-            </svg>
-        ),
+        color: '#f43f5e',
+        colorRgb: '244, 63, 94',
+        icon: <PenTool className="w-8 h-8" />,
+        gridClass: 'md:col-span-1 lg:col-span-1'
     },
     {
         id: 'color',
         route: '/color',
         name: 'COULEUR_MOI',
-        description: 'Clone de Toon Tone : devinez la couleur exacte de personnages célèbres',
+        description: 'Clone de Toon Tone : devinez la couleur exacte de personnages célèbres.',
         tags: ['Couleurs', 'Mémoire', 'Multijoueur'],
-        color: '#ffc107',
-        colorRgb: '255, 193, 7',
-        icon: (
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <path d="M12 36C6 34 4 28 4 22C4 12 12 4 24 4C36 4 44 12 44 22C44 28 42 34 36 36L30 38C28 39 26 41 26 43C26 44 25 45 24 45C23 45 22 44 22 43C22 41 20 39 18 38L12 36Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                <circle cx="14" cy="16" r="3" fill="currentColor"/>
-                <circle cx="20" cy="11" r="3" fill="currentColor"/>
-                <circle cx="28" cy="11" r="3" fill="currentColor"/>
-                <circle cx="34" cy="16" r="3" fill="currentColor"/>
-                <circle cx="37" cy="24" r="3" fill="currentColor"/>
-                <path d="M22 28C22 28 23 25 24 25C25 25 26 28 26 28 L28 32 L20 32 Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="currentColor"/>
-            </svg>
-        ),
+        color: '#f59e0b',
+        colorRgb: '245, 158, 11',
+        icon: <Palette className="w-8 h-8" />,
+        gridClass: 'md:col-span-1 lg:col-span-1'
     },
+    {
+        id: 'apero',
+        href: 'https://ltnhout.ltn.re',
+        name: 'APÉRO_QUIZ',
+        description: 'Quiz de bar interactif — Les équipes répondent directement sur leur téléphone.',
+        tags: ['Quiz', 'Par Équipe', 'Bar'],
+        color: '#8b5cf6',
+        colorRgb: '139, 92, 246',
+        icon: <Beer className="w-8 h-8" />,
+        gridClass: 'md:col-span-2 lg:col-span-1'
+    }
 ];
 
 function GameCard({ game, index }) {
@@ -106,289 +76,289 @@ function GameCard({ game, index }) {
         ? ({ children, ...props }) => <a href={game.href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
         : ({ children, ...props }) => <Link to={game.route} {...props}>{children}</Link>;
 
-    return (
-        <Wrapper
-            className="group relative block focus:outline-none"
-            aria-label={`Jouer à ${game.name}`}
-            style={{ '--card-color': game.color, '--card-rgb': game.colorRgb }}
-        >
-            {/* Outer glow on hover */}
-            <div
-                className="absolute -inset-px rounded-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-300"
-                style={{ background: `linear-gradient(135deg, ${game.color}40, transparent 60%)`, boxShadow: `0 0 20px ${game.color}30` }}
-            />
+    const cardVariants = {
+        hidden: { y: 30, opacity: 0 },
+        visible: {
+            y: 0,
+            opacity: 1,
+            transition: {
+                type: 'spring',
+                stiffness: 100,
+                damping: 15,
+                delay: index * 0.1
+            }
+        }
+    };
 
-            {/* Card */}
-            <div
-                className="relative flex flex-col h-full rounded-lg border bg-[#0a0a0f] p-6 cursor-pointer transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-2xl group-focus-visible:ring-2"
+    return (
+        <Wrapper className={`group relative block focus:outline-none h-full ${game.gridClass}`}>
+            <motion.div
+                variants={cardVariants}
+                initial="hidden"
+                animate="visible"
+                whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                className="relative flex flex-col h-full rounded-2xl border bg-[#0d0e12]/60 backdrop-blur-md p-6 cursor-pointer transition-all duration-300 group-focus-visible:ring-2"
                 style={{
-                    borderColor: `${game.color}30`,
+                    borderColor: `${game.color}20`,
+                    boxShadow: `0 4px 30px rgba(0, 0, 0, 0.4), 0 0 20px ${game.color}05`,
                     '--tw-ring-color': game.color,
-                    transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
                 }}
             >
+                {/* Glow on hover */}
+                <div
+                    className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    style={{
+                        background: `radial-gradient(circle at 50% 0%, ${game.color}15, transparent 65%)`
+                    }}
+                />
+
                 {/* Scanline overlay */}
-                <div className="pointer-events-none absolute inset-0 rounded-lg opacity-[0.03] overflow-hidden" aria-hidden="true"
+                <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-[0.02] overflow-hidden" aria-hidden="true"
                     style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.15) 2px, rgba(255,255,255,0.15) 4px)' }} />
 
-                {/* Corner accent */}
-                <div className="absolute top-0 right-0 w-12 h-12 overflow-hidden rounded-tr-lg">
-                    <div className="absolute top-0 right-0 w-full h-[2px] transition-all duration-300 group-hover:opacity-100 opacity-40"
-                        style={{ background: game.color }} />
-                    <div className="absolute top-0 right-0 h-full w-[2px] transition-all duration-300 group-hover:opacity-100 opacity-40"
-                        style={{ background: game.color }} />
-                </div>
-                <div className="absolute bottom-0 left-0 w-12 h-12 overflow-hidden rounded-bl-lg">
-                    <div className="absolute bottom-0 left-0 w-full h-[2px] transition-all duration-300 group-hover:opacity-100 opacity-40"
-                        style={{ background: game.color }} />
-                    <div className="absolute bottom-0 left-0 h-full w-[2px] transition-all duration-300 group-hover:opacity-100 opacity-40"
-                        style={{ background: game.color }} />
-                </div>
-
-                {/* Icon */}
-                <div
-                    className="mb-5 w-14 h-14 flex items-center justify-center rounded-md transition-all duration-300 group-hover:scale-110"
-                    style={{
-                        color: game.color,
-                        background: `${game.color}12`,
-                        boxShadow: `0 0 0 1px ${game.color}20`,
-                        filter: 'drop-shadow(0 0 8px currentColor)',
-                    }}
-                >
-                    <span style={{ color: game.color, width: 32, height: 32, display: 'flex', filter: `drop-shadow(0 0 6px ${game.color})` }}>
+                {/* Card header icon & details */}
+                <div className="flex items-start justify-between mb-5">
+                    <div
+                        className="w-14 h-14 flex items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110 shadow-lg"
+                        style={{
+                            color: game.color,
+                            background: `${game.color}10`,
+                            borderColor: `${game.color}25`,
+                            borderWidth: '1px',
+                            boxShadow: `0 0 15px ${game.color}10`
+                        }}
+                    >
                         {game.icon}
-                    </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 justify-end max-w-[60%]">
+                        {game.tags.map(tag => (
+                            <span
+                                key={tag}
+                                className="text-[10px] px-2 py-0.5 rounded-md font-semibold tracking-wider uppercase border"
+                                style={{
+                                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                    color: `${game.color}e0`,
+                                    background: `${game.color}07`,
+                                    borderColor: `${game.color}20`,
+                                }}
+                            >
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Game name */}
-                <h2
-                    className="font-bold mb-3 tracking-widest text-sm uppercase transition-all duration-300"
+                {/* Title */}
+                <h3
+                    className="font-bold text-lg mb-3 tracking-wider uppercase font-headline transition-all duration-300"
                     style={{
-                        fontFamily: "'Orbitron', monospace",
                         color: game.color,
-                        textShadow: `0 0 12px ${game.color}80`,
+                        textShadow: `0 0 15px ${game.color}30`,
                     }}
                 >
                     {game.name}
-                </h2>
+                </h3>
 
                 {/* Description */}
-                <p className="text-[#8892a4] text-sm leading-relaxed mb-5 flex-1" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                <p className="text-[#94a3b8] text-sm leading-relaxed mb-6 flex-1 font-body">
                     {game.description}
                 </p>
 
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mt-auto">
-                    {game.tags.map(tag => (
-                        <span
-                            key={tag}
-                            className="text-xs px-2.5 py-1 rounded tracking-wider uppercase"
-                            style={{
-                                fontFamily: "'JetBrains Mono', monospace",
-                                color: `${game.color}cc`,
-                                background: `${game.color}10`,
-                                border: `1px solid ${game.color}25`,
-                                fontSize: '10px',
-                            }}
-                        >
-                            {tag}
-                        </span>
-                    ))}
+                {/* Play link & Arrow */}
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest font-headline mt-auto transition-colors duration-200"
+                     style={{ color: game.color }}>
+                    <span>Lancer le jeu</span>
+                    <ArrowRight className="w-4 h-4 translate-x-0 group-hover:translate-x-1 transition-transform duration-200" />
                 </div>
-
-                {/* Play arrow — appears on hover */}
-                <div className="absolute bottom-5 right-5 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-1 group-hover:translate-x-0">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                        <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke={game.color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                </div>
-            </div>
+            </motion.div>
         </Wrapper>
     );
 }
 
 function HomePage() {
-    const titleRef = useRef(null);
+    const navigate = useNavigate();
+    const [isConnected, setIsConnected] = useState(socket.connected);
+    const [roomCode, setRoomCode] = useState('');
 
     useEffect(() => {
-        const el = titleRef.current;
-        if (!el) return;
-        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (prefersReduced) return;
+        function onConnect() {
+            setIsConnected(true);
+        }
 
-        let frame;
-        let triggered = false;
-        const triggerGlitch = () => {
-            if (triggered) return;
-            triggered = true;
-            el.classList.add('glitch-active');
-            setTimeout(() => { el.classList.remove('glitch-active'); triggered = false; }, 600);
+        function onDisconnect() {
+            setIsConnected(false);
+        }
+
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
+        
+        setIsConnected(socket.connected);
+
+        return () => {
+            socket.off('connect', onConnect);
+            socket.off('disconnect', onDisconnect);
         };
-
-        const interval = setInterval(triggerGlitch, 4000);
-        return () => { clearInterval(interval); cancelAnimationFrame(frame); };
     }, []);
+
+    const handleQuickJoin = (e) => {
+        e.preventDefault();
+        if (roomCode.trim()) {
+            navigate(`/join/${roomCode.trim().toUpperCase()}`);
+        }
+    };
 
     return (
         <>
             <style>{`
-                @keyframes scanline {
-                    0% { transform: translateY(-100%); }
-                    100% { transform: translateY(100vh); }
-                }
-                @keyframes flicker {
-                    0%, 95%, 100% { opacity: 1; }
-                    96% { opacity: 0.85; }
-                    97% { opacity: 1; }
-                    98% { opacity: 0.9; }
-                }
-                @keyframes glitch-1 {
-                    0% { clip-path: inset(0 0 95% 0); transform: translate(-3px, 0); }
-                    20% { clip-path: inset(30% 0 50% 0); transform: translate(3px, 0); }
-                    40% { clip-path: inset(60% 0 20% 0); transform: translate(-2px, 0); }
-                    60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, 0); }
-                    80% { clip-path: inset(10% 0 75% 0); transform: translate(-1px, 0); }
-                    100% { clip-path: inset(95% 0 0 0); transform: translate(0, 0); }
-                }
-                @keyframes glitch-2 {
-                    0% { clip-path: inset(80% 0 5% 0); transform: translate(3px, 0); }
-                    25% { clip-path: inset(10% 0 75% 0); transform: translate(-3px, 0); }
-                    50% { clip-path: inset(50% 0 30% 0); transform: translate(2px, 0); }
-                    75% { clip-path: inset(25% 0 60% 0); transform: translate(-1px, 0); }
-                    100% { clip-path: inset(5% 0 80% 0); transform: translate(0, 0); }
-                }
-                @keyframes pulse-dot {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.4; transform: scale(0.8); }
-                }
                 @keyframes grid-scroll {
                     0% { background-position: 0 0; }
                     100% { background-position: 40px 40px; }
                 }
-                .hub-title {
-                    font-family: 'Orbitron', monospace;
-                    font-weight: 900;
-                    font-size: clamp(2.5rem, 8vw, 5rem);
-                    letter-spacing: 0.1em;
-                    color: #00ff41;
-                    text-shadow: 0 0 20px rgba(0,255,65,0.7), 0 0 60px rgba(0,255,65,0.3), 0 0 100px rgba(0,255,65,0.1);
-                    animation: flicker 8s infinite;
-                    position: relative;
-                    display: inline-block;
-                }
-                .hub-title::before,
-                .hub-title::after {
-                    content: attr(data-text);
-                    position: absolute;
-                    inset: 0;
-                    font-family: inherit;
-                    font-weight: inherit;
-                    font-size: inherit;
-                    letter-spacing: inherit;
-                    opacity: 0;
-                }
-                .hub-title.glitch-active::before {
-                    color: #bd00ff;
-                    opacity: 0.8;
-                    animation: glitch-1 0.6s steps(1) forwards;
-                }
-                .hub-title.glitch-active::after {
-                    color: #00dbde;
-                    opacity: 0.8;
-                    animation: glitch-2 0.6s steps(1) forwards;
+                @keyframes blob {
+                    0% { transform: translate(0px, 0px) scale(1); }
+                    33% { transform: translate(30px, -50px) scale(1.05); }
+                    66% { transform: translate(-20px, 20px) scale(0.95); }
+                    100% { transform: translate(0px, 0px) scale(1); }
                 }
                 .bg-grid {
                     background-image:
-                        linear-gradient(rgba(0,255,65,0.04) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(0,255,65,0.04) 1px, transparent 1px);
+                        linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
                     background-size: 40px 40px;
-                    animation: grid-scroll 8s linear infinite;
+                    animation: grid-scroll 12s linear infinite;
                 }
-                @media (prefers-reduced-motion: reduce) {
-                    .hub-title { animation: none; }
-                    .bg-grid { animation: none; }
+                .animate-blob {
+                    animation: blob 10s infinite alternate ease-in-out;
+                }
+                .animation-delay-2000 {
+                    animation-delay: 2s;
+                }
+                .animation-delay-4000 {
+                    animation-delay: 4s;
+                }
+                .scrollbar-thin::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .scrollbar-thin::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .scrollbar-thin::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.1);
+                    border-radius: 9999px;
+                }
+                .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+                    background: rgba(255, 255, 255, 0.2);
                 }
             `}</style>
 
-            <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden" style={{ background: '#050505' }}>
+            <div className="relative w-full h-screen overflow-y-auto scrollbar-thin flex flex-col items-center bg-[#05050a] text-slate-100 font-body select-none">
+                
+                {/* Background grid */}
+                <div className="bg-grid absolute inset-0 pointer-events-none z-0" aria-hidden="true" />
 
-                {/* Animated grid background */}
-                <div className="bg-grid absolute inset-0 pointer-events-none" aria-hidden="true" />
+                {/* Animated blur spots */}
+                <div className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full bg-violet-600/10 blur-[130px] pointer-events-none animate-blob z-0" />
+                <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-cyan-600/10 blur-[140px] pointer-events-none animate-blob animation-delay-2000 z-0" />
+                <div className="absolute top-[35%] left-[25%] w-[40%] h-[40%] rounded-full bg-emerald-600/5 blur-[120px] pointer-events-none animate-blob animation-delay-4000 z-0" />
 
-                {/* Radial vignette */}
-                <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-                    style={{ background: 'radial-gradient(ellipse 80% 60% at 50% 10%, rgba(0,255,65,0.07) 0%, transparent 70%)' }} />
-                <div className="absolute inset-0 pointer-events-none" aria-hidden="true"
-                    style={{ background: 'radial-gradient(ellipse 60% 40% at 80% 80%, rgba(189,0,255,0.05) 0%, transparent 60%)' }} />
-
-                {/* Content */}
-                <main className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 flex flex-col items-center">
-
-                    {/* Header */}
-                    <header className="text-center mb-16">
-                        <div className="flex items-center justify-center gap-3 mb-3">
-                            <div className="h-px flex-1 max-w-24" style={{ background: 'linear-gradient(to right, transparent, #00ff4160)' }} />
-                            <span style={{ fontFamily: "'JetBrains Mono', monospace", color: '#00ff4180', fontSize: '11px', letterSpacing: '0.25em' }}>// GAME PLATFORM v2.0</span>
-                            <div className="h-px flex-1 max-w-24" style={{ background: 'linear-gradient(to left, transparent, #00ff4160)' }} />
+                {/* Main page content container */}
+                <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col min-h-screen">
+                    
+                    {/* Floating Header */}
+                    <header className="flex items-center justify-between w-full mb-12 sm:mb-16">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-violet-600 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/20">
+                                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                            </div>
+                            <span className="font-headline font-black text-lg tracking-wider text-white">GAME_HUB</span>
                         </div>
 
-                        <h1
-                            ref={titleRef}
-                            className="hub-title"
-                            data-text="GAME_HUB"
-                        >
-                            GAME_HUB
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            {/* Server Status Pill */}
+                            <div className="flex items-center gap-2 bg-[#0d0e12]/60 border border-slate-800/80 rounded-full px-3.5 py-1.5 backdrop-blur-md">
+                                <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'} animate-pulse`} />
+                                <span className="text-[10px] font-headline tracking-widest text-[#94a3b8] uppercase font-semibold">
+                                    {isConnected ? 'Serveur en ligne' : 'Serveur hors ligne'}
+                                </span>
+                            </div>
 
-                        <p className="mt-4 text-[#4a5568] text-sm tracking-widest uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                            Choisissez votre expérience de jeu
-                        </p>
-
-                        {/* Status indicators */}
-                        <div className="flex items-center justify-center gap-6 mt-6">
-                            {[
-                                { label: '5 JEUX', color: '#00ff41' },
-                                { label: 'MULTIJOUEUR', color: '#00dbde' },
-                                { label: 'TEMPS RÉEL', color: '#bd00ff' },
-                            ].map(({ label, color }) => (
-                                <div key={label} className="flex items-center gap-1.5">
-                                    <div className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}`, animation: 'pulse-dot 2s ease-in-out infinite' }} />
-                                    <span style={{ fontFamily: "'JetBrains Mono', monospace", color: `${color}90`, fontSize: '10px', letterSpacing: '0.2em' }}>{label}</span>
-                                </div>
-                            ))}
+                            {/* Admin Link */}
+                            <Link 
+                                to="/admin" 
+                                className="p-2.5 rounded-xl bg-[#0d0e12]/60 border border-slate-800/80 text-[#94a3b8] hover:text-white hover:border-slate-700 transition-all flex items-center justify-center backdrop-blur-md"
+                                title="Administration"
+                            >
+                                <Lock className="w-4 h-4" />
+                            </Link>
                         </div>
                     </header>
 
-                    {/* Game grid */}
-                    <div
-                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full"
-                        role="list"
-                        aria-label="Sélection de jeux"
-                    >
-                        {GAMES.map((game, i) => (
-                            <div key={game.id} role="listitem">
-                                <GameCard game={game} index={i} />
+                    {/* Hero Section */}
+                    <section className="flex flex-col items-center text-center max-w-3xl mx-auto mb-16">
+                        <span className="font-headline font-semibold text-xs tracking-[0.25em] text-[#8b5cf6] uppercase mb-4 px-3 py-1 rounded-full bg-violet-500/5 border border-violet-500/10">
+                            Plateforme de Jeux v2.0
+                        </span>
+
+                        <h1 className="font-headline font-black text-4xl sm:text-6xl tracking-tight mb-6 bg-gradient-to-r from-violet-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-sm leading-none">
+                            GAME_HUB
+                        </h1>
+
+                        <p className="text-slate-400 text-sm sm:text-base leading-relaxed mb-8 max-w-2xl font-body">
+                            Sélectionnez une expérience pour commencer à jouer. Créez un salon en tant qu'hôte pour afficher la partie sur grand écran, ou rejoignez instantanément une partie existante.
+                        </p>
+
+                        {/* Quick Join Card */}
+                        <motion.form 
+                            onSubmit={handleQuickJoin}
+                            initial={{ y: 15, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                            className="bg-[#0d0e12]/60 border border-slate-800/80 rounded-2xl p-5 w-full max-w-md shadow-2xl backdrop-blur-md flex flex-col items-start"
+                        >
+                            <label className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5 font-headline">
+                                <Sparkles className="w-3.5 h-3.5 text-[#06b6d4]" />
+                                Rejoindre une partie
+                            </label>
+
+                            <div className="flex gap-2.5 w-full">
+                                <input
+                                    type="text"
+                                    className="flex-1 bg-black/40 border border-slate-800 rounded-xl px-4 py-2.5 text-center text-lg font-bold tracking-[0.2em] text-[#06b6d4] focus:outline-none focus:border-[#06b6d4] focus:ring-1 focus:ring-[#06b6d4]/20 transition-all font-headline uppercase"
+                                    placeholder="CODE"
+                                    maxLength={6}
+                                    value={roomCode}
+                                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={!roomCode.trim()}
+                                    className="bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 disabled:from-slate-800 disabled:to-slate-800 text-white rounded-xl px-5 font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all shadow-lg hover:shadow-violet-600/20 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed font-headline"
+                                >
+                                    <span>Rejoindre</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
                             </div>
+                        </motion.form>
+                    </section>
+
+                    {/* Bento Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mb-16">
+                        {GAMES.map((game, i) => (
+                            <GameCard key={game.id} game={game} index={i} />
                         ))}
                     </div>
 
                     {/* Footer */}
-                    <footer className="mt-16 flex flex-col items-center gap-3">
-                        <div className="h-px w-48" style={{ background: 'linear-gradient(to right, transparent, #ffffff10, transparent)' }} />
-                        <Link
-                            to="/admin"
-                            className="group flex items-center gap-2 transition-colors duration-200 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#4a5568] rounded px-2 py-1"
-                            style={{ color: '#2d3748', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.15em', textDecoration: 'none' }}
-                            aria-label="Accès administrateur"
-                        >
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="group-hover:opacity-60 transition-opacity">
-                                <rect x="1" y="5" width="10" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-                                <path d="M3.5 5V3.5a2.5 2.5 0 0 1 5 0V5" stroke="currentColor" strokeWidth="1.2"/>
-                            </svg>
-                            <span className="group-hover:text-[#4a5568] transition-colors">// ACCÈS ADMINISTRATEUR</span>
-                        </Link>
+                    <footer className="mt-auto py-8 w-full border-t border-slate-800/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <span className="text-[11px] font-headline text-slate-500 tracking-wider">
+                            // DÉVELOPPÉ AVEC PASSION POUR DES EXPÉRIENCES UNIQUES
+                        </span>
+                        <span className="text-[11px] font-headline text-slate-500 tracking-wider">
+                            © {new Date().getFullYear()} GAME_HUB - TOUS DROITS RÉSERVÉS
+                        </span>
                     </footer>
-                </main>
+                </div>
             </div>
         </>
     );
