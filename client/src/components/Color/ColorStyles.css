@@ -265,12 +265,17 @@
 .cm-field {
     position: relative;
     width: 100%;
-    aspect-ratio: 1.35 / 1;
+    aspect-ratio: 1.75 / 1;
     border-radius: var(--cm-r-md);
     border: 1px solid var(--cm-line-strong);
     cursor: crosshair;
     touch-action: none;
     overflow: hidden;
+}
+@media (min-width: 640px) {
+    .cm-field {
+        aspect-ratio: 1.35 / 1;
+    }
 }
 .cm-field-thumb {
     position: absolute;

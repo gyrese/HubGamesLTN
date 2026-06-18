@@ -217,7 +217,7 @@ function ColorPlayerView() {
     const liveInk = isLive ? contrastColor : '#20160a';
 
     return (
-        <div className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col items-center px-4 py-5 select-none"
+        <div className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col items-center px-3 py-3 sm:px-4 sm:py-5 select-none"
              style={{ '--live': live, '--live-ink': liveInk }}>
             <div className="cm-bg-grid" />
             <div className="cm-bg-pool" style={{ background: `radial-gradient(70% 45% at 50% 0%, ${live}1f, transparent 72%)` }} />
@@ -284,7 +284,7 @@ function ColorPlayerView() {
                     </form>
                 </motion.main>
             ) : (
-                <div className="relative z-10 w-full max-w-[440px] flex flex-col gap-4 pb-10">
+                <div className="relative z-10 w-full max-w-[440px] flex flex-col gap-2.5 sm:gap-4 pb-4 sm:pb-10">
 
                     {/* ════════ LOBBY ════════ */}
                     {gameState === 'LOBBY' && (
@@ -303,7 +303,7 @@ function ColorPlayerView() {
                     {/* ════════ PLAYING ════════ */}
                     {gameState === 'PLAYING' && character && (
                         <motion.div key={currentRound} initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="flex flex-col gap-4 mt-1">
+                                    className="flex flex-col gap-2.5 sm:gap-4 mt-0.5 sm:mt-1">
                             <div className="flex items-center justify-between">
                                 <div className="flex flex-col">
                                     <span className="cm-label">Recrée la couleur de</span>
@@ -314,7 +314,7 @@ function ColorPlayerView() {
                                 <span className="cm-chip cm-mono shrink-0">{currentRound}/{totalRounds}</span>
                             </div>
 
-                            <div className="cm-viewport w-full max-w-[280px] mx-auto">
+                            <div className="cm-viewport w-32 h-32 sm:w-40 sm:h-40 md:w-56 md:h-56 lg:w-64 lg:h-64 mx-auto">
                                 <div className="cm-viewport-fill" style={{ backgroundColor: guessCssColor }} />
                                 <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
                                      className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
@@ -322,7 +322,7 @@ function ColorPlayerView() {
                             </div>
 
                             <div className="relative">
-                                <div className="cm-panel p-4 flex flex-col gap-3.5">
+                                <div className="cm-panel p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3.5">
                                     <SBField h={h} s={s} b={b} onChange={(ns, nb) => { setS(ns); setB(nb); }} />
                                     <input type="range" min={0} max={359} value={h}
                                            onChange={(e) => setH(parseInt(e.target.value))} className="cm-hue" aria-label="Teinte" />
@@ -373,7 +373,7 @@ function ColorPlayerView() {
                     {/* ════════ ROUND END ════════ */}
                     {gameState === 'ROUND_END' && character && (
                         <motion.div initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="flex flex-col gap-4 mt-1">
+                                    className="flex flex-col gap-2.5 sm:gap-4 mt-0.5 sm:mt-1">
                             <div className="flex flex-col">
                                 <span className="cm-label">Résultat · Manche {currentRound}</span>
                                 <h3 className="text-lg font-bold">{character.name} <span className="text-[var(--cm-ink-2)] font-medium">· {character.part}</span></h3>
@@ -425,7 +425,7 @@ function ColorPlayerView() {
                     )}
 
                     {/* ════════ SOCIAL ════════ */}
-                    <div className="cm-panel p-3.5 flex flex-col gap-3 mt-1">
+                    <div className="cm-panel p-2.5 sm:p-3.5 flex flex-col gap-2 sm:gap-3 mt-0.5 sm:mt-1">
                         <div className="flex justify-between gap-1">
                             {['👍','🔥','😂','😱','😮','🎉'].map(emoji => (
                                 <button key={emoji} type="button" onClick={() => sendReaction(emoji)}
