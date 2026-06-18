@@ -60,7 +60,7 @@ const GAMES = [
     },
     {
         id: 'apero',
-        href: 'https://ltnhout.ltn.re',
+        href: 'https://ltnhoot.ltn.re/',
         name: 'APÉRO_QUIZ',
         description: 'Quiz de bar interactif — Les équipes répondent directement sur leur téléphone.',
         tags: ['Quiz', 'Par Équipe', 'Bar'],

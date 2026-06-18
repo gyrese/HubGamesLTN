@@ -272,16 +272,25 @@ class ColorGameManager {
 
     calculateScore(guess, target, hintUsed) {
         // Score perceptuel basé sur la distance CIELab (ΔE76) : il reflète l'écart RÉELLEMENT
-        // perçu entre les deux couleurs (teinte + saturation + luminosité combinées). Une moyenne
-        // pondérée en HSB pardonnait trop les erreurs de teinte (couleur clairement différente mais
-        // bonne note). En Lab, une teinte fausse sur une couleur vive donne un grand ΔE → note basse,
-        // et une teinte fausse sur un gris donne un petit ΔE → tolérée (comme à l'œil).
+        // perçu entre les deux couleurs (teinte + saturation + luminosité combinées).
         const dE = deltaE76(hsbToLab(guess.h, guess.s, guess.b), hsbToLab(target.h, target.s, target.b));
 
-        // Mapping ΔE -> note /10. ~0 = parfait ; ~16 ≈ "très proche" (8) ; ~32 ≈ "à côté" (4) ;
-        // ≥ DE_ZERO ≈ couleur clairement différente -> 0.
-        const DE_ZERO = 55;
-        let score = 10 * Math.max(0, 1 - dE / DE_ZERO);
+        // Nouvelle formule non-linéaire avec plateau de tolérance (ΔE <= 3.0 -> parfait 10/10)
+        // et courbe de décroissance douce (exposant 0.7) pour être plus gratifiant
+        // sur les couleurs proches, tout en tombant à 0 pour les couleurs vraiment fausses (ΔE >= 65).
+        const DE_TOLERANCE = 3.0;
+        const DE_MAX = 65.0;
+        const EXPONENT = 0.7;
+
+        let score = 0;
+        if (dE <= DE_TOLERANCE) {
+            score = 10;
+        } else if (dE >= DE_MAX) {
+            score = 0;
+        } else {
+            const normalizedDiff = (dE - DE_TOLERANCE) / (DE_MAX - DE_TOLERANCE);
+            score = 10 * Math.pow(1 - normalizedDiff, EXPONENT);
+        }
 
         // Malus de 1 point si un indice a été utilisé
         if (hintUsed) {
