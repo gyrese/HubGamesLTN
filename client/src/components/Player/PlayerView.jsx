@@ -1,6 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
+
+// ─── Session de salon (persistance + reconnexion, pattern GeoTrackr) ───
+const SESSION_KEY = 'qi-session';
+const readSession = () => {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+};
+const writeSession = (patch) => {
+    try {
+        const prev = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ ...prev, ...patch }));
+    } catch { /* localStorage indisponible */ }
+};
+const clearSession = () => {
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+};
 
 function PlayerView() {
     const navigate = useNavigate();
@@ -73,19 +88,45 @@ function PlayerView() {
         }
     };
 
-    const joinRoom = () => {
-        if (!roomCode || !pseudo) {
-            setError("Code et Pseudo requis");
-            return;
-        }
-        socket.emit('join-room', { roomCode, playerName: pseudo, avatar }, (response) => {
+    // Jonction réutilisable. silent=true pour les reconnexions automatiques (aucune UI).
+    const doJoin = (code, name, av, silent = false) => {
+        const cleanCode = (code || '').trim();
+        const cleanName = (name || '').trim();
+        if (!cleanCode || !cleanName) { if (!silent) setError("Code et Pseudo requis"); return; }
+
+        socket.emit('join-room', { roomCode: cleanCode, playerName: cleanName, avatar: av }, (response) => {
             if (response.error) {
-                setError(response.error);
-            } else {
-                setStep('PROFILE'); // Passer au profil avant d'attendre
+                clearSession();                      // salon fermé/invalide → on repart propre
+                if (!silent) setError(response.error);
+                return;
+            }
+            setRoomCode(cleanCode);
+            writeSession({ roomCode: cleanCode, pseudo: cleanName, avatar: av || null });
+
+            if (response.reconnected) {
+                if (response.myScore !== undefined) writeSession({ myScore: response.myScore });
+                if (response.gameState === 'LOBBY') {
+                    setStep(response.profileComplete ? 'WAITING' : 'PROFILE');
+                } else if (response.gameState === 'QUESTION') {
+                    setCurrentQuestion(response.question);
+                    setResult(null);
+                    // -1 = répondu/verrouillé (on ne connaît pas le choix exact après coup)
+                    setSelectedAnswer((response.alreadyAnswered || response.questionEnded) ? -1 : null);
+                    setStep('GAME');
+                } else if (response.gameState === 'SERIES_END') {
+                    setResult({ score: response.myScore || 0, rank: response.rank, totalPlayers: response.totalPlayers });
+                    setStep('SERIES_END');
+                } else if (response.gameState === 'END') {
+                    setResult({ score: response.myScore || 0, rank: response.rank, totalPlayers: response.totalPlayers, iq: response.iq || null });
+                    setStep('END');
+                }
+            } else if (!silent) {
+                setStep('PROFILE'); // nouvelle entrée : profil avant l'attente
             }
         });
     };
+
+    const joinRoom = () => doJoin(roomCode, pseudo, avatar, false);
 
     const submitProfile = () => {
         // Vérifier que tous les champs sont remplis
@@ -101,6 +142,33 @@ function PlayerView() {
 
     const [selectedAnswer, setSelectedAnswer] = useState(null);
     const [result, setResult] = useState(null); // { score, isCorrect, rank }
+
+    // Reflète `step` dans une ref pour le handler `connect` (évite les closures périmées)
+    const stepRef = useRef('LOGIN');
+    useEffect(() => { stepRef.current = step; }, [step]);
+
+    // Restauration de session au montage + reconnexion automatique sur (re)connexion socket.
+    useEffect(() => {
+        const saved = readSession();
+        // L'URL (QR) peut imposer un autre code que la session → on privilégie l'URL.
+        const urlMismatch = saved && urlRoomCode && saved.roomCode !== urlRoomCode;
+        if (saved && saved.roomCode && saved.pseudo && !urlMismatch) {
+            setPseudo(saved.pseudo);
+            if (saved.avatar) setAvatar(saved.avatar);
+            const rejoin = () => doJoin(saved.roomCode, saved.pseudo, saved.avatar, false);
+            if (socket.connected) rejoin();
+            else socket.once('connect', rejoin);
+        }
+
+        const handleConnect = () => {
+            if (stepRef.current === 'LOGIN') return; // pas encore en partie : rien à reconnecter
+            const s = readSession();
+            if (s && s.roomCode && s.pseudo) doJoin(s.roomCode, s.pseudo, s.avatar, true);
+        };
+        socket.on('connect', handleConnect);
+        return () => socket.off('connect', handleConnect);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const submitAnswer = (index) => {
         if (selectedAnswer !== null) return; // Empêcher de répondre plusieurs fois
@@ -125,6 +193,7 @@ function PlayerView() {
                 isCorrect: isCorrect,
                 rank: leaderboard.findIndex(p => p.id === socket.id) + 1
             });
+            if (myEntry) writeSession({ myScore: myEntry.score });
         });
 
         socket.on('series-end', ({ leaderboard }) => {
@@ -135,6 +204,7 @@ function PlayerView() {
                 rank: leaderboard.findIndex(p => p.id === socket.id) + 1,
                 totalPlayers: leaderboard.length
             });
+            if (myEntry) writeSession({ myScore: myEntry.score });
         });
 
         socket.on('game-over', ({ leaderboard }) => {
@@ -146,6 +216,15 @@ function PlayerView() {
                 totalPlayers: leaderboard.length,
                 iq: myEntry ? myEntry.iq : null
             });
+            if (myEntry) writeSession({ myScore: myEntry.score });
+        });
+
+        socket.on('host-disconnected', () => {
+            clearSession();
+            setStep('LOGIN');
+            setSelectedAnswer(null);
+            setResult(null);
+            setError("L'hôte a quitté la partie.");
         });
 
         return () => {
@@ -153,13 +232,14 @@ function PlayerView() {
             socket.off('round-results');
             socket.off('series-end');
             socket.off('game-over');
+            socket.off('host-disconnected');
         };
     }, [selectedAnswer]);
 
     return (
         <div className="player-view min-vh-100 d-flex flex-column text-light">
             <div className="p-2 d-flex justify-content-between align-items-center">
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => navigate('/quiz')}>RETOUR</button>
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => { clearSession(); navigate('/quiz'); }}>RETOUR</button>
                 {step !== 'LOGIN' && roomCode && <span className="badge bg-dark border border-secondary text-light">PIN: {roomCode}</span>}
             </div>
 
@@ -449,7 +529,7 @@ function PlayerView() {
                     </div>
 
                     <div className="mt-5">
-                        <button className="btn btn-outline-primary btn-lg" onClick={() => navigate('/')}>RETOUR À L'ACCUEIL</button>
+                        <button className="btn btn-outline-primary btn-lg" onClick={() => { clearSession(); navigate('/'); }}>RETOUR À L'ACCUEIL</button>
                     </div>
                 </div>
             )}

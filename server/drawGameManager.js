@@ -513,7 +513,10 @@ class DrawGameManager {
     removePlayer(playerId) {
         for (const [code, room] of this.rooms) {
             if (room.hostId === playerId) {
-                this.rooms.delete(code);
+                // On NE supprime pas la room tout de suite : le contrôleur applique une
+                // période de grâce (90s) pendant laquelle l'hôte peut se reconnecter
+                // (draw-host-reconnect). La suppression réelle est faite par le timer.
+                room.hostDisconnected = true;
                 return { roomCode: code, room, isHost: true };
             }
 

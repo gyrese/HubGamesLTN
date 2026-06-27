@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -27,6 +27,19 @@ function getImageUrl(imagePath) {
 const PLAYER_COLORS = ['#f59e0b','#34d399','#60a5fa','#c084fc','#fb7185','#22d3ee','#a3e635','#f472b6'];
 const SPRING = { type: 'spring', stiffness: 120, damping: 16 };
 const MEDALS = ['#f5b544', '#c9cdd6', '#cd8b5a']; // gold, silver, bronze
+
+// ─── Session hôte (persistance + reconnexion, pattern GeoTrackr) ───
+const HOST_SESSION_KEY = 'color-host-session';
+const HOST_SESSION_TTL = 4 * 60 * 60 * 1000; // 4 h : au-delà, le serveur a probablement redémarré
+const readHostSession = () => {
+    try { return JSON.parse(localStorage.getItem(HOST_SESSION_KEY) || 'null'); } catch { return null; }
+};
+const writeHostSession = (roomCode) => {
+    try { localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ roomCode, createdAt: Date.now() })); } catch { /* noop */ }
+};
+const clearHostSession = () => {
+    try { localStorage.removeItem(HOST_SESSION_KEY); } catch { /* noop */ }
+};
 
 function Avatar({ src, name, idx, size = 36, ring }) {
     return (
@@ -85,33 +98,68 @@ function ColorHostView() {
 
     const triggerEndRound = () => socket.emit('color-end-round', { roomCode });
 
-    useEffect(() => {
-        const urlCode = searchParams.get('code');
-        if (urlCode) {
-            socket.emit('color-host-reconnect', { roomCode: urlCode.toUpperCase() }, (response) => {
-                if (response.error) { createFreshRoom(); }
-                else {
-                    setRoomCode(response.roomCode);
-                    setGameState(response.gameState);
-                    setCurrentRound(response.currentRound);
-                    setTotalRounds(response.totalRounds);
-                    setPlayers(response.players);
-                    setTimePerRound(response.timePerRound);
-                    setCharacter(response.character);
-                    if (response.roundStartTime) {
-                        const elapsed = Math.round((Date.now() - response.roundStartTime) / 1000);
-                        setTimer(Math.max(0, response.timePerRound - elapsed));
-                    }
-                }
-            });
-        } else { createFreshRoom(); }
+    // Garde le code de salon courant accessible dans le handler `connect` (closures).
+    const roomCodeRef = useRef('');
+    useEffect(() => { roomCodeRef.current = roomCode; }, [roomCode]);
 
-        function createFreshRoom() {
+    useEffect(() => {
+        const applyReconnect = (response) => {
+            setRoomCode(response.roomCode);
+            setGameState(response.gameState);
+            setCurrentRound(response.currentRound);
+            setTotalRounds(response.totalRounds);
+            setPlayers(response.players || []);
+            setTimePerRound(response.timePerRound);
+            setCharacter(response.character);
+            if (response.roundStartTime) {
+                const elapsed = Math.round((Date.now() - response.roundStartTime) / 1000);
+                setTimer(Math.max(0, response.timePerRound - elapsed));
+            }
+            writeHostSession(response.roomCode);
+        };
+
+        const createFreshRoom = () => {
             socket.emit('color-create-room', { settings: { roundsCount: 5, timePerRound: 60 } }, (response) => {
-                if (response.error) { alert('Erreur lors de la création de la salle'); navigate('/color'); }
-                else { setRoomCode(response.roomCode); }
+                if (response.error) { alert('Erreur lors de la création de la salle'); clearHostSession(); navigate('/color'); }
+                else { setRoomCode(response.roomCode); writeHostSession(response.roomCode); }
             });
+        };
+
+        // Reconnexion à un salon existant avec timeout de secours → fallback (ex. nouvelle salle).
+        const reconnectHost = (code, onFail) => {
+            let handled = false;
+            const t = setTimeout(() => { if (!handled) { handled = true; onFail(); } }, 4000);
+            socket.emit('color-host-reconnect', { roomCode: code.toUpperCase() }, (response) => {
+                clearTimeout(t);
+                if (handled) return;
+                handled = true;
+                if (response.error) onFail();
+                else applyReconnect(response);
+            });
+        };
+
+        // Décision au montage : URL ?code= > session locale fraîche > nouvelle salle.
+        const urlCode = searchParams.get('code');
+        const saved = readHostSession();
+        const sessionFresh = saved && saved.roomCode && (Date.now() - (saved.createdAt || 0) < HOST_SESSION_TTL);
+
+        if (urlCode) {
+            reconnectHost(urlCode, createFreshRoom);
+        } else if (sessionFresh) {
+            reconnectHost(saved.roomCode, () => { clearHostSession(); createFreshRoom(); });
+        } else {
+            if (saved) clearHostSession();
+            createFreshRoom();
         }
+
+        // Reconnexion automatique sur coupure réseau / veille (le socket revient).
+        const handleReconnect = () => {
+            const code = roomCodeRef.current;
+            if (!code) return; // pas encore de salle créée → rien à reconnecter
+            reconnectHost(code, () => { clearHostSession(); createFreshRoom(); });
+        };
+        socket.on('connect', handleReconnect);
+        return () => socket.off('connect', handleReconnect);
     }, [searchParams, navigate]);
 
     useEffect(() => {
@@ -496,7 +544,7 @@ function ColorHostView() {
 
                         <div className="flex gap-3 w-full max-w-[520px]">
                             <button onClick={handleRestartGame} className="cm-btn cm-btn-primary flex-1 py-3.5"><RotateCcw className="w-4 h-4" /> Rejouer</button>
-                            <button onClick={() => navigate('/color')} className="cm-btn cm-btn-ghost flex-1 py-3.5"><LogOut className="w-4 h-4" /> Quitter</button>
+                            <button onClick={() => { clearHostSession(); navigate('/color'); }} className="cm-btn cm-btn-ghost flex-1 py-3.5"><LogOut className="w-4 h-4" /> Quitter</button>
                         </div>
                     </div>
                 )}

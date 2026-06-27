@@ -1,6 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { socket } from '../../socket';
+
+// ─── Session hôte (persistance + reconnexion, pattern GeoTrackr) ───
+const HOST_SESSION_KEY = 'qi-host-session';
+const HOST_SESSION_TTL = 4 * 60 * 60 * 1000; // 4 h : au-delà, le serveur a probablement redémarré
+const readHostSession = () => {
+    try { return JSON.parse(localStorage.getItem(HOST_SESSION_KEY) || 'null'); } catch { return null; }
+};
+const writeHostSession = (roomCode) => {
+    try { localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ roomCode, createdAt: Date.now() })); } catch { /* noop */ }
+};
+const clearHostSession = () => {
+    try { localStorage.removeItem(HOST_SESSION_KEY); } catch { /* noop */ }
+};
 
 function HostView() {
     const navigate = useNavigate();
@@ -19,22 +32,85 @@ function HostView() {
     const [selectedQuizId, setSelectedQuizId] = useState('');
     const [stats, setStats] = useState(null);
 
+    // Garde le code de salon courant accessible dans le handler `connect` (closures).
+    const roomCodeRef = useRef('');
+    useEffect(() => { roomCodeRef.current = roomCode; }, [roomCode]);
+
+    // Init : reconnexion au salon mémorisé sinon création. + reconnexion auto sur `connect`.
     useEffect(() => {
-        if (gameState === 'INIT') {
+        // Charger la liste des quiz (sélecteur du lobby / séries suivantes)
+        fetch(`${window.location.protocol}//${window.location.hostname}:3001/api/quizzes`)
+            .then(res => res.json())
+            .then(data => { setQuizzes(data); if (data.length > 0) setSelectedQuizId(prev => prev || data[0].id); })
+            .catch(err => console.error("Erreur chargement quiz", err));
+
+        const applyReconnect = (resp) => {
+            roomCodeRef.current = resp.roomCode;
+            setRoomCode(resp.roomCode);
+            setPlayers(resp.players || []);
+            writeHostSession(resp.roomCode);
+
+            if (resp.gameState === 'QUESTION') {
+                setCurrentQuestion(resp.question);
+                if (resp.questionEnded) {
+                    setCorrectAnswer(resp.correctAnswer);
+                    setLeaderboard(resp.leaderboard || []);
+                    setGameState('RESULT');
+                } else {
+                    setAnsweredPlayers(new Set(resp.answeredPlayerIds || []));
+                    const elapsed = resp.questionStartTime ? (Date.now() - resp.questionStartTime) / 1000 : 0;
+                    setTimeLeft(Math.max(0, Math.ceil(20 - elapsed)));
+                    setGameState('GAME');
+                }
+            } else if (resp.gameState === 'SERIES_END' || resp.gameState === 'END') {
+                setLeaderboard(resp.leaderboard || []);
+                setStats(resp.stats || null);
+                setGameState(resp.gameState);
+            } else {
+                setGameState('LOBBY');
+            }
+        };
+
+        const createFreshRoom = () => {
             socket.emit('create-room', (response) => {
                 setRoomCode(response.roomCode);
+                roomCodeRef.current = response.roomCode;
                 setGameState('LOBBY');
+                writeHostSession(response.roomCode);
             });
-            // Charger les quiz
-            fetch(`${window.location.protocol}//${window.location.hostname}:3001/api/quizzes`)
-                .then(res => res.json())
-                .then(data => {
-                    setQuizzes(data);
-                    if (data.length > 0) setSelectedQuizId(data[0].id);
-                })
-                .catch(err => console.error("Erreur chargement quiz", err));
+        };
+
+        const reconnectHost = (code, onFail) => {
+            let handled = false;
+            const t = setTimeout(() => { if (!handled) { handled = true; onFail(); } }, 4000);
+            socket.emit('quiz-host-reconnect', { roomCode: code }, (resp) => {
+                clearTimeout(t);
+                if (handled) return;
+                handled = true;
+                if (!resp || resp.error) onFail();
+                else applyReconnect(resp);
+            });
+        };
+
+        const saved = readHostSession();
+        const sessionFresh = saved && saved.roomCode && (Date.now() - (saved.createdAt || 0) < HOST_SESSION_TTL);
+        if (sessionFresh) {
+            reconnectHost(saved.roomCode, () => { clearHostSession(); createFreshRoom(); });
+        } else {
+            if (saved) clearHostSession();
+            createFreshRoom();
         }
 
+        const handleReconnect = () => {
+            const code = roomCodeRef.current;
+            if (!code) return; // pas encore de salle créée → rien à reconnecter
+            reconnectHost(code, () => { clearHostSession(); createFreshRoom(); });
+        };
+        socket.on('connect', handleReconnect);
+        return () => socket.off('connect', handleReconnect);
+    }, []);
+
+    useEffect(() => {
         socket.on('player-joined', (updatedPlayers) => {
             setPlayers(updatedPlayers);
         });
@@ -113,7 +189,7 @@ function HostView() {
     return (
         <div className="host-view min-vh-100 text-light">
             <div className="d-flex justify-content-between align-items-center p-3 border-bottom border-secondary" style={{ background: 'rgba(0,0,0,0.8)' }}>
-                <button className="btn btn-outline-secondary" onClick={() => navigate('/quiz')}>&lt; RETOUR</button>
+                <button className="btn btn-outline-secondary" onClick={() => { clearHostSession(); navigate('/quiz'); }}>&lt; RETOUR</button>
                 <div className="h3 mb-0 text-primary glitch-text" data-text={`PIN: ${roomCode}`}>
                     PIN: {roomCode}
                 </div>
@@ -318,7 +394,7 @@ function HostView() {
                     )}
 
                     <div className="mb-5">
-                        <button className="btn btn-outline-light btn-lg" onClick={() => navigate('/')}>RETOUR À L'ACCUEIL</button>
+                        <button className="btn btn-outline-light btn-lg" onClick={() => { clearHostSession(); navigate('/'); }}>RETOUR À L'ACCUEIL</button>
                     </div>
                 </div>
             )}

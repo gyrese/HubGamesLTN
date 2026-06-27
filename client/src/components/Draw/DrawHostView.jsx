@@ -6,6 +6,19 @@ import confetti from 'canvas-confetti';
 import { playCountdownSound, playTickSound, playSuccessSound, playFailSound, playWinnerSound } from '../../utils/audio';
 import './DrawStyles.css';
 
+// ─── Session hôte (persistance + reconnexion, pattern GeoTrackr) ───
+const HOST_SESSION_KEY = 'draw-host-session';
+const HOST_SESSION_TTL = 4 * 60 * 60 * 1000; // 4 h : au-delà, le serveur a probablement redémarré
+const readHostSession = () => {
+    try { return JSON.parse(localStorage.getItem(HOST_SESSION_KEY) || 'null'); } catch { return null; }
+};
+const writeHostSession = (roomCode) => {
+    try { localStorage.setItem(HOST_SESSION_KEY, JSON.stringify({ roomCode, createdAt: Date.now() })); } catch { /* noop */ }
+};
+const clearHostSession = () => {
+    try { localStorage.removeItem(HOST_SESSION_KEY); } catch { /* noop */ }
+};
+
 function DrawHostView() {
     const navigate = useNavigate();
     const [gameState, setGameState] = useState('CREATING');
@@ -46,22 +59,90 @@ function DrawHostView() {
         return () => document.body.classList.remove('comic-theme');
     }, []);
 
+    // Garde le code de salon courant accessible dans le handler `connect` (closures).
+    const roomCodeRef = useRef('');
+    useEffect(() => { roomCodeRef.current = roomCode; }, [roomCode]);
+
     useEffect(() => {
-        socket.emit('draw-create-room', { settings }, (response) => {
-            if (response.roomCode) {
-                setRoomCode(response.roomCode);
-                setGameState('LOBBY');
+        const applyReconnect = (response) => {
+            roomCodeRef.current = response.roomCode;
+            setRoomCode(response.roomCode);
+            if (response.settings) setSettings(prev => ({ ...prev, ...response.settings }));
+            setPlayers(response.players || []);
+            setCurrentRound(response.currentRound || 0);
+            setTotalRounds(response.totalRounds || 0);
+            writeHostSession(response.roomCode);
+
+            if (response.gameState === 'PLAYING') {
+                setCurrentDrawerId(response.currentDrawerId);
+                setDrawerName(response.drawerName || '');
+                setWordCategory(response.wordCategory || '');
+                setWordLength(response.wordLength || 0);
+                setRoundStartTime(response.roundStartTime);
+                strokesHistoryRef.current = response.canvasHistory || [];
+                setGameState('PLAYING'); // déclenche le redraw du canvas depuis l'historique
+                if (response.roundStartTime && response.timePerRound) {
+                    startTimer(response.timePerRound, response.roundStartTime);
+                }
+            } else {
+                setGameState(response.gameState === 'GAME_END' ? 'GAME_END' : 'LOBBY');
             }
-        });
+        };
+
+        const createFreshRoom = () => {
+            socket.emit('draw-create-room', { settings }, (response) => {
+                if (response.roomCode) {
+                    setRoomCode(response.roomCode);
+                    roomCodeRef.current = response.roomCode;
+                    setGameState('LOBBY');
+                    writeHostSession(response.roomCode);
+                }
+            });
+        };
+
+        // Reconnexion à un salon existant avec timeout de secours → fallback (nouvelle salle).
+        const reconnectHost = (code, onFail) => {
+            let handled = false;
+            const t = setTimeout(() => { if (!handled) { handled = true; onFail(); } }, 4000);
+            socket.emit('draw-host-reconnect', { roomCode: code }, (response) => {
+                clearTimeout(t);
+                if (handled) return;
+                handled = true;
+                if (response.error) onFail();
+                else applyReconnect(response);
+            });
+        };
+
+        // Décision au montage : session locale fraîche > nouvelle salle.
+        const saved = readHostSession();
+        const sessionFresh = saved && saved.roomCode && (Date.now() - (saved.createdAt || 0) < HOST_SESSION_TTL);
+        if (sessionFresh) {
+            reconnectHost(saved.roomCode, () => { clearHostSession(); createFreshRoom(); });
+        } else {
+            if (saved) clearHostSession();
+            createFreshRoom();
+        }
+
         // Charger les catégories disponibles
         socket.emit('draw-get-categories', {}, (response) => {
             if (response.categories) setAvailableCategories(response.categories);
         });
+
+        // Reconnexion automatique sur coupure réseau / veille (le socket revient).
+        const handleReconnect = () => {
+            const code = roomCodeRef.current;
+            if (!code) return; // pas encore de salle créée → rien à reconnecter
+            reconnectHost(code, () => { clearHostSession(); createFreshRoom(); });
+        };
+        socket.on('connect', handleReconnect);
+
         return () => {
+            socket.off('connect', handleReconnect);
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownRef.current) clearInterval(countdownRef.current);
             if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const triggerRoundCountdown = () => {
@@ -409,7 +490,7 @@ function DrawHostView() {
 
                 {/* Header */}
                 <div className="relative z-10 flex items-center justify-between mb-4">
-                    <button onClick={() => navigate('/draw')} className="sk-btn sk-btn-secondary py-1.5 px-3 text-[10px] flex items-center gap-1">
+                    <button onClick={() => { clearHostSession(); navigate('/draw'); }} className="sk-btn sk-btn-secondary py-1.5 px-3 text-[10px] flex items-center gap-1">
                         <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
                     </button>
                     <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-4 py-1.5 border-3 border-[#161a33] rounded-full shadow-[3px_3px_0px_0px_#161a33]">
@@ -835,7 +916,7 @@ function DrawHostView() {
                             className="sk-btn sk-btn-primary flex-1 py-3 text-xs flex items-center justify-center gap-1">
                             🔄 Rejouer
                         </button>
-                        <button onClick={() => navigate('/')}
+                        <button onClick={() => { clearHostSession(); navigate('/'); }}
                             className="sk-btn sk-btn-secondary flex-1 py-3 text-xs flex items-center justify-center gap-1">
                             🏠 Menu
                         </button>

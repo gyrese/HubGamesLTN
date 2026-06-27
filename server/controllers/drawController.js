@@ -59,6 +59,56 @@ module.exports = {
             console.log(`[DRAW] Room created: ${roomCode} by ${socket.id}`);
         });
 
+        // Reconnexion de l'hôte (rechargement d'onglet / coupure réseau) — calque geo/color.
+        socket.on('draw-host-reconnect', ({ roomCode }, callback) => {
+            try {
+                const room = drawGameManager.getRoom(roomCode);
+                if (!room) {
+                    callback({ error: 'Salon introuvable' });
+                    return;
+                }
+
+                // Annuler le timer de grâce si l'hôte revient à temps
+                if (drawHostDisconnectTimers.has(roomCode)) {
+                    clearTimeout(drawHostDisconnectTimers.get(roomCode));
+                    drawHostDisconnectTimers.delete(roomCode);
+                    console.log(`[DRAW] Host reconnect: timer de grâce annulé pour ${roomCode}`);
+                }
+
+                room.hostId = socket.id;
+                room.hostDisconnected = false;
+                socket.join(`draw-${roomCode}`);
+                console.log(`[DRAW] Host reconnected to room ${roomCode}`);
+
+                const players = drawGameManager.getPlayersInRoom(roomCode);
+                const drawer = players.find(p => p.id === room.currentDrawerId);
+
+                callback({
+                    success: true,
+                    roomCode,
+                    gameState: room.gameState,
+                    currentRound: room.currentRound,
+                    totalRounds: room.totalRounds,
+                    timePerRound: room.timePerRound,
+                    settings: room.settings,
+                    players,
+                    currentDrawerId: room.currentDrawerId,
+                    drawerName: drawer ? drawer.name : '',
+                    // L'hôte affiche le mot masqué (catégorie + longueur), jamais le mot complet.
+                    wordCategory: room.currentWord ? room.currentWord.category : '',
+                    wordLength: room.currentWord && room.currentWord.word ? room.currentWord.word.length : 0,
+                    roundStartTime: room.roundStartTime,
+                    canvasHistory: room.canvasHistory || []
+                });
+
+                // Prévenir les joueurs que l'hôte est de retour (si un overlay l'attendait)
+                socket.to(`draw-${roomCode}`).emit('draw-host-reconnected');
+            } catch (error) {
+                console.error('[DRAW] Error in draw-host-reconnect:', error);
+                callback({ error: 'Erreur serveur' });
+            }
+        });
+
         socket.on('draw-get-categories', async (_data, callback) => {
             try {
                 const { getCategories } = require('../drawWords');

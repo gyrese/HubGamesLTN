@@ -10,6 +10,21 @@ const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar_${i
 
 const SPRING = { type: 'spring', stiffness: 130, damping: 17 };
 
+// ─── Session de salon (persistance + reconnexion, pattern GeoTrackr) ───
+const SESSION_KEY = 'color-session';
+const readSession = () => {
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+};
+const writeSession = (patch) => {
+    try {
+        const prev = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ ...prev, ...patch }));
+    } catch { /* localStorage indisponible */ }
+};
+const clearSession = () => {
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* noop */ }
+};
+
 /**
  * 2D Saturation × Brightness field. Dragging adjusts S (left→right) and
  * B (top→bottom) — far more intuitive than three linear sliders.
@@ -104,6 +119,65 @@ function ColorPlayerView() {
         setRoundScore(null); setImageError(false);
     };
 
+    // Reflète `joined` dans une ref pour le handler `connect` (évite les closures périmées)
+    const joinedRef = useRef(false);
+    useEffect(() => { joinedRef.current = joined; }, [joined]);
+
+    // Jonction réutilisable. silent=true pour les reconnexions automatiques (aucune UI).
+    const doJoin = (code, name, av, silent = false) => {
+        const upperCode = (code || '').toUpperCase().trim();
+        const cleanName = (name || '').trim();
+        if (!upperCode || !cleanName) {
+            if (!silent) setError('Code de salon et pseudo requis');
+            return;
+        }
+        if (!silent) { setIsLoading(true); setError(''); }
+        localStorage.setItem('color-pseudo', cleanName);
+        localStorage.setItem('color-avatar', av);
+
+        socket.emit('color-join-room', { roomCode: upperCode, playerName: cleanName, avatar: av }, (response) => {
+            if (!silent) setIsLoading(false);
+            if (response.error) {
+                clearSession();                    // salon fermé/invalide → on repart propre
+                if (!silent) setError(response.error);
+                return;
+            }
+            setJoined(true);
+            setRoomCode(upperCode);
+            writeSession({ roomCode: upperCode, pseudo: cleanName, avatar: av });
+            if (response.reconnected || response.lateJoin) {
+                setGameState(response.gameState);
+                setCurrentRound(response.currentRound);
+                setTotalRounds(response.totalRounds);
+                setCharacter(response.character);
+                setMyScore(response.myScore || 0);
+                writeSession({ myScore: response.myScore || 0 });
+                if (response.gameState === 'PLAYING') resetSliders(response.character);
+            }
+        });
+    };
+
+    // Restauration au montage + reconnexion automatique à chaque (re)connexion socket.
+    useEffect(() => {
+        const saved = readSession();
+        // Si l'URL porte un autre code que la session, c'est un nouveau salon → on ne restaure pas.
+        const urlMismatch = saved && paramRoomCode && saved.roomCode !== paramRoomCode.toUpperCase();
+        if (saved && saved.roomCode && saved.pseudo && !urlMismatch) {
+            const rejoin = () => doJoin(saved.roomCode, saved.pseudo, saved.avatar, false);
+            if (socket.connected) rejoin();
+            else socket.once('connect', rejoin);
+        }
+
+        const handleConnect = () => {
+            if (!joinedRef.current) return;        // pas encore en partie : rien à reconnecter
+            const s = readSession();
+            if (s && s.roomCode && s.pseudo) doJoin(s.roomCode, s.pseudo, s.avatar, true);
+        };
+        socket.on('connect', handleConnect);
+        return () => socket.off('connect', handleConnect);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useEffect(() => {
         if (!joined) return;
 
@@ -114,7 +188,7 @@ function ColorPlayerView() {
         socket.on('color-round-ended', (data) => {
             setGameState('ROUND_END'); setCharacter(data.character);
             const myResult = data.results.find(r => r.id === socket.id);
-            if (myResult) { setRoundScore(myResult.roundScore); setMyScore(myResult.totalScore); }
+            if (myResult) { setRoundScore(myResult.roundScore); setMyScore(myResult.totalScore); writeSession({ myScore: myResult.totalScore }); }
         });
         socket.on('color-next-round', (data) => {
             setGameState('PLAYING'); setCurrentRound(data.round); setTotalRounds(data.total);
@@ -123,14 +197,16 @@ function ColorPlayerView() {
         socket.on('color-game-over', (data) => {
             setGameState('GAME_END');
             const myResult = data.results.find(r => r.id === socket.id);
-            if (myResult) setMyScore(myResult.totalScore);
+            if (myResult) { setMyScore(myResult.totalScore); writeSession({ myScore: myResult.totalScore }); }
         });
-        socket.on('color-game-restarted', () => { setGameState('LOBBY'); setMyScore(0); resetSliders(); });
+        socket.on('color-game-restarted', () => { setGameState('LOBBY'); setMyScore(0); writeSession({ myScore: 0 }); resetSliders(); });
         socket.on('color-kicked', () => {
+            clearSession();
             alert('Vous avez été exclu de la partie.');
             setJoined(false); setGameState('LOBBY'); navigate('/color');
         });
         socket.on('color-host-disconnected', () => {
+            clearSession();
             alert("L'hôte s'est déconnecté. Fermeture du salon.");
             setJoined(false); setGameState('LOBBY'); navigate('/color');
         });
@@ -143,28 +219,7 @@ function ColorPlayerView() {
 
     const handleJoin = (e) => {
         if (e) e.preventDefault();
-        if (!roomCode.trim() || !pseudo.trim()) { setError('Code de salon et pseudo requis'); return; }
-        setIsLoading(true); setError('');
-        localStorage.setItem('color-pseudo', pseudo.trim());
-        localStorage.setItem('color-avatar', avatar);
-
-        socket.emit('color-join-room', {
-            roomCode: roomCode.toUpperCase().trim(), playerName: pseudo.trim(), avatar
-        }, (response) => {
-            setIsLoading(false);
-            if (response.error) { setError(response.error); }
-            else {
-                setJoined(true); setRoomCode(roomCode.toUpperCase().trim());
-                if (response.reconnected || response.lateJoin) {
-                    setGameState(response.gameState);
-                    setCurrentRound(response.currentRound);
-                    setTotalRounds(response.totalRounds);
-                    setCharacter(response.character);
-                    setMyScore(response.myScore || 0);
-                    if (response.gameState === 'PLAYING') resetSliders(response.character);
-                }
-            }
-        });
+        doJoin(roomCode, pseudo, avatar, false);
     };
 
     const handleGetHint = () => {
