@@ -1,3 +1,19 @@
+// Profil joueur : tout est optionnel/sautable. Sert uniquement aux
+// « stats absurdes » de fin de partie (cf. funStats.js). Les clés doivent
+// rester alignées avec funStats.CATEGORIES et PlayerView.
+function createEmptyProfile() {
+    return {
+        favoriteAnimal: null,
+        zodiacSign: null,
+        coffeesPerDay: null,
+        bedtime: null,
+        isSportive: null,
+        painChocolat: null,
+        pineapplePizza: null,
+        hairColor: null,
+    };
+}
+
 class GameManager {
     constructor() {
         this.rooms = new Map(); // Map<roomCode, Room>
@@ -39,7 +55,13 @@ class GameManager {
             questions: [], // Array of questions
             questionStartTime: null, // Timestamp du début de la question
             questionEnded: false, // true quand la question courante affiche ses résultats (RESULT)
-            maxPossibleScore: 0, // Score maximum cumulé de toutes les séries jouées
+            questionsPlayed: 0, // nb de questions jouées sur toute la soirée (toutes séries)
+            // Réglages de partie (persistés entre séries), pilotés par l'hôte au lobby.
+            questionDuration: 20, // secondes par question
+            autoAdvance: false, // enchaînement automatique des questions
+            // Timing autoritaire serveur (cf. quizController).
+            questionTimer: null, // timeout de fin de question
+            resultTimer: null, // timeout d'auto-avance après résultats
             lastActivity: Date.now(),
         });
         return roomCode;
@@ -65,8 +87,8 @@ class GameManager {
             if (avatar) player.avatar = avatar;
             room.players.set(playerId, player);
 
-            const profileComplete = player.profile
-                && Object.values(player.profile).every(v => v !== null && v !== '');
+            // Profil « validé » = le joueur a passé l'étape (même en sautant des champs).
+            const profileComplete = !!player.profileSubmitted;
 
             return { success: true, room, reconnected: true, myScore: player.score, profileComplete };
         }
@@ -78,20 +100,16 @@ class GameManager {
             id: playerId,
             name: playerName,
             avatar: avatar || null,
-            score: 0,
+            score: 0,            // score de jeu (base + bonus vitesse) → classement live
             lastAnswer: null,
-            answerTime: null, // Temps de réponse en ms
-            profile: {
-                hairColor: null,
-                profession: null,
-                isSportive: null,
-                isVegetarian: null,
-                zodiacSign: null,
-                favoriteDrink: null,
-                favoriteAnimal: null,
-                bedtime: null,
-                coffeesPerDay: null
-            }
+            answerTime: null,    // Temps de réponse en ms
+            // Accumulateurs pour le QI (précision pondérée difficulté, cf. iqEngine).
+            seenCount: 0,        // questions vues sur la soirée
+            correctCount: 0,     // bonnes réponses
+            weightedCorrect: 0,  // Σ(correct · poids_item)
+            weightSum: 0,        // Σ(poids_item)
+            profileSubmitted: false,
+            profile: createEmptyProfile(),
         });
         return { success: true, room };
     }

@@ -1,0 +1,269 @@
+/* ═══════════════════════════════════════════════════════════════
+   Neural Quiz — design system « premium dark »
+   Aligné sur la house style GAME_HUB (cf. Couleur Moi / ColorStyles.css) :
+   surfaces near-black, bordures hairline, Space Grotesk + Jakarta Sans,
+   accent ÉMERAUDE #10b981 (couleur du jeu dans le hub).
+   Tout est scopé sous .nq-root pour ne jamais fuir vers les autres jeux
+   et neutraliser la règle globale uppercase des titres (index.css).
+   ═══════════════════════════════════════════════════════════════ */
+
+.nq-root {
+    /* Surfaces (graphite near-black) */
+    --nq-bg:          #07080b;
+    --nq-bg-2:        #0a0b10;
+    --nq-surface:     #101218;
+    --nq-elev:        #161922;
+    --nq-glass:       rgba(255, 255, 255, 0.03);
+    --nq-line:        rgba(255, 255, 255, 0.08);
+    --nq-line-strong: rgba(255, 255, 255, 0.14);
+
+    /* Ink */
+    --nq-ink:   #f4f4f5;
+    --nq-ink-2: #a1a1aa;
+    --nq-faint: #8b8b94;
+
+    /* Brand émeraude + sémantique */
+    --nq-accent:     #10b981;
+    --nq-accent-ink: #052016;
+    --nq-accent-rgb: 16, 185, 129;
+    --nq-good:       #34d399;
+    --nq-bad:        #fb7185;
+    --nq-warn:       #f59e0b;
+
+    --nq-r-lg: 20px;
+    --nq-r-md: 14px;
+    --nq-r-sm: 10px;
+
+    --nq-ease:    cubic-bezier(0.23, 1, 0.32, 1);
+    --nq-ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+
+    --z-sticky: 20;
+    --z-overlay: 30;
+    --z-reaction: 50;
+
+    background-color: var(--nq-bg);
+    color: var(--nq-ink);
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+/* Reset de la règle cyberpunk globale (index.css met tous les titres en uppercase). */
+.nq-root h1, .nq-root h2, .nq-root h3,
+.nq-root h4, .nq-root h5, .nq-root h6 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    text-transform: none;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+.nq-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+
+/* ── Fond ambiant : grille faible + halo émeraude ── */
+.nq-bg-grid {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(circle at 50% 12%, #000 0%, transparent 80%);
+    -webkit-mask-image: radial-gradient(circle at 50% 12%, #000 0%, transparent 80%);
+}
+.nq-bg-pool {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(58% 48% at 50% 0%, rgba(var(--nq-accent-rgb), 0.12), transparent 70%);
+}
+
+/* ── Panneaux ── */
+.nq-panel {
+    background: var(--nq-surface);
+    border: 1px solid var(--nq-line);
+    border-radius: var(--nq-r-lg);
+}
+.nq-glass {
+    background: var(--nq-glass);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid var(--nq-line);
+    border-radius: var(--nq-r-lg);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+@media (prefers-reduced-transparency: reduce) {
+    .nq-glass { background: var(--nq-surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* ── Boutons ── */
+.nq-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 0.95rem;
+    letter-spacing: -0.01em; border-radius: var(--nq-r-md);
+    border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+    transition: transform 0.16s var(--nq-ease), background 0.2s ease,
+                border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+.nq-btn:active { transform: scale(0.975); }
+.nq-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--nq-accent-rgb), 0.45); }
+.nq-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.nq-btn-primary {
+    background: var(--nq-accent); color: var(--nq-accent-ink);
+    box-shadow: 0 8px 24px -10px rgba(var(--nq-accent-rgb), 0.7);
+}
+.nq-btn-primary:hover:not(:disabled) { background: #34d399; box-shadow: 0 12px 30px -10px rgba(var(--nq-accent-rgb), 0.85); }
+.nq-btn-ghost {
+    background: var(--nq-glass); border-color: var(--nq-line-strong); color: var(--nq-ink);
+}
+.nq-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.22); }
+.nq-btn-danger { background: rgba(251, 113, 133, 0.14); border-color: rgba(251, 113, 133, 0.4); color: #fda4af; }
+.nq-btn-danger:hover:not(:disabled) { background: rgba(251, 113, 133, 0.22); }
+
+.nq-icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--nq-r-md); border: 1px solid var(--nq-line);
+    background: var(--nq-glass); color: var(--nq-ink-2); cursor: pointer;
+    transition: transform 0.16s var(--nq-ease), color 0.2s, border-color 0.2s, background 0.2s;
+}
+.nq-icon-btn:hover { color: var(--nq-ink); border-color: var(--nq-line-strong); }
+.nq-icon-btn:active { transform: scale(0.94); }
+.nq-icon-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--nq-accent-rgb), 0.4); }
+
+/* ── Inputs ── */
+.nq-input {
+    width: 100%; background: var(--nq-bg-2);
+    border: 1px solid var(--nq-line-strong); border-radius: var(--nq-r-md);
+    color: var(--nq-ink); padding: 0.8rem 1rem; font-size: 0.95rem; font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.nq-input::placeholder { color: var(--nq-faint); }
+.nq-input:focus {
+    outline: none; border-color: rgba(var(--nq-accent-rgb), 0.7);
+    box-shadow: 0 0 0 3px rgba(var(--nq-accent-rgb), 0.18); background: var(--nq-surface);
+}
+.nq-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--nq-faint); }
+
+/* ── Chips / code PIN ── */
+.nq-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0.3rem 0.7rem; border-radius: 999px;
+    border: 1px solid var(--nq-line); background: var(--nq-glass);
+    font-size: 0.72rem; font-weight: 600; color: var(--nq-ink-2);
+}
+.nq-room-code { font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: 0.28em; color: var(--nq-ink); }
+
+/* ── Segmented control (profil) ── */
+.nq-seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.nq-seg-item {
+    flex: 1 1 auto; min-width: 0;
+    padding: 0.6rem 0.7rem; border-radius: var(--nq-r-sm);
+    border: 1px solid var(--nq-line-strong); background: var(--nq-glass);
+    color: var(--nq-ink-2); font-weight: 600; font-size: 0.9rem; cursor: pointer;
+    transition: all 0.15s var(--nq-ease); white-space: nowrap; text-align: center;
+}
+.nq-seg-item:hover { border-color: rgba(var(--nq-accent-rgb), 0.45); color: var(--nq-ink); }
+.nq-seg-item[data-active='true'] {
+    background: rgba(var(--nq-accent-rgb), 0.16); border-color: var(--nq-accent);
+    color: #6ee7b7; box-shadow: inset 0 0 0 1px rgba(var(--nq-accent-rgb), 0.3);
+}
+
+/* ── Avatars presets ── */
+.nq-avatar { border-radius: 50%; object-fit: cover; background: var(--nq-elev); border: 1px solid var(--nq-line-strong); }
+.nq-avatar-btn {
+    border-radius: 50%; overflow: hidden; cursor: pointer; aspect-ratio: 1;
+    border: 2px solid transparent; transition: transform 0.15s var(--nq-ease), border-color 0.15s;
+    background: var(--nq-elev);
+}
+.nq-avatar-btn:hover { transform: scale(1.06); }
+.nq-avatar-btn[data-active='true'] { border-color: var(--nq-accent); transform: scale(1.06); box-shadow: 0 0 0 3px rgba(var(--nq-accent-rgb), 0.25); }
+.nq-avatar-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ── Carte option hôte (forme + couleur) ── */
+.nq-option {
+    display: flex; align-items: center; gap: 14px;
+    padding: 1rem 1.1rem; border-radius: var(--nq-r-md);
+    border: 1px solid var(--nq-line-strong); background: var(--nq-surface);
+    transition: box-shadow 0.3s var(--nq-ease), border-color 0.3s, background 0.3s, opacity 0.3s, transform 0.3s;
+}
+.nq-option-shape {
+    width: 44px; height: 44px; flex-shrink: 0;
+    display: grid; place-items: center; border-radius: 12px;
+    font-size: 1.4rem; font-weight: 800;
+}
+.nq-option[data-correct='true'] { border-width: 2px; transform: translateY(-2px); }
+.nq-option[data-dim='true'] { opacity: 0.4; }
+
+/* ── Bouton manette joueur ── */
+.nq-pad-btn {
+    position: relative; width: 100%; height: 100%;
+    border: none; border-radius: var(--nq-r-lg); cursor: pointer;
+    display: grid; place-items: center; color: #fff;
+    font-size: clamp(2.6rem, 14vw, 4rem); font-weight: 800;
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.8), inset 0 2px 0 rgba(255, 255, 255, 0.22);
+    transition: transform 0.12s var(--nq-ease), opacity 0.2s ease, filter 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.nq-pad-btn:active:not(:disabled) { transform: scale(0.96); }
+.nq-pad-btn:disabled { cursor: default; }
+.nq-pad-btn[data-dim='true'] { opacity: 0.28; filter: grayscale(0.4); }
+.nq-pad-btn[data-picked='true'] { box-shadow: 0 0 0 4px #fff, 0 12px 36px -10px rgba(0, 0, 0, 0.8); }
+
+/* ── Timer circulaire (hôte) ── */
+.nq-timer-ring {
+    width: 76px; height: 76px; flex-shrink: 0; border-radius: 50%;
+    display: grid; place-items: center; position: relative;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.9rem;
+}
+
+/* ── Timer linéaire (joueur) ── */
+.nq-timer-track { width: 100%; height: 8px; border-radius: 999px; background: var(--nq-line); overflow: hidden; }
+.nq-timer-fill { height: 100%; border-radius: 999px; transition: width 0.95s linear, background-color 0.4s ease; }
+
+/* ── Barre de difficulté (éditeur / résultat) ── */
+.nq-diff-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--nq-line-strong); }
+.nq-diff-dot[data-on='true'] { background: var(--nq-warn); }
+
+/* ── Statut ── */
+.nq-status {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0.55rem 0.7rem; border-radius: var(--nq-r-sm);
+    border: 1px solid var(--nq-line); background: var(--nq-glass);
+    transition: border-color 0.3s var(--nq-ease), background 0.3s var(--nq-ease);
+}
+.nq-status[data-done='true'] { border-color: rgba(52, 211, 153, 0.45); background: rgba(52, 211, 153, 0.08); }
+
+/* ── Carte QI partageable ── */
+.nq-iq-card {
+    border-radius: var(--nq-r-lg);
+    border: 1px solid var(--nq-line-strong);
+    background:
+        radial-gradient(120% 80% at 50% -10%, rgba(var(--nq-accent-rgb), 0.18), transparent 60%),
+        var(--nq-surface);
+    box-shadow: 0 30px 80px -40px rgba(var(--nq-accent-rgb), 0.6);
+}
+
+/* ── Keyframes ── */
+@keyframes nqPulseDot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.nq-dots::after {
+    content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 4px;
+    border-radius: 50%; background: currentColor;
+    animation: nqPulseDot 1.2s ease-in-out infinite; vertical-align: middle;
+}
+@keyframes nqBreathe { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.12); opacity: 0.9; } }
+.nq-breathe { animation: nqBreathe 3.2s ease-in-out infinite; }
+@keyframes nqSpin { to { transform: rotate(360deg); } }
+.nq-spin { animation: nqSpin 0.9s linear infinite; }
+@keyframes nqPop { 0% { transform: scale(0.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+.nq-pop { animation: nqPop 0.5s var(--nq-ease) both; }
+
+/* ── Scrollbar ── */
+.nq-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.nq-scroll::-webkit-scrollbar-track { background: transparent; }
+.nq-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); border-radius: 999px; }
+.nq-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.22); }
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+    .nq-root *, .nq-root *::before, .nq-root *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

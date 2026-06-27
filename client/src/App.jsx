@@ -27,6 +27,11 @@ import DrawSelectPage from './pages/draw/DrawSelectPage';
 import DrawHostView from './components/Draw/DrawHostView';
 import DrawPlayerView from './components/Draw/DrawPlayerView';
 
+// Fake Artist
+import FakeArtistSelectPage from './pages/fakeArtist/FakeArtistSelectPage';
+import FakeArtistHostView from './components/FakeArtist/FakeArtistHostView';
+import FakeArtistPlayerView from './components/FakeArtist/FakeArtistPlayerView';
+
 // Admin
 import AdminView from './components/Admin/AdminView';
 
@@ -93,6 +98,12 @@ function App() {
           <Route path="/draw/host" element={<DrawHostView />} />
           <Route path="/draw/play" element={<DrawPlayerView />} />
           <Route path="/draw/play/:roomCode" element={<DrawPlayerView />} />
+
+          {/* Fake Artist */}
+          <Route path="/fakeartist" element={<FakeArtistSelectPage />} />
+          <Route path="/fakeartist/host" element={<FakeArtistHostView />} />
+          <Route path="/fakeartist/play" element={<FakeArtistPlayerView />} />
+          <Route path="/fakeartist/play/:roomCode" element={<FakeArtistPlayerView />} />
 
           {/* Admin */}
           <Route path="/admin" element={<AdminView />} />

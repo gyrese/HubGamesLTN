@@ -6,103 +6,73 @@
         "questions": [
             {
                 "text": "Quelle est la suite logique : 2, 4, 8, 16, ... ?",
-                "options": [
-                    "24",
-                    "32",
-                    "30",
-                    "64"
-                ],
-                "correct": 1
+                "options": ["24", "32", "30", "64"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "Chaque terme double le précédent (×2) : 16 × 2 = 32."
             },
             {
                 "text": "Si 3 chats attrapent 3 souris en 3 minutes, combien de temps faut-il à 100 chats pour attraper 100 souris ?",
-                "options": [
-                    "100 min",
-                    "3 min",
-                    "30 min",
-                    "1 min"
-                ],
-                "correct": 1
+                "options": ["100 min", "3 min", "30 min", "1 min"],
+                "correct": 1,
+                "difficulty": 3,
+                "explanation": "Chaque chat attrape 1 souris en 3 min. 100 chats en font donc 100 en... 3 min."
             },
             {
                 "text": "Complétez : 1, 1, 2, 3, 5, 8, ... ?",
-                "options": [
-                    "11",
-                    "12",
-                    "13",
-                    "15"
-                ],
-                "correct": 2
+                "options": ["11", "12", "13", "15"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "Suite de Fibonacci : chaque terme est la somme des deux précédents (5 + 8 = 13)."
             },
             {
                 "text": "Quel nombre manque : 10, 20, 15, 30, 25, ... ?",
-                "options": [
-                    "50",
-                    "35",
-                    "40",
-                    "45"
-                ],
-                "correct": 0
+                "options": ["50", "35", "40", "45"],
+                "correct": 0,
+                "difficulty": 3,
+                "explanation": "Alternance ×2 puis −5 : après 25, on double → 50."
             },
             {
                 "text": "Combien font la moitié de tout plus tout ?",
-                "options": [
-                    "150%",
-                    "200%",
-                    "100%",
-                    "300%"
-                ],
-                "correct": 0
+                "options": ["150%", "200%", "100%", "300%"],
+                "correct": 0,
+                "difficulty": 2,
+                "explanation": "La moitié de tout (50 %) + tout (100 %) = 150 %."
             },
             {
                 "text": "Quel est le résultat de 7 + 7 / 7 + 7 x 7 - 7 ?",
-                "options": [
-                    "0",
-                    "50",
-                    "57",
-                    "1"
-                ],
-                "correct": 1
+                "options": ["0", "50", "57", "1"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "Priorité des opérations : 7 + 1 + 49 − 7 = 50."
             },
             {
                 "text": "Suite : 100, 99, 97, 94, 90, ... ?",
-                "options": [
-                    "88",
-                    "86",
-                    "85",
-                    "84"
-                ],
-                "correct": 2
+                "options": ["88", "86", "85", "84"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "On retire 1, puis 2, 3, 4, 5... : 90 − 5 = 85."
             },
             {
                 "text": "J'ai 3 pommes, tu m'en prends 2. Combien as-tu de pommes ?",
-                "options": [
-                    "1",
-                    "2",
-                    "3",
-                    "0"
-                ],
-                "correct": 1
+                "options": ["1", "2", "3", "0"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "Tu en prends 2 : c'est donc TOI qui en as 2 (la question porte sur toi)."
             },
             {
                 "text": "Quel nombre est un quart de la moitié de un dixième de 400 ?",
-                "options": [
-                    "2",
-                    "4",
-                    "5",
-                    "10"
-                ],
-                "correct": 2
+                "options": ["2", "4", "5", "10"],
+                "correct": 2,
+                "difficulty": 3,
+                "explanation": "400 / 10 = 40 ; sa moitié = 20 ; son quart = 5."
             },
             {
                 "text": "2 + 2 x 2 - 2 / 2 = ?",
-                "options": [
-                    "3",
-                    "4",
-                    "5",
-                    "6"
-                ],
-                "correct": 2
+                "options": ["3", "4", "5", "6"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "Multiplication et division d'abord : 2 + 4 − 1 = 5."
             }
         ]
     },
@@ -113,103 +83,73 @@
         "questions": [
             {
                 "text": "Quel est l'intrus ?",
-                "options": [
-                    "Carotte",
-                    "Pomme de terre",
-                    "Oignon",
-                    "Tomate"
-                ],
-                "correct": 3
+                "options": ["Carotte", "Pomme de terre", "Oignon", "Tomate"],
+                "correct": 3,
+                "difficulty": 2,
+                "explanation": "La tomate est un fruit ; les autres poussent sous terre."
             },
             {
                 "text": "Paris est à la France ce que Rome est à ... ?",
-                "options": [
-                    "L'Espagne",
-                    "La Grèce",
-                    "L'Italie",
-                    "L'Europe"
-                ],
-                "correct": 2
+                "options": ["L'Espagne", "La Grèce", "L'Italie", "L'Europe"],
+                "correct": 2,
+                "difficulty": 1,
+                "explanation": "Rome est la capitale de l'Italie, comme Paris l'est de la France."
             },
             {
                 "text": "Anagramme de 'CHIEN' ?",
-                "options": [
-                    "NICHE",
-                    "CHINE",
-                    "CHENI",
-                    "Toutes les réponses"
-                ],
-                "correct": 3
+                "options": ["NICHE", "CHINE", "CHENI", "Toutes les réponses"],
+                "correct": 3,
+                "difficulty": 2,
+                "explanation": "NICHE, CHINE et CHENI utilisent exactement les mêmes lettres que CHIEN."
             },
             {
                 "text": "Quel mot ne va pas avec les autres ?",
-                "options": [
-                    "Guitare",
-                    "Violon",
-                    "Flûte",
-                    "Violoncelle"
-                ],
-                "correct": 2
+                "options": ["Guitare", "Violon", "Flûte", "Violoncelle"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "La flûte est un instrument à vent ; les autres sont à cordes."
             },
             {
                 "text": "Si on écrit ROUGE en bleu, de quelle couleur est le mot ?",
-                "options": [
-                    "Rouge",
-                    "Bleu",
-                    "Violet",
-                    "Noir"
-                ],
-                "correct": 1
+                "options": ["Rouge", "Bleu", "Violet", "Noir"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "On demande la couleur de l'encre, pas le sens du mot : il est écrit en bleu."
             },
             {
                 "text": "Quel est l'intrus ?",
-                "options": [
-                    "Lundi",
-                    "Mardi",
-                    "Janvier",
-                    "Jeudi"
-                ],
-                "correct": 2
+                "options": ["Lundi", "Mardi", "Janvier", "Jeudi"],
+                "correct": 2,
+                "difficulty": 1,
+                "explanation": "Janvier est un mois ; les autres sont des jours de la semaine."
             },
             {
                 "text": "Le père de la sœur du fils de votre oncle est votre...",
-                "options": [
-                    "Oncle",
-                    "Cousin",
-                    "Père",
-                    "Grand-père"
-                ],
-                "correct": 0
+                "options": ["Oncle", "Cousin", "Père", "Grand-père"],
+                "correct": 0,
+                "difficulty": 4,
+                "explanation": "Le fils de votre oncle est votre cousin, sa sœur aussi : leur père est votre oncle."
             },
             {
                 "text": "Complétez : Blanc, Jaune, Orange, ... ?",
-                "options": [
-                    "Vert",
-                    "Rouge",
-                    "Bleu",
-                    "Noir"
-                ],
-                "correct": 1
+                "options": ["Vert", "Rouge", "Bleu", "Noir"],
+                "correct": 1,
+                "difficulty": 3,
+                "explanation": "Gradation du plus clair au plus chaud : après l'orange vient le rouge."
             },
             {
                 "text": "Quel mot est le contraire de 'Éphémère' ?",
-                "options": [
-                    "Court",
-                    "Durable",
-                    "Rapide",
-                    "Fugace"
-                ],
-                "correct": 1
+                "options": ["Court", "Durable", "Rapide", "Fugace"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "Éphémère = qui dure très peu ; son contraire est durable."
             },
             {
                 "text": "Trouvez l'intrus :",
-                "options": [
-                    "Vache",
-                    "Poule",
-                    "Cochon",
-                    "Lion"
-                ],
-                "correct": 3
+                "options": ["Vache", "Poule", "Cochon", "Lion"],
+                "correct": 3,
+                "difficulty": 1,
+                "explanation": "Le lion est un animal sauvage ; les autres vivent à la ferme."
             }
         ]
     },
@@ -220,103 +160,73 @@
         "questions": [
             {
                 "text": "De quelle couleur sont les boîtes noires des avions ?",
-                "options": [
-                    "Noires",
-                    "Oranges",
-                    "Rouges",
-                    "Jaunes"
-                ],
-                "correct": 1
+                "options": ["Noires", "Oranges", "Rouges", "Jaunes"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "Elles sont orange vif pour être repérées facilement, malgré leur nom."
             },
             {
                 "text": "Combien de mois ont 28 jours ?",
-                "options": [
-                    "1",
-                    "6",
-                    "12",
-                    "0"
-                ],
-                "correct": 2
+                "options": ["1", "6", "12", "0"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "Tous les mois ont au moins 28 jours."
             },
             {
                 "text": "Quelle est la lettre la plus utilisée en français ?",
-                "options": [
-                    "A",
-                    "E",
-                    "S",
-                    "R"
-                ],
-                "correct": 1
+                "options": ["A", "E", "S", "R"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "Le « e » est de très loin la lettre la plus fréquente en français."
             },
             {
                 "text": "Dans quel sens tourne la Terre ?",
-                "options": [
-                    "Est vers Ouest",
-                    "Ouest vers Est",
-                    "Nord vers Sud",
-                    "Elle ne tourne pas"
-                ],
-                "correct": 1
+                "options": ["Est vers Ouest", "Ouest vers Est", "Nord vers Sud", "Elle ne tourne pas"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "La Terre tourne d'ouest en est : c'est pourquoi le soleil se lève à l'est."
             },
             {
                 "text": "Combien de côtés a un hexagone ?",
-                "options": [
-                    "5",
-                    "6",
-                    "7",
-                    "8"
-                ],
-                "correct": 1
+                "options": ["5", "6", "7", "8"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "« Hexa » signifie six."
             },
             {
                 "text": "Quelle couleur obtient-on en mélangeant Bleu et Jaune ?",
-                "options": [
-                    "Violet",
-                    "Orange",
-                    "Vert",
-                    "Marron"
-                ],
-                "correct": 2
+                "options": ["Violet", "Orange", "Vert", "Marron"],
+                "correct": 2,
+                "difficulty": 1,
+                "explanation": "Bleu + jaune donne du vert."
             },
             {
                 "text": "Combien y a-t-il de lettres dans l'alphabet ?",
-                "options": [
-                    "25",
-                    "26",
-                    "27",
-                    "24"
-                ],
-                "correct": 1
+                "options": ["25", "26", "27", "24"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "L'alphabet français compte 26 lettres."
             },
             {
                 "text": "Quel animal n'est PAS un mammifère ?",
-                "options": [
-                    "Dauphin",
-                    "Chauve-souris",
-                    "Requin",
-                    "Baleine"
-                ],
-                "correct": 2
+                "options": ["Dauphin", "Chauve-souris", "Requin", "Baleine"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "Le requin est un poisson ; dauphin, chauve-souris et baleine sont des mammifères."
             },
             {
                 "text": "Où se lève le soleil ?",
-                "options": [
-                    "Nord",
-                    "Sud",
-                    "Est",
-                    "Ouest"
-                ],
-                "correct": 2
+                "options": ["Nord", "Sud", "Est", "Ouest"],
+                "correct": 2,
+                "difficulty": 1,
+                "explanation": "Le soleil se lève à l'est."
             },
             {
                 "text": "Combien de pattes a une araignée ?",
-                "options": [
-                    "6",
-                    "8",
-                    "10",
-                    "12"
-                ],
-                "correct": 1
+                "options": ["6", "8", "10", "12"],
+                "correct": 1,
+                "difficulty": 1,
+                "explanation": "Les araignées ont 8 pattes (ce sont des arachnides, pas des insectes)."
             }
         ]
     },
@@ -327,103 +237,73 @@
         "questions": [
             {
                 "text": "Qu'est-ce qui a des dents mais ne mord pas ?",
-                "options": [
-                    "Un peigne",
-                    "Un chien",
-                    "Une fourchette",
-                    "Un vampire"
-                ],
-                "correct": 0
+                "options": ["Un peigne", "Un chien", "Une fourchette", "Un vampire"],
+                "correct": 0,
+                "difficulty": 1,
+                "explanation": "Un peigne a des dents mais ne mord personne."
             },
             {
                 "text": "Plus j'en ai, moins je pèse. Qui suis-je ?",
-                "options": [
-                    "L'air",
-                    "Les trous",
-                    "L'hélium",
-                    "Les plumes"
-                ],
-                "correct": 1
+                "options": ["L'air", "Les trous", "L'hélium", "Les plumes"],
+                "correct": 1,
+                "difficulty": 3,
+                "explanation": "Plus un objet a de trous, moins il pèse."
             },
             {
                 "text": "Je commence la nuit et je finis le matin. Qui suis-je ?",
-                "options": [
-                    "La lune",
-                    "Le soleil",
-                    "La lettre N",
-                    "Le sommeil"
-                ],
-                "correct": 2
+                "options": ["La lune", "Le soleil", "La lettre N", "Le sommeil"],
+                "correct": 2,
+                "difficulty": 3,
+                "explanation": "« Nuit » commence par N et « matiN » finit par N."
             },
             {
                 "text": "Qu'est-ce qui t'appartient mais que les autres utilisent plus que toi ?",
-                "options": [
-                    "Ton argent",
-                    "Ton prénom",
-                    "Ta voiture",
-                    "Ton temps"
-                ],
-                "correct": 1
+                "options": ["Ton argent", "Ton prénom", "Ta voiture", "Ton temps"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "Les autres prononcent ton prénom bien plus souvent que toi-même."
             },
             {
                 "text": "Je suis plein de trous mais je retiens l'eau. Qui suis-je ?",
-                "options": [
-                    "Un filet",
-                    "Une éponge",
-                    "Un seau percé",
-                    "Un nuage"
-                ],
-                "correct": 1
+                "options": ["Un filet", "Une éponge", "Un seau percé", "Un nuage"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "L'éponge est criblée de trous mais retient l'eau."
             },
             {
                 "text": "Qu'est-ce qui monte et qui ne redescend jamais ?",
-                "options": [
-                    "La pluie",
-                    "L'âge",
-                    "Une montgolfière",
-                    "La température"
-                ],
-                "correct": 1
+                "options": ["La pluie", "L'âge", "Une montgolfière", "La température"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "L'âge ne fait qu'augmenter, sans jamais redescendre."
             },
             {
                 "text": "Il y a un seul mot que le chien ne peut pas aboyer. Lequel ?",
-                "options": [
-                    "Chat",
-                    "Wouf",
-                    "Miaulement",
-                    "Aucun"
-                ],
-                "correct": 2
+                "options": ["Chat", "Wouf", "Miaulement", "Aucun"],
+                "correct": 2,
+                "difficulty": 3,
+                "explanation": "Un chien peut tout aboyer... sauf un miaulement, réservé au chat."
             },
             {
                 "text": "Avant que l'Everest ne soit découvert, quel était le plus haut sommet ?",
-                "options": [
-                    "Le Mont Blanc",
-                    "Le K2",
-                    "L'Everest",
-                    "Le Kilimandjaro"
-                ],
-                "correct": 2
+                "options": ["Le Mont Blanc", "Le K2", "L'Everest", "Le Kilimandjaro"],
+                "correct": 2,
+                "difficulty": 3,
+                "explanation": "L'Everest était déjà le plus haut sommet, même avant d'être découvert."
             },
             {
                 "text": "Qu'est-ce qui a un col mais pas de tête ?",
-                "options": [
-                    "Une chemise",
-                    "Une bouteille",
-                    "Une montagne",
-                    "Toutes les réponses"
-                ],
-                "correct": 3
+                "options": ["Une chemise", "Une bouteille", "Une montagne", "Toutes les réponses"],
+                "correct": 3,
+                "difficulty": 2,
+                "explanation": "Une chemise, une bouteille et une montagne ont toutes un « col »."
             },
             {
                 "text": "Je suis lourd à l'envers, mais pas à l'endroit. Qui suis-je ?",
-                "options": [
-                    "Le mot TONNE",
-                    "Une plume",
-                    "Un rocher",
-                    "Le mot NON"
-                ],
-                "correct": 0
+                "options": ["Le mot TONNE", "Une plume", "Un rocher", "Le mot NON"],
+                "correct": 0,
+                "difficulty": 4,
+                "explanation": "« Tonne » évoque un grand poids ; lu à l'envers (« ennot »), il ne pèse plus rien."
             }
         ]
     },
@@ -434,103 +314,73 @@
         "questions": [
             {
                 "text": "Si A=1, B=2, C=3... combien vaut BAD ?",
-                "options": [
-                    "6",
-                    "7",
-                    "8",
-                    "9"
-                ],
-                "correct": 1
+                "options": ["6", "7", "8", "9"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "B(2) + A(1) + D(4) = 7."
             },
             {
                 "text": "Quel jour serons-nous demain si hier était le jour avant samedi ?",
-                "options": [
-                    "Dimanche",
-                    "Lundi",
-                    "Samedi",
-                    "Vendredi"
-                ],
-                "correct": 0
+                "options": ["Dimanche", "Lundi", "Samedi", "Vendredi"],
+                "correct": 0,
+                "difficulty": 4,
+                "explanation": "Le jour avant samedi est vendredi (hier) → aujourd'hui samedi → demain dimanche."
             },
             {
                 "text": "1=5, 2=25, 3=125, 4=625, 5=?",
-                "options": [
-                    "3125",
-                    "1",
-                    "5",
-                    "25"
-                ],
-                "correct": 1
+                "options": ["3125", "1", "5", "25"],
+                "correct": 1,
+                "difficulty": 4,
+                "explanation": "Piège : la première égalité 1=5 implique, par symétrie, 5=1."
             },
             {
                 "text": "Quel objet ne respecte pas la règle : Vélo, Moto, Trottinette, Voiture ?",
-                "options": [
-                    "Vélo",
-                    "Moto",
-                    "Trottinette",
-                    "Voiture"
-                ],
-                "correct": 3
+                "options": ["Vélo", "Moto", "Trottinette", "Voiture"],
+                "correct": 3,
+                "difficulty": 2,
+                "explanation": "La voiture a 4 roues ; les autres en ont 2."
             },
             {
                 "text": "Combien de fois peut-on soustraire 10 de 100 ?",
-                "options": [
-                    "1 fois",
-                    "10 fois",
-                    "9 fois",
-                    "Infini"
-                ],
-                "correct": 0
+                "options": ["1 fois", "10 fois", "9 fois", "Infini"],
+                "correct": 0,
+                "difficulty": 3,
+                "explanation": "Une seule fois : après, ce n'est plus 100 mais 90."
             },
             {
                 "text": "Pierre regarde Paul. Paul regarde Julie. Pierre est marié, Julie est célibataire. Une personne mariée regarde-t-elle une personne célibataire ?",
-                "options": [
-                    "Oui",
-                    "Non",
-                    "On ne peut pas savoir",
-                    "Ça dépend de Paul"
-                ],
-                "correct": 0
+                "options": ["Oui", "Non", "On ne peut pas savoir", "Ça dépend de Paul"],
+                "correct": 0,
+                "difficulty": 5,
+                "explanation": "Si Paul est marié : marié(Paul)→célibataire(Julie). S'il est célibataire : marié(Pierre)→célibataire(Paul). Dans les deux cas : oui."
             },
             {
                 "text": "Quelle lettre complète la série : A, C, E, G, ... ?",
-                "options": [
-                    "H",
-                    "I",
-                    "J",
-                    "K"
-                ],
-                "correct": 1
+                "options": ["H", "I", "J", "K"],
+                "correct": 1,
+                "difficulty": 2,
+                "explanation": "On saute une lettre à chaque fois : après G vient I."
             },
             {
                 "text": "Si vous doublez le deuxième d'une course, vous êtes...",
-                "options": [
-                    "Premier",
-                    "Deuxième",
-                    "Troisième",
-                    "Dernier"
-                ],
-                "correct": 1
+                "options": ["Premier", "Deuxième", "Troisième", "Dernier"],
+                "correct": 1,
+                "difficulty": 3,
+                "explanation": "En dépassant le 2e, vous prenez SA place : vous êtes 2e, pas 1er."
             },
             {
                 "text": "Quel est le prochain nombre : 1, 4, 9, 16, 25, ... ?",
-                "options": [
-                    "30",
-                    "35",
-                    "36",
-                    "40"
-                ],
-                "correct": 2
+                "options": ["30", "35", "36", "40"],
+                "correct": 2,
+                "difficulty": 2,
+                "explanation": "Ce sont les carrés parfaits : 6² = 36."
             },
             {
                 "text": "La mère de Lucie a 3 filles : Fifi, Riri et ... ?",
-                "options": [
-                    "Loulou",
-                    "Lucie",
-                    "Nana",
-                    "Zaza"
-                ],
-                "correct": 1
+                "options": ["Loulou", "Lucie", "Nana", "Zaza"],
+                "correct": 1,
+                "difficulty": 3,
+                "explanation": "La troisième fille, c'est Lucie elle-même (« la mère de Lucie »)."
             }
         ]
     }

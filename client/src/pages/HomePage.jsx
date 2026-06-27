@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { socket } from '../socket';
 import { 
@@ -10,7 +10,8 @@ import {
     Beer, 
     Lock, 
     Sparkles, 
-    ArrowRight 
+    ArrowRight,
+    Fingerprint
 } from 'lucide-react';
 
 const GAMES = [
@@ -56,6 +57,17 @@ const GAMES = [
         color: '#f59e0b',
         colorRgb: '245, 158, 11',
         icon: <Palette className="w-8 h-8" />,
+        gridClass: 'md:col-span-1 lg:col-span-1'
+    },
+    {
+        id: 'fakeartist',
+        route: '/fakeartist',
+        name: 'FAKE_ARTIST',
+        description: 'Un seul dessin commun, un seul trait par tour. Retrouvez l\'imposteur avant qu\'il ne devine le mot secret !',
+        tags: ['Dessin', 'Bluff', 'Multijoueur'],
+        color: '#f97316',
+        colorRgb: '249, 115, 22',
+        icon: <Fingerprint className="w-8 h-8" />,
         gridClass: 'md:col-span-1 lg:col-span-1'
     },
     {
@@ -177,9 +189,7 @@ function GameCard({ game, index }) {
 }
 
 function HomePage() {
-    const navigate = useNavigate();
     const [isConnected, setIsConnected] = useState(socket.connected);
-    const [roomCode, setRoomCode] = useState('');
 
     useEffect(() => {
         function onConnect() {
@@ -200,13 +210,6 @@ function HomePage() {
             socket.off('disconnect', onDisconnect);
         };
     }, []);
-
-    const handleQuickJoin = (e) => {
-        e.preventDefault();
-        if (roomCode.trim()) {
-            navigate(`/join/${roomCode.trim().toUpperCase()}`);
-        }
-    };
 
     return (
         <>
@@ -307,39 +310,6 @@ function HomePage() {
                         <p className="text-slate-400 text-sm sm:text-base leading-relaxed mb-8 max-w-2xl font-body">
                             Sélectionnez une expérience pour commencer à jouer. Créez un salon en tant qu'hôte pour afficher la partie sur grand écran, ou rejoignez instantanément une partie existante.
                         </p>
-
-                        {/* Quick Join Card */}
-                        <motion.form 
-                            onSubmit={handleQuickJoin}
-                            initial={{ y: 15, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.2 }}
-                            className="bg-[#0d0e12]/60 border border-slate-800/80 rounded-2xl p-5 w-full max-w-md shadow-2xl backdrop-blur-md flex flex-col items-start"
-                        >
-                            <label className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-2 flex items-center gap-1.5 font-headline">
-                                <Sparkles className="w-3.5 h-3.5 text-[#06b6d4]" />
-                                Rejoindre une partie
-                            </label>
-
-                            <div className="flex gap-2.5 w-full">
-                                <input
-                                    type="text"
-                                    className="flex-1 bg-black/40 border border-slate-800 rounded-xl px-4 py-2.5 text-center text-lg font-bold tracking-[0.2em] text-[#06b6d4] focus:outline-none focus:border-[#06b6d4] focus:ring-1 focus:ring-[#06b6d4]/20 transition-all font-headline uppercase"
-                                    placeholder="CODE"
-                                    maxLength={6}
-                                    value={roomCode}
-                                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!roomCode.trim()}
-                                    className="bg-gradient-to-r from-violet-600 to-cyan-600 hover:from-violet-500 hover:to-cyan-500 disabled:from-slate-800 disabled:to-slate-800 text-white rounded-xl px-5 font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all shadow-lg hover:shadow-violet-600/20 disabled:shadow-none cursor-pointer disabled:cursor-not-allowed font-headline"
-                                >
-                                    <span>Rejoindre</span>
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                        </motion.form>
                     </section>
 
                     {/* Bento Grid */}

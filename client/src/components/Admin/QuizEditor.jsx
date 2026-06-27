@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { apiBase } from '../Quiz/quizShared';
 
 function QuizEditor({ quiz, onSave, onCancel }) {
     const [title, setTitle] = useState(quiz ? quiz.title : '');
@@ -10,7 +11,9 @@ function QuizEditor({ quiz, onSave, onCancel }) {
             text: "Nouvelle Question",
             image: "",
             options: ["Option 1", "Option 2", "Option 3", "Option 4"],
-            correct: 0
+            correct: 0,
+            difficulty: 3,
+            explanation: ""
         }]);
     };
 
@@ -33,7 +36,7 @@ function QuizEditor({ quiz, onSave, onCancel }) {
 
     const handleSave = async () => {
         const quizData = { title, description, questions };
-        const url = `${window.location.protocol}//${window.location.hostname}:3001/api/quizzes` + (quiz ? `/${quiz.id}` : '');
+        const url = `${apiBase()}/quizzes` + (quiz ? `/${quiz.id}` : '');
         const method = quiz ? 'PUT' : 'POST';
 
         try {
@@ -81,9 +84,30 @@ function QuizEditor({ quiz, onSave, onCancel }) {
                             <input className="form-control bg-dark text-light border-secondary" value={q.text} onChange={e => handleQuestionChange(qIdx, 'text', e.target.value)} />
                         </div>
 
+                        <div className="row g-3 mb-3">
+                            <div className="col-md-8">
+                                <label className="form-label text-muted">Image URL (Optionnel)</label>
+                                <input className="form-control bg-dark text-light border-secondary" value={q.image || ''} onChange={e => handleQuestionChange(qIdx, 'image', e.target.value)} />
+                            </div>
+                            <div className="col-md-4">
+                                <label className="form-label text-muted">Difficulté (QI)</label>
+                                <select className="form-select bg-dark text-light border-secondary"
+                                    value={q.difficulty ?? 3}
+                                    onChange={e => handleQuestionChange(qIdx, 'difficulty', Number(e.target.value))}>
+                                    <option value={1}>1 · Très facile</option>
+                                    <option value={2}>2 · Facile</option>
+                                    <option value={3}>3 · Moyen</option>
+                                    <option value={4}>4 · Difficile</option>
+                                    <option value={5}>5 · Très difficile</option>
+                                </select>
+                            </div>
+                        </div>
+
                         <div className="mb-3">
-                            <label className="form-label text-muted">Image URL (Optionnel)</label>
-                            <input className="form-control bg-dark text-light border-secondary" value={q.image || ''} onChange={e => handleQuestionChange(qIdx, 'image', e.target.value)} />
+                            <label className="form-label text-muted">Explication (affichée après la réponse)</label>
+                            <textarea className="form-control bg-dark text-light border-secondary" rows={2}
+                                value={q.explanation || ''} onChange={e => handleQuestionChange(qIdx, 'explanation', e.target.value)}
+                                placeholder="Pourquoi cette réponse est la bonne…" />
                         </div>
 
                         <div className="row g-3 mt-2">

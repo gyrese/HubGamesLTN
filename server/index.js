@@ -35,6 +35,7 @@ const geoController = require('./controllers/geoController');
 const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
 const colorController = require('./controllers/colorController');
+const fakeArtistController = require('./controllers/fakeArtistController');
 
 const rateLimit = require('express-rate-limit');
 
@@ -116,6 +117,12 @@ app.get('/api/room/:code', (req, res) => {
     const colorGameManager = require('./colorGameManager');
     if (colorGameManager.getRoom(roomCode)) {
         return res.json({ gameType: 'color' });
+    }
+    
+    // Check FakeArtist
+    const fakeArtistGameManager = require('./fakeArtistGameManager');
+    if (fakeArtistGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'fakeartist' });
     }
     
     res.status(404).json({ error: 'Salon non trouvé' });
@@ -206,6 +213,7 @@ io.on('connection', (socket) => {
         geoController.handleConnection(io, socket);
         drawController.handleConnection(io, socket);
         colorController.handleConnection(io, socket);
+        fakeArtistController.handleConnection(io, socket);
         console.log('[SERVER] All controllers initialized for socket:', socket.id);
     } catch (error) {
         console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);

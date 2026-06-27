@@ -129,20 +129,33 @@ async function initDatabase() {
 // Fonction de migration / peuplement initial
 async function seedFromJSON() {
     try {
-        // 1. Seeding Quizzes classiques
+        // 1. Seeding Quizzes classiques (Neural Quiz)
+        // Reseed piloté par un hash du JSON (comme CouleurMoi) : dès que quizzes.json
+        // change (questions, explications, difficulté), les séries canoniques (ids
+        // « serie-* » du fichier) sont resynchronisées — y compris sur un volume déjà
+        // peuplé. Les quiz créés via l'admin (ids timestamp) sont préservés.
         const quizJsonFile = path.join(__dirname, 'quizzes.json');
-        const countQuiz = await db.get('SELECT COUNT(*) as count FROM quizzes');
-        if (countQuiz.count === 0 && fs.existsSync(quizJsonFile)) {
-            console.log('[DATABASE] Migration : Importation de quizzes.json vers SQLite...');
+        if (fs.existsSync(quizJsonFile)) {
             const rawData = fs.readFileSync(quizJsonFile, 'utf8');
             const quizzes = JSON.parse(rawData);
-            for (const quiz of quizzes) {
-                await db.run(
-                    'INSERT OR REPLACE INTO quizzes (id, title, description, questions) VALUES (?, ?, ?, ?)',
-                    [quiz.id, quiz.title, quiz.description, JSON.stringify(quiz.questions)]
-                );
+            const hash = crypto.createHash('sha1').update(rawData).digest('hex');
+
+            await db.run(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
+            const meta = await db.get(`SELECT value FROM app_meta WHERE key = 'quiz_seed_hash'`);
+            const countQuiz = await db.get('SELECT COUNT(*) as count FROM quizzes');
+
+            if (countQuiz.count === 0 || !meta || meta.value !== hash) {
+                const reason = countQuiz.count === 0 ? 'table vide' : 'quizzes.json modifié';
+                console.log(`[DATABASE] Migration : (re)synchronisation de quizzes.json vers SQLite (${reason})...`);
+                for (const quiz of quizzes) {
+                    await db.run(
+                        'INSERT OR REPLACE INTO quizzes (id, title, description, questions) VALUES (?, ?, ?, ?)',
+                        [quiz.id, quiz.title, quiz.description, JSON.stringify(quiz.questions)]
+                    );
+                }
+                await db.run(`INSERT OR REPLACE INTO app_meta (key, value) VALUES ('quiz_seed_hash', ?)`, [hash]);
+                console.log(`[DATABASE] Migration : ${quizzes.length} quizzes synchronisés.`);
             }
-            console.log(`[DATABASE] Migration : ${quizzes.length} quizzes importés.`);
         }
 
         // 2. Seeding Apéro Quizzes

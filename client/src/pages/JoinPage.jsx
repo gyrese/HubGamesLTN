@@ -45,6 +45,9 @@ function JoinPage() {
             case 'color':
                 navigate(`/color/play/${code}`);
                 break;
+            case 'fakeartist':
+                navigate(`/fakeartist/play/${code}`);
+                break;
             case 'remote':
                 navigate(`/geo/remote/${code}`);
                 break;
