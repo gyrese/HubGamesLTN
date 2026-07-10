@@ -45,6 +45,71 @@ function hsbToCss(h, s, b) {
     return `hsl(${h}, ${Math.round(sHsl * 100)}%, ${Math.round(l * 100)}%)`;
 }
 
+// Convertit une box Gemini [ymin, xmin, ymax, xmax] (normalisée 0-1000) en bornes
+// pixel légèrement élargies ; toute l'image si la box est absente ou invalide.
+function toPixelBounds(box, w, h) {
+    if (!Array.isArray(box) || box.length !== 4) return { x0: 0, y0: 0, x1: w, y1: h };
+    const pad = 20; // ~2 % de marge
+    const y0 = Math.max(0, Math.floor(((box[0] - pad) / 1000) * h));
+    const x0 = Math.max(0, Math.floor(((box[1] - pad) / 1000) * w));
+    const y1 = Math.min(h, Math.ceil(((box[2] + pad) / 1000) * h));
+    const x1 = Math.min(w, Math.ceil(((box[3] + pad) / 1000) * w));
+    if (x1 <= x0 || y1 <= y0) return { x0: 0, y0: 0, x1: w, y1: h };
+    return { x0, y0, x1, y1 };
+}
+
+// Passe globale « chroma-key » : troue tous les pixels des bornes proches d'une des
+// couleurs d'amorce, même NON connexes (bras, manches… séparés par un contour, que le
+// flood-fill ne peut pas atteindre). Bornée à la box du personnage pour ne pas trouer
+// un décor de la même couleur.
+function clearMatchingPixels(data, w, h, seeds, tol, { x0, y0, x1, y1 }) {
+    const tol2 = 3 * tol * tol;
+    let count = 0;
+    for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+            const i = (y * w + x) * 4;
+            if (data[i + 3] === 0) continue;
+            for (const s of seeds) {
+                const dr = data[i] - s[0], dg = data[i + 1] - s[1], db = data[i + 2] - s[2];
+                if (dr * dr + dg * dg + db * db <= tol2) { data[i + 3] = 0; count++; break; }
+            }
+        }
+    }
+    return count;
+}
+
+// Ronge les franges d'anti-aliasing en bordure des zones trouées : un pixel voisin d'un
+// pixel transparent et encore proche d'une amorce (seuil élargi) est troué à son tour.
+// Les contours foncés restent hors seuil et servent toujours de barrière.
+function erodeFringes(data, w, h, seeds, tol, passes = 2) {
+    const ft = Math.min(tol * 1.6, tol + 40);
+    const tol2 = 3 * ft * ft;
+    let count = 0;
+    for (let p = 0; p < passes; p++) {
+        const toClear = [];
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                if (data[i + 3] === 0) continue;
+                const nearHole =
+                    (x > 0 && data[i - 4 + 3] === 0) ||
+                    (x < w - 1 && data[i + 4 + 3] === 0) ||
+                    (y > 0 && data[i - w * 4 + 3] === 0) ||
+                    (y < h - 1 && data[i + w * 4 + 3] === 0);
+                if (!nearHole) continue;
+                for (const s of seeds) {
+                    const dr = data[i] - s[0], dg = data[i + 1] - s[1], db = data[i + 2] - s[2];
+                    if (dr * dr + dg * dg + db * db <= tol2) { toClear.push(i); break; }
+                }
+            }
+        }
+        if (toClear.length === 0) break;
+        for (const i of toClear) data[i + 3] = 0;
+        count += toClear.length;
+    }
+    return count;
+}
+
 // Remplissage par diffusion : troue l'alpha des pixels connectés proches du pixel d'amorce.
 function floodFillTransparent(data, w, h, sx, sy, tol) {
     const i0 = (sy * w + sx) * 4;
@@ -202,25 +267,36 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
             const points = payload.points || [];
             if (points.length === 0) throw new Error('Aucune zone détectée par l’IA.');
 
-            // Applique le détourage : flood-fill depuis chaque point + moyenne de couleur.
+            // Applique le détourage : flood-fill depuis chaque point (zones connexes),
+            // puis passe globale sur la couleur échantillonnée pour attraper les zones
+            // de même teinte NON connexes (bras, manches… isolés par un contour), et
+            // enfin rongeage des franges d'anti-aliasing.
             const ctx = cv.getContext('2d', { willReadFrequently: true });
             const imgData = ctx.getImageData(0, 0, w, h);
             undoRef.current.push(new ImageData(new Uint8ClampedArray(imgData.data), w, h));
             if (undoRef.current.length > 8) undoRef.current.shift();
 
             const od = origRef.current.data;
+            const seeds = []; // couleur moyenne 3x3 autour de chaque point IA
             let r = 0, g = 0, b = 0, n = 0, filled = 0;
             for (const pt of points) {
                 const x = Math.min(w - 1, Math.max(0, Math.round((pt.x / 1000) * w)));
                 const y = Math.min(h - 1, Math.max(0, Math.round((pt.y / 1000) * h)));
                 filled += floodFillTransparent(imgData.data, w, h, x, y, tol);
+                let pr = 0, pg = 0, pb = 0, pn = 0;
                 for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
                     const xx = x + dx, yy = y + dy;
                     if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
                     const i = (yy * w + xx) * 4;
-                    r += od[i]; g += od[i + 1]; b += od[i + 2]; n++;
+                    pr += od[i]; pg += od[i + 1]; pb += od[i + 2]; pn++;
                 }
+                if (pn > 0) seeds.push([pr / pn, pg / pn, pb / pn]);
+                r += pr; g += pg; b += pb; n += pn;
             }
+
+            const bounds = toPixelBounds(payload.box, w, h);
+            filled += clearMatchingPixels(imgData.data, w, h, seeds, tol, bounds);
+            filled += erodeFringes(imgData.data, w, h, seeds, tol);
             ctx.putImageData(imgData, 0, 0);
             if (n > 0 && onChangeRef.current) onChangeRef.current({ hsb: rgbToHsb(r / n, g / n, b / n) });
             exportBlob();
@@ -229,7 +305,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
                 setAiError('Zones trouvées mais rien détouré — monte la tolérance et relance, ou clique à la main.');
             } else {
                 const z = points.length;
-                setAiInfo(`✅ ${z} zone${z > 1 ? 's' : ''} détectée${z > 1 ? 's' : ''} · couleur pré-remplie.`);
+                setAiInfo(`✅ ${z} zone${z > 1 ? 's' : ''} détectée${z > 1 ? 's' : ''} + toutes les zones de la même couleur · couleur pré-remplie.`);
             }
         } catch (e) {
             setAiError(e.message || 'Échec du détourage IA.');

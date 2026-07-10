@@ -68,6 +68,16 @@ function extractPoints(text) {
     return points;
 }
 
+// Extrait la bounding-box du personnage [ymin, xmin, ymax, xmax] (normalisée 0-1000)
+// si le modèle l'a renvoyée. Elle borne la passe couleur globale côté client.
+function extractBox(text) {
+    const m = /"box(?:_2d)?"\s*:\s*\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]/.exec(text);
+    if (!m) return null;
+    const box = m.slice(1, 5).map(parseFloat);
+    if (box.some(v => v < 0 || v > 1000) || box[2] <= box[0] || box[3] <= box[1]) return null;
+    return box;
+}
+
 // Helper for safe callbacks
 const safeCallback = (callback, data) => {
     if (typeof callback === 'function') callback(data);
@@ -146,8 +156,9 @@ function setupColorRoutes(app) {
             const prompt =
                 `Point to all distinct regions of "${part}" of the main character in this image ` +
                 `(include every separated area, e.g. face, arms, hands, legs). Return up to 6 points. ` +
-                `Answer ONLY with a compact JSON array like [{"point": [y, x]}] where y and x are integers ` +
-                `normalized to 0-1000 (y = vertical from top, x = horizontal from left). No prose.`;
+                `Also give the bounding box of the whole main character. Answer ONLY with compact JSON: ` +
+                `{"points": [{"point": [y, x]}], "box": [ymin, xmin, ymax, xmax]} where all values are ` +
+                `integers normalized to 0-1000 (y = vertical from top, x = horizontal from left). No prose.`;
 
             const geminiBody = {
                 contents: [{
@@ -184,7 +195,7 @@ function setupColorRoutes(app) {
                 });
             }
 
-            res.json({ points, model: GEMINI_MODEL });
+            res.json({ points, box: extractBox(text), model: GEMINI_MODEL });
         } catch (error) {
             console.error('[COLOR] segment error:', error);
             res.status(500).json({ error: 'Erreur serveur lors de la segmentation IA' });
