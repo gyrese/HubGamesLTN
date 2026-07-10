@@ -217,6 +217,28 @@
     color: var(--cm-ink);
 }
 
+/* ── Category (univers) selector tiles — host lobby ── */
+.cm-cat-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0.7rem 0.8rem;
+    border-radius: var(--cm-r-md);
+    border: 1px solid var(--cm-line);
+    background: var(--cm-glass);
+    color: var(--cm-ink);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.16s var(--cm-ease), border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+.cm-cat-chip:hover { border-color: var(--cm-line-strong); background: rgba(255, 255, 255, 0.05); }
+.cm-cat-chip:active { transform: scale(0.97); }
+.cm-cat-chip:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--cm-accent-rgb), 0.4); }
+.cm-cat-chip[data-active='true'] {
+    border-color: rgba(var(--cm-accent-rgb), 0.6);
+    background: rgba(var(--cm-accent-rgb), 0.1);
+}
+
 /* ── The color viewport (character lit by the live color) ── */
 .cm-viewport {
     position: relative;

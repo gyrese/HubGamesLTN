@@ -59,7 +59,7 @@ function floodFillTransparent(data, w, h, sx, sy, tol) {
     return count;
 }
 
-export default function ColorImageStudio({ file, target, onChange }) {
+export default function ColorImageStudio({ file, target, part, apiUrl, onChange }) {
     const canvasRef = useRef(null);
     const origRef = useRef(null);   // ImageData d'origine (échantillonnage + reset)
     const undoRef = useRef([]);     // pile d'undo
@@ -67,6 +67,9 @@ export default function ColorImageStudio({ file, target, onChange }) {
     const [tol, setTol] = useState(50);
     const [ready, setReady] = useState(false);
     const [previewTarget, setPreviewTarget] = useState(false);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState('');
+    const [aiInfo, setAiInfo] = useState('');
 
     const exportBlob = useCallback(() => {
         const cv = canvasRef.current;
@@ -153,6 +156,70 @@ export default function ColorImageStudio({ file, target, onChange }) {
         exportBlob();
     };
 
+    // Détourage assisté par IA : Gemini localise la partie nommée (points), puis on
+    // lance le flood-fill existant depuis chaque point et on échantillonne la couleur.
+    const autoSegment = useCallback(async () => {
+        if (!ready || aiLoading) return;
+        const cleanPart = (part || '').trim();
+        if (!cleanPart) { setAiError('Renseigne d’abord « Partie à colorer » ci-dessus.'); setAiInfo(''); return; }
+        if (!apiUrl) { setAiError('Configuration API manquante.'); return; }
+        setAiError(''); setAiInfo(''); setAiLoading(true);
+        try {
+            const cv = canvasRef.current;
+            const w = cv.width, h = cv.height;
+
+            // On envoie l'image d'origine (non éditée) pour que l'IA voie la partie intacte.
+            const tmp = document.createElement('canvas');
+            tmp.width = w; tmp.height = h;
+            tmp.getContext('2d').putImageData(origRef.current, 0, 0);
+            const blob = await new Promise((r) => tmp.toBlob(r, 'image/png'));
+
+            const fd = new FormData();
+            fd.append('image', blob, 'source.png');
+            fd.append('part', cleanPart);
+
+            const res = await fetch(`${apiUrl}/admin/color/segment`, { method: 'POST', body: fd });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(payload.error || `Erreur ${res.status}`);
+            const points = payload.points || [];
+            if (points.length === 0) throw new Error('Aucune zone détectée par l’IA.');
+
+            // Applique le détourage : flood-fill depuis chaque point + moyenne de couleur.
+            const ctx = cv.getContext('2d', { willReadFrequently: true });
+            const imgData = ctx.getImageData(0, 0, w, h);
+            undoRef.current.push(new ImageData(new Uint8ClampedArray(imgData.data), w, h));
+            if (undoRef.current.length > 8) undoRef.current.shift();
+
+            const od = origRef.current.data;
+            let r = 0, g = 0, b = 0, n = 0, filled = 0;
+            for (const pt of points) {
+                const x = Math.min(w - 1, Math.max(0, Math.round((pt.x / 1000) * w)));
+                const y = Math.min(h - 1, Math.max(0, Math.round((pt.y / 1000) * h)));
+                filled += floodFillTransparent(imgData.data, w, h, x, y, tol);
+                for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                    const xx = x + dx, yy = y + dy;
+                    if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                    const i = (yy * w + xx) * 4;
+                    r += od[i]; g += od[i + 1]; b += od[i + 2]; n++;
+                }
+            }
+            ctx.putImageData(imgData, 0, 0);
+            if (n > 0 && onChange) onChange({ hsb: rgbToHsb(r / n, g / n, b / n) });
+            exportBlob();
+
+            if (filled === 0) {
+                setAiError('Zones trouvées mais rien détouré — monte la tolérance et relance, ou clique à la main.');
+            } else {
+                const z = points.length;
+                setAiInfo(`✅ ${z} zone${z > 1 ? 's' : ''} détectée${z > 1 ? 's' : ''} · couleur pré-remplie. Ajuste la tolérance ou retouche si besoin.`);
+            }
+        } catch (e) {
+            setAiError(e.message || 'Échec du détourage IA.');
+        } finally {
+            setAiLoading(false);
+        }
+    }, [ready, aiLoading, part, apiUrl, tol, onChange, exportBlob]);
+
     const targetCss = hsbToCss(target?.h || 0, target?.s || 0, target?.b || 0);
     const checker =
         'repeating-conic-gradient(#3a3a4a 0% 25%, #2a2a38 0% 50%) 50% / 18px 18px';
@@ -160,6 +227,11 @@ export default function ColorImageStudio({ file, target, onChange }) {
     return (
         <div className="border border-secondary rounded p-2 mt-2 bg-black">
             <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <button type="button" className="btn btn-sm btn-success fw-bold"
+                    onClick={autoSegment} disabled={aiLoading || !ready}
+                    title="Détecte et détoure automatiquement la partie renseignée ci-dessus">
+                    {aiLoading ? '⏳ Analyse IA…' : '🪄 Auto (IA)'}
+                </button>
                 <div className="btn-group btn-group-sm" role="group">
                     <button type="button"
                         className={`btn ${mode === 'detour' ? 'btn-primary' : 'btn-outline-primary'}`}
@@ -193,9 +265,12 @@ export default function ColorImageStudio({ file, target, onChange }) {
                     }} />
             </div>
 
+            {aiError && <div className="alert alert-warning py-1 px-2 small mt-2 mb-0">{aiError}</div>}
+            {aiInfo && <div className="alert alert-success py-1 px-2 small mt-2 mb-0">{aiInfo}</div>}
+
             <p className="text-muted small mb-0 mt-2">
                 {mode === 'detour'
-                    ? '✂️ Clique sur la partie à recoloriser (ex : le t-shirt) pour la rendre transparente. Ajuste la tolérance si ça déborde ou s’il reste des zones.'
+                    ? '🪄 « Auto (IA) » détecte la partie renseignée et la détoure toute seule. Sinon, ✂️ clique sur la partie à recoloriser pour la rendre transparente. Ajuste la tolérance si ça déborde ou s’il reste des zones.'
                     : '💧 Clique sur cette même partie pour définir automatiquement la couleur cible (H/S/B).'}
             </p>
         </div>

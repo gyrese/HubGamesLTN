@@ -39,6 +39,35 @@ const upload = multer({
     }
 });
 
+// Multer en mémoire pour la segmentation IA : l'image transite vers Gemini sans être
+// persistée sur le disque (on ne garde que l'image détourée finale, uploadée séparément).
+const memUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 6 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) cb(null, true);
+        else cb(new Error('Seules les images sont autorisées !'));
+    }
+});
+
+// Modèle Gemini utilisé pour la localisation (« pointing »). Surchargage possible via l'env.
+// NB : les masques pixel (base64 PNG) ne sont pas fiables sur l'API publique — les points le sont.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+
+// Extrait tous les points [y, x] (normalisés 0-1000) d'une réponse Gemini, de façon
+// tolérante aux petites erreurs de formatage JSON que le modèle produit parfois.
+function extractPoints(text) {
+    const points = [];
+    const re = /"point"\s*:\s*\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const y = parseFloat(m[1]);
+        const x = parseFloat(m[2]);
+        if (y >= 0 && y <= 1000 && x >= 0 && x <= 1000) points.push({ x, y });
+    }
+    return points;
+}
+
 // Helper for safe callbacks
 const safeCallback = (callback, data) => {
     if (typeof callback === 'function') callback(data);
@@ -55,6 +84,15 @@ function setupColorRoutes(app) {
     app.get('/api/color/characters', async (req, res) => {
         try {
             res.json(await colorCharacters.getAll());
+        } catch (error) {
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // List available categories (univers) with a character count — used by the host lobby
+    app.get('/api/color/categories', async (req, res) => {
+        try {
+            res.json(await colorCharacters.getCategories());
         } catch (error) {
             res.status(500).json({ error: error.message });
         }
@@ -83,6 +121,73 @@ function setupColorRoutes(app) {
         } catch (error) {
             console.error('[COLOR] Upload error:', error);
             res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Détourage assisté par IA : reçoit une image + le nom de la partie ("la peau",
+    // "le t-shirt"…), demande à Gemini de pointer les zones correspondantes, et renvoie
+    // ces points au client qui lance son flood-fill existant depuis chacun.
+    app.post('/api/admin/color/segment', authMiddleware, memUpload.single('image'), async (req, res) => {
+        try {
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) {
+                return res.status(500).json({ error: 'GEMINI_API_KEY non configurée sur le serveur' });
+            }
+            if (!req.file) {
+                return res.status(400).json({ error: 'Image manquante' });
+            }
+            const part = (req.body.part || '').trim();
+            if (!part) {
+                return res.status(400).json({ error: 'Précise la partie à détecter (champ « Partie à colorer »)' });
+            }
+
+            const base64 = req.file.buffer.toString('base64');
+            const mimeType = req.file.mimetype || 'image/png';
+            const prompt =
+                `Point to all distinct regions of "${part}" of the main character in this image ` +
+                `(include every separated area, e.g. face, arms, hands, legs). Return up to 6 points. ` +
+                `Answer ONLY with a compact JSON array like [{"point": [y, x]}] where y and x are integers ` +
+                `normalized to 0-1000 (y = vertical from top, x = horizontal from left). No prose.`;
+
+            const geminiBody = {
+                contents: [{
+                    parts: [
+                        { inline_data: { mime_type: mimeType, data: base64 } },
+                        { text: prompt }
+                    ]
+                }],
+                generationConfig: { temperature: 0, thinkingConfig: { thinkingBudget: 0 } }
+            };
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+            const gemRes = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify(geminiBody)
+            });
+
+            if (!gemRes.ok) {
+                const detail = await gemRes.text().catch(() => '');
+                console.error('[COLOR] Gemini segment error', gemRes.status, detail.slice(0, 300));
+                return res.status(502).json({ error: `Le service IA a répondu ${gemRes.status}`, detail: detail.slice(0, 200) });
+            }
+
+            const data = await gemRes.json();
+            const text = (data.candidates?.[0]?.content?.parts || [])
+                .map(p => p.text).filter(Boolean).join('');
+            const points = extractPoints(text);
+
+            if (points.length === 0) {
+                return res.status(422).json({
+                    error: `L'IA n'a pas localisé « ${part} ». Reformule (ex. « la peau », « le t-shirt ») ou détoure à la main.`,
+                    raw: text.slice(0, 160)
+                });
+            }
+
+            res.json({ points, model: GEMINI_MODEL });
+        } catch (error) {
+            console.error('[COLOR] segment error:', error);
+            res.status(500).json({ error: 'Erreur serveur lors de la segmentation IA' });
         }
     });
 
@@ -276,10 +381,11 @@ function handleConnection(io, socket) {
                 room.totalRounds = settings.roundsCount || room.totalRounds;
                 room.timePerRound = settings.timePerRound || room.timePerRound;
                 room.settings = { ...room.settings, ...settings };
-                
+
                 io.to(`color-${roomCode}`).emit('color-settings-updated', {
                     roundsCount: room.totalRounds,
-                    timePerRound: room.timePerRound
+                    timePerRound: room.timePerRound,
+                    category: room.settings.category || null
                 });
             }
         } catch (error) {

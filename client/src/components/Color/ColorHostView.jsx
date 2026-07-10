@@ -5,10 +5,11 @@ import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import {
     Palette, Users, Minus, Plus, Play, ArrowRight, Trophy, Crown,
-    Clock, Check, X, RotateCcw, LogOut, Hash
+    Clock, Check, X, RotateCcw, LogOut, Hash, Shapes
 } from 'lucide-react';
 import { socket } from '../../socket';
 import { renderSilhouette, hsbToCss } from './ColorSilhouettes';
+import { getCategoryMeta, sortCategories } from './colorCategories';
 import './ColorStyles.css';
 
 function getImageUrl(imagePath) {
@@ -22,6 +23,14 @@ function getImageUrl(imagePath) {
         : (!import.meta.env.DEV ? '' : `${window.location.protocol}//${window.location.hostname}:${serverPort}`);
     return `${base}${imagePath}`;
 }
+
+// Base des routes REST (liste des univers). Aligné sur ColorAdmin.
+const API_BASE = (() => {
+    if (import.meta.env.VITE_SERVER_URL) return `${import.meta.env.VITE_SERVER_URL}/api`;
+    if (!import.meta.env.DEV) return '/api';
+    const port = window.location.protocol === 'https:' ? 3443 : 3005;
+    return `${window.location.protocol}//${window.location.hostname}:${port}/api`;
+})();
 
 // Cyclic palette to differentiate players' avatar rings.
 const PLAYER_COLORS = ['#f59e0b','#34d399','#60a5fa','#c084fc','#fb7185','#22d3ee','#a3e635','#f472b6'];
@@ -69,6 +78,16 @@ function ColorHostView() {
     const [imageError, setImageError] = useState(false);
     const [reactions, setReactions] = useState([]);
     const [chatMessages, setChatMessages] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [selectedCategory, setSelectedCategory] = useState(null); // null = tous les univers
+
+    // Charge la liste des univers disponibles (avec compte de personnages) pour le lobby.
+    useEffect(() => {
+        fetch(`${API_BASE}/color/categories`)
+            .then(r => (r.ok ? r.json() : []))
+            .then(data => setCategories(sortCategories(Array.isArray(data) ? data : [])))
+            .catch(() => { /* liste vide → seul "Toutes" sera proposé */ });
+    }, []);
 
     const playSound = (type) => {
         try {
@@ -165,8 +184,9 @@ function ColorHostView() {
     useEffect(() => {
         socket.on('color-player-joined', (playersList) => setPlayers(playersList));
         socket.on('color-player-left', (playersList) => setPlayers(playersList));
-        socket.on('color-settings-updated', ({ roundsCount, timePerRound }) => {
+        socket.on('color-settings-updated', ({ roundsCount, timePerRound, category }) => {
             setTotalRounds(roundsCount); setTimePerRound(timePerRound); setTimer(timePerRound);
+            if (category !== undefined) setSelectedCategory(category || null);
         });
         socket.on('color-game-started', (data) => {
             setGameState('PLAYING'); setCurrentRound(data.round); setTotalRounds(data.total);
@@ -236,10 +256,15 @@ function ColorHostView() {
         return () => clearInterval(interval);
     }, [gameState, timer]);
 
-    const handleStartGame = () => socket.emit('color-start-game', { roomCode, settings: { roundsCount: totalRounds, timePerRound } });
+    const handleStartGame = () => socket.emit('color-start-game', { roomCode, settings: { roundsCount: totalRounds, timePerRound, category: selectedCategory } });
     const handleNextRound = () => socket.emit('color-next-round', { roomCode });
     const handleRestartGame = () => socket.emit('color-restart-game', { roomCode });
     const handleKickPlayer = (id) => socket.emit('color-kick-player', { roomCode, playerId: id });
+    const selectCategory = (cat) => {
+        if (gameState !== 'LOBBY') return;
+        setSelectedCategory(cat);
+        socket.emit('color-update-settings', { roomCode, settings: { roundsCount: totalRounds, timePerRound, category: cat } });
+    };
     const adjustSetting = (field, amount) => {
         if (gameState !== 'LOBBY') return;
         let newRounds = totalRounds, newTime = timePerRound;
@@ -335,6 +360,52 @@ function ColorHostView() {
                                             ))}
                                         </div>
                                     </div>
+                                </div>
+                            </div>
+
+                            {/* Sélecteur d'univers : lance une partie thématique (Disney, Anime…) */}
+                            <div className="cm-panel p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="font-bold flex items-center gap-2">
+                                        <Shapes className="w-4 h-4 text-[var(--cm-faint)]" /> Univers
+                                    </h2>
+                                    <span className="cm-chip !text-[11px]">
+                                        {selectedCategory || 'Tout le catalogue'}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => selectCategory(null)}
+                                        data-active={selectedCategory === null}
+                                        className="cm-cat-chip"
+                                    >
+                                        <span className="text-xl shrink-0">🎲</span>
+                                        <span className="flex flex-col min-w-0 leading-tight">
+                                            <span className="text-sm font-semibold truncate">Toutes</span>
+                                            <span className="text-[11px] text-[var(--cm-faint)]">Mélange</span>
+                                        </span>
+                                    </button>
+                                    {categories.map((c) => {
+                                        const meta = getCategoryMeta(c.category);
+                                        const active = selectedCategory === c.category;
+                                        return (
+                                            <button
+                                                key={c.category}
+                                                type="button"
+                                                onClick={() => selectCategory(c.category)}
+                                                data-active={active}
+                                                className="cm-cat-chip"
+                                                style={active ? { borderColor: meta.accent, background: `${meta.accent}1f` } : undefined}
+                                            >
+                                                <span className="text-xl shrink-0">{meta.emoji}</span>
+                                                <span className="flex flex-col min-w-0 leading-tight">
+                                                    <span className="text-sm font-semibold truncate">{c.category}</span>
+                                                    <span className="text-[11px] text-[var(--cm-faint)]">{c.count} perso{c.count > 1 ? 's' : ''}</span>
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </div>
 

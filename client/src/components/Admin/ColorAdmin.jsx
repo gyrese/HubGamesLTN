@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ColorImageStudio from './ColorImageStudio';
+import { CATEGORY_ORDER } from '../Color/colorCategories';
 
 const isHttps = window.location.protocol === 'https:';
 const serverPort = isHttps ? 3443 : 3005;
@@ -14,6 +15,7 @@ function ColorAdmin() {
         name: '',
         part: '',
         source: '',
+        category: '',
         target_h: 0,
         target_s: 0,
         target_b: 0,
@@ -93,7 +95,7 @@ function ColorAdmin() {
         setSuccess('');
         setIsLoading(true);
 
-        const { id, name, part, source, target_h, target_s, target_b, image_path } = formCharacter;
+        const { id, name, part, source, category, target_h, target_s, target_b, image_path } = formCharacter;
 
         if (!id.trim() || !name.trim() || !part.trim() || !source.trim()) {
             setError('Tous les champs texte sont requis');
@@ -138,6 +140,7 @@ function ColorAdmin() {
                 name: name.trim(),
                 part: part.trim(),
                 source: source.trim(),
+                category: (category || '').trim(),
                 target_h: parseInt(target_h),
                 target_s: parseInt(target_s),
                 target_b: parseInt(target_b),
@@ -223,6 +226,12 @@ function ColorAdmin() {
         return `${base}${imagePath}`;
     };
 
+    // Univers proposés dans la datalist : les canoniques + ceux déjà présents en base.
+    const categoryOptions = Array.from(new Set([
+        ...CATEGORY_ORDER,
+        ...characters.map(c => c.category).filter(Boolean)
+    ]));
+
     return (
         <div className="card shadow-sm bg-transparent border-secondary p-4 mt-2 text-light">
             <h2 className="text-primary mb-4">🎨 CouleurMoi — Administration des Personnages</h2>
@@ -269,11 +278,24 @@ function ColorAdmin() {
 
                             <div className="mb-2">
                                 <label className="form-label text-muted small mb-1">Source / Oeuvre d'origine</label>
-                                <input 
+                                <input
                                     type="text" name="source" value={formCharacter.source}
                                     onChange={handleInputChange} placeholder="Pokémon"
                                     className="form-control bg-black text-white border-secondary"
                                 />
+                            </div>
+
+                            <div className="mb-2">
+                                <label className="form-label text-muted small mb-1">Univers / Catégorie</label>
+                                <input
+                                    type="text" name="category" value={formCharacter.category || ''}
+                                    onChange={handleInputChange} placeholder="Disney" list="color-category-options"
+                                    className="form-control bg-black text-white border-secondary"
+                                />
+                                <datalist id="color-category-options">
+                                    {categoryOptions.map(cat => <option key={cat} value={cat} />)}
+                                </datalist>
+                                <div className="form-text text-muted small">Sert à lancer une partie thématique. Laisse vide pour « hors thème ».</div>
                             </div>
 
                             <div className="row g-2 mb-2">
@@ -328,6 +350,8 @@ function ColorAdmin() {
                                     <ColorImageStudio
                                         file={imageFile}
                                         target={{ h: formCharacter.target_h, s: formCharacter.target_s, b: formCharacter.target_b }}
+                                        part={formCharacter.part}
+                                        apiUrl={API_URL}
                                         onChange={handleStudioChange}
                                     />
                                 )}
@@ -356,6 +380,7 @@ function ColorAdmin() {
                                     <th>Nom</th>
                                     <th>Partie</th>
                                     <th>Source</th>
+                                    <th>Univers</th>
                                     <th>Cible HSB</th>
                                     <th>Actions</th>
                                 </tr>
@@ -363,7 +388,7 @@ function ColorAdmin() {
                             <tbody>
                                 {characters.length === 0 ? (
                                     <tr>
-                                        <td colSpan="7" className="text-center text-muted py-4">
+                                        <td colSpan="8" className="text-center text-muted py-4">
                                             Aucun personnage disponible.
                                         </td>
                                     </tr>
@@ -391,6 +416,11 @@ function ColorAdmin() {
                                             <td className="fw-bold text-info">{char.name}</td>
                                             <td>{char.part}</td>
                                             <td className="text-muted">{char.source}</td>
+                                            <td>
+                                                {char.category
+                                                    ? <span className="badge bg-info text-dark">{char.category}</span>
+                                                    : <span className="text-muted small">—</span>}
+                                            </td>
                                             <td>
                                                 <span className="badge bg-secondary font-mono">
                                                     H:{char.target_h} S:{char.target_s} B:{char.target_b}

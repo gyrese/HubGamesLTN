@@ -109,12 +109,21 @@ async function initDatabase() {
                 name TEXT NOT NULL,
                 part TEXT NOT NULL,
                 source TEXT NOT NULL,
+                category TEXT,
                 target_h INTEGER NOT NULL,
                 target_s INTEGER NOT NULL,
                 target_b INTEGER NOT NULL,
                 image_path TEXT NOT NULL
             )
         `);
+
+        // Migration : ajoute la colonne `category` sur les bases déjà créées sans elle
+        // (permet de lancer les parties par univers : Disney, Nickelodeon, Anime…).
+        const colorCols = await db.all(`PRAGMA table_info(color_characters)`);
+        if (!colorCols.some(c => c.name === 'category')) {
+            await db.run(`ALTER TABLE color_characters ADD COLUMN category TEXT`);
+            console.log('[DATABASE] Migration : colonne color_characters.category ajoutée.');
+        }
 
         console.log('[DATABASE] Schéma de la base SQLite initialisé.');
 
@@ -234,8 +243,8 @@ async function seedFromJSON() {
                 console.log(`[DATABASE] Migration : (re)synchronisation de colorCharacters.json vers SQLite (${reason})...`);
                 for (const char of characters) {
                     await db.run(
-                        'INSERT OR REPLACE INTO color_characters (id, name, part, source, target_h, target_s, target_b, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        [char.id, char.name, char.part, char.source, char.target_h, char.target_s, char.target_b, char.image_path]
+                        'INSERT OR REPLACE INTO color_characters (id, name, part, source, category, target_h, target_s, target_b, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [char.id, char.name, char.part, char.source, char.category || null, char.target_h, char.target_s, char.target_b, char.image_path]
                     );
                 }
                 // Nettoyage des anciens persos canoniques absents du JSON (préserve les uploads admin char-*)

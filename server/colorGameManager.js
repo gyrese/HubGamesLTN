@@ -191,8 +191,15 @@ class ColorGameManager {
 
         room.gameState = 'PLAYING';
         room.currentRound = 1;
-        room.characters = await colorCharacters.getRandomSet(room.totalRounds);
-        
+        const category = room.settings?.category || null;
+        room.characters = await colorCharacters.getRandomSet(room.totalRounds, category);
+
+        // Si l'univers choisi est (devenu) vide, on retombe sur le catalogue complet
+        // plutôt que de bloquer la partie.
+        if (room.characters.length === 0 && category) {
+            room.characters = await colorCharacters.getRandomSet(room.totalRounds, null);
+        }
+
         if (room.characters.length === 0) {
             return { error: 'Aucun personnage disponible dans la base de données' };
         }
