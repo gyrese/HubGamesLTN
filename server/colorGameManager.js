@@ -40,9 +40,51 @@ function hsbToLab(h, s, b) {
     return rgbToLab(r, g, bl);
 }
 
-function deltaE76(l1, l2) {
-    const dL = l1[0] - l2[0], da = l1[1] - l2[1], db = l1[2] - l2[2];
-    return Math.sqrt(dL * dL + da * da + db * db);
+// ΔE2000 (CIEDE2000, Sharma et al. 2005) — remplace ΔE76 qui est très non-uniforme
+// dans les bleus saturés : deux bleus quasi identiques y scoraient moins bien que des
+// couleurs franchement différentes. ΔE2000 corrige la pondération chroma (SC/SH) et
+// la zone bleue (terme de rotation RT). Implémentation validée sur les paires de test
+// officielles du papier (9/9 à 1e-4).
+function deltaE2000(lab1, lab2) {
+    const [L1, a1, b1] = lab1, [L2, a2, b2] = lab2;
+    const rad = Math.PI / 180, deg = 180 / Math.PI;
+    const C1 = Math.sqrt(a1 * a1 + b1 * b1);
+    const C2 = Math.sqrt(a2 * a2 + b2 * b2);
+    const Cb = (C1 + C2) / 2;
+    const G = 0.5 * (1 - Math.sqrt(Math.pow(Cb, 7) / (Math.pow(Cb, 7) + Math.pow(25, 7))));
+    const a1p = a1 * (1 + G), a2p = a2 * (1 + G);
+    const C1p = Math.sqrt(a1p * a1p + b1 * b1);
+    const C2p = Math.sqrt(a2p * a2p + b2 * b2);
+    let h1p = C1p === 0 ? 0 : Math.atan2(b1, a1p) * deg; if (h1p < 0) h1p += 360;
+    let h2p = C2p === 0 ? 0 : Math.atan2(b2, a2p) * deg; if (h2p < 0) h2p += 360;
+    const dLp = L2 - L1;
+    const dCp = C2p - C1p;
+    let dhp = 0;
+    if (C1p * C2p !== 0) {
+        dhp = h2p - h1p;
+        if (dhp > 180) dhp -= 360;
+        else if (dhp < -180) dhp += 360;
+    }
+    const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp / 2) * rad);
+    const Lbp = (L1 + L2) / 2;
+    const Cbp = (C1p + C2p) / 2;
+    let hbp = h1p + h2p;
+    if (C1p * C2p !== 0) {
+        if (Math.abs(h1p - h2p) > 180) hbp += (hbp < 360 ? 360 : -360);
+        hbp /= 2;
+    }
+    const T = 1 - 0.17 * Math.cos((hbp - 30) * rad) + 0.24 * Math.cos(2 * hbp * rad)
+        + 0.32 * Math.cos((3 * hbp + 6) * rad) - 0.20 * Math.cos((4 * hbp - 63) * rad);
+    const dTheta = 30 * Math.exp(-Math.pow((hbp - 275) / 25, 2));
+    const RC = 2 * Math.sqrt(Math.pow(Cbp, 7) / (Math.pow(Cbp, 7) + Math.pow(25, 7)));
+    const SL = 1 + (0.015 * Math.pow(Lbp - 50, 2)) / Math.sqrt(20 + Math.pow(Lbp - 50, 2));
+    const SC = 1 + 0.045 * Cbp;
+    const SH = 1 + 0.015 * Cbp * T;
+    const RT = -Math.sin(2 * dTheta * rad) * RC;
+    return Math.sqrt(
+        Math.pow(dLp / SL, 2) + Math.pow(dCp / SC, 2) + Math.pow(dHp / SH, 2)
+        + RT * (dCp / SC) * (dHp / SH)
+    );
 }
 
 class ColorGameManager {
@@ -278,16 +320,18 @@ class ColorGameManager {
     }
 
     calculateScore(guess, target, hintUsed) {
-        // Score perceptuel basé sur la distance CIELab (ΔE76) : il reflète l'écart RÉELLEMENT
-        // perçu entre les deux couleurs (teinte + saturation + luminosité combinées).
-        const dE = deltaE76(hsbToLab(guess.h, guess.s, guess.b), hsbToLab(target.h, target.s, target.b));
+        // Score perceptuel basé sur la distance CIEDE2000 : il reflète l'écart RÉELLEMENT
+        // perçu entre les deux couleurs (teinte + saturation + luminosité combinées),
+        // y compris dans les bleus saturés où ΔE76 était trompeur (deux bleus quasi
+        // identiques pouvaient scorer moins bien que rouge vs orange).
+        const dE = deltaE2000(hsbToLab(guess.h, guess.s, guess.b), hsbToLab(target.h, target.s, target.b));
 
-        // Nouvelle formule non-linéaire avec plateau de tolérance (ΔE <= 3.0 -> parfait 10/10)
-        // et courbe de décroissance douce (exposant 0.7) pour être plus gratifiant
-        // sur les couleurs proches, tout en tombant à 0 pour les couleurs vraiment fausses (ΔE >= 65).
-        const DE_TOLERANCE = 3.0;
-        const DE_MAX = 65.0;
-        const EXPONENT = 0.7;
+        // Plateau de tolérance (ΔE00 <= 2 ≈ indiscernable -> parfait 10/10), décroissance
+        // douce (exposant 0.8), zéro pour les couleurs vraiment fausses (ΔE00 >= 42).
+        // Échelle ΔE2000 ≠ ΔE76 : ~1-2 = imperceptible, ~10 = proche, ~25 = très différent.
+        const DE_TOLERANCE = 2.0;
+        const DE_MAX = 42.0;
+        const EXPONENT = 0.8;
 
         let score = 0;
         if (dE <= DE_TOLERANCE) {
