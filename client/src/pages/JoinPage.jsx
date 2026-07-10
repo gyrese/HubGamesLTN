@@ -18,15 +18,42 @@ function JoinPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // Auto-redirect if game type is specified in query params
+    // Auto-redirect if code is present in URL
     useEffect(() => {
         const game = searchParams.get('game');
         const code = urlRoomCode || searchParams.get('code');
 
-        if (code && game) {
-            redirectToGame(game, code);
+        if (code) {
+            if (game) {
+                redirectToGame(game, code);
+            } else {
+                const autoDetect = async () => {
+                    setIsLoading(true);
+                    setError('');
+                    try {
+                        const isHttps = window.location.protocol === 'https:';
+                        const port = isHttps ? 3443 : 3005;
+                        const serverUrl = import.meta.env.VITE_SERVER_URL || 
+                            (!import.meta.env.DEV ? '' : `${window.location.protocol}//${window.location.hostname}:${port}`);
+                        
+                        const res = await fetch(`${serverUrl}/api/room/${code.toUpperCase()}`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            redirectToGame(data.gameType, code.toUpperCase());
+                        } else {
+                            // Fallback
+                            navigate(`/apero/play/${code.toUpperCase()}`);
+                        }
+                    } catch (err) {
+                        navigate(`/apero/play/${code.toUpperCase()}`);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                autoDetect();
+            }
         }
-    }, [searchParams, urlRoomCode]);
+    }, [searchParams, urlRoomCode, navigate]);
 
     const redirectToGame = (game, code) => {
         switch (game) {
