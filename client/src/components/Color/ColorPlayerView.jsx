@@ -369,7 +369,7 @@ function ColorPlayerView() {
                                 <span className="cm-chip cm-mono shrink-0">{currentRound}/{totalRounds}</span>
                             </div>
 
-                            <div className="cm-viewport w-32 h-32 sm:w-40 sm:h-40 md:w-56 md:h-56 lg:w-64 lg:h-64 mx-auto">
+                            <div className="cm-viewport w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto">
                                 <div className="cm-viewport-fill" style={{ backgroundColor: guessCssColor }} />
                                 <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
                                      className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
