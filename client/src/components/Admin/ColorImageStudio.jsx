@@ -83,11 +83,18 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
     const [aiError, setAiError] = useState('');
     const [aiInfo, setAiInfo] = useState('');
 
+    // onChange est recréé à chaque render par le parent (non mémoïsé). On le garde dans
+    // une ref pour que `exportBlob` reste STABLE : sinon l'effet de chargement d'image
+    // (dépendant de exportBlob) se relancerait à chaque render, rechargeant l'image
+    // d'origine en boucle — ce qui efface le détourage et ré-exporte l'image opaque.
+    const onChangeRef = useRef(onChange);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
     const exportBlob = useCallback(() => {
         const cv = canvasRef.current;
-        if (!cv || !onChange) return;
-        cv.toBlob((blob) => { if (blob) onChange({ blob }); }, 'image/webp', 0.92);
-    }, [onChange]);
+        if (!cv) return;
+        cv.toBlob((blob) => { if (blob && onChangeRef.current) onChangeRef.current({ blob }); }, 'image/webp', 0.92);
+    }, []);
 
     // Chargement du fichier
     useEffect(() => {
@@ -140,7 +147,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
                 r += od[i]; g += od[i + 1]; b += od[i + 2]; n++;
             }
             const hsb = rgbToHsb(r / n, g / n, b / n);
-            if (onChange) onChange({ hsb });
+            if (onChangeRef.current) onChangeRef.current({ hsb });
             return;
         }
 
@@ -215,7 +222,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
                 }
             }
             ctx.putImageData(imgData, 0, 0);
-            if (n > 0 && onChange) onChange({ hsb: rgbToHsb(r / n, g / n, b / n) });
+            if (n > 0 && onChangeRef.current) onChangeRef.current({ hsb: rgbToHsb(r / n, g / n, b / n) });
             exportBlob();
 
             if (filled === 0) {
@@ -229,16 +236,16 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
         } finally {
             setAiLoading(false);
         }
-    }, [ready, aiLoading, part, apiUrl, tol, onChange, exportBlob]);
+    }, [ready, aiLoading, part, apiUrl, tol, exportBlob]);
 
     const targetCss = hsbToCss(target?.h || 0, target?.s || 0, target?.b || 0);
     const checker =
         'repeating-conic-gradient(#202535 0% 25%, #151825 0% 50%) 50% / 16px 16px';
 
     return (
-        <div className="border border-slate-850 rounded-2xl p-3.5 mt-3 bg-slate-950/80 space-y-4">
+        <div className="border border-slate-850 rounded-2xl p-3 mt-3 bg-slate-950/80 space-y-3 overflow-hidden">
             {/* Tool tray controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-2 rounded-xl border border-slate-850">
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-900/60 p-1.5 rounded-xl border border-slate-850">
                 <div className="flex items-center gap-2">
                     <button 
                         type="button" 
@@ -283,7 +290,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 ml-auto">
                     <button 
                         type="button" 
                         className="p-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-400 hover:text-white rounded-lg transition-all"
@@ -304,22 +311,22 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
             </div>
 
             {/* Slider tolerance */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/20 p-3 rounded-xl border border-slate-850">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wide">
-                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                    Tolérance de diffusion
-                    <input 
-                        type="range" 
-                        min="10" 
-                        max="120" 
+            <div className="flex flex-col gap-2.5 bg-slate-900/20 p-2.5 rounded-xl border border-slate-850">
+                <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-0">
+                    <Sliders className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="shrink-0">Tolérance</span>
+                    <input
+                        type="range"
+                        min="10"
+                        max="120"
                         value={tol}
-                        onChange={(e) => setTol(parseInt(e.target.value))} 
-                        className="w-24 accent-amber-500 cursor-ew-resize h-1.5 bg-slate-950 rounded-lg appearance-none"
+                        onChange={(e) => setTol(parseInt(e.target.value))}
+                        className="flex-1 min-w-0 accent-amber-500 cursor-ew-resize h-1.5 bg-slate-950 rounded-lg appearance-none"
                     />
-                    <span className="font-mono text-amber-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-850">{tol}</span>
+                    <span className="font-mono text-amber-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-850 shrink-0 w-8 text-center">{tol}</span>
                 </div>
 
-                <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wide cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider cursor-pointer select-none">
                     <input 
                         type="checkbox" 
                         checked={previewTarget}
@@ -333,13 +340,13 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
 
             {/* Canvas Area */}
             <div 
-                className="flex justify-center rounded-2xl overflow-hidden border border-slate-850/80 p-4 transition-all duration-300"
+                className="flex justify-center rounded-xl overflow-hidden border border-slate-850/80 p-3 transition-all duration-300"
                 style={{ background: previewTarget ? targetCss : checker }}
             >
-                <canvas 
-                    ref={canvasRef} 
+                <canvas
+                    ref={canvasRef}
                     onClick={handleCanvasClick}
-                    className="max-w-full max-h-[360px] h-auto rounded-lg shadow-lg border border-slate-900/60"
+                    className="max-w-full max-h-[300px] h-auto rounded-lg shadow-lg border border-slate-900/60"
                     style={{
                         cursor: mode === 'pick' ? 'cell' : 'crosshair',
                         imageRendering: 'auto',

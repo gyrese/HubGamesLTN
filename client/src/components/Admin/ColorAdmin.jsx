@@ -1,19 +1,5 @@
 import { useState, useEffect } from 'react';
-import { 
-    Plus, 
-    Edit2, 
-    Trash2, 
-    Loader2, 
-    Palette, 
-    Search,
-    Compass,
-    Image as ImageIcon,
-    Tag,
-    Layers,
-    Save,
-    X,
-    Sparkles
-} from 'lucide-react';
+import { Edit2, Trash2, Loader2, Palette, Save } from 'lucide-react';
 import ColorImageStudio from './ColorImageStudio';
 import { CATEGORY_ORDER } from '../Color/colorCategories';
 
@@ -443,7 +429,7 @@ function ColorAdmin() {
                                     file={imageFile}
                                     target={{ h: formCharacter.target_h, s: formCharacter.target_s, b: formCharacter.target_b }}
                                     part={formCharacter.part}
-                                    apiUrl={API_URL.replace('/admin/color', '')}
+                                    apiUrl={API_URL}
                                     onChange={handleStudioChange}
                                 />
                             )}
