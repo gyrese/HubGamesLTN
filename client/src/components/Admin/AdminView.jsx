@@ -183,97 +183,99 @@ function AdminView() {
     };
 
     return (
-        <div className="min-h-screen w-full text-slate-100 bg-slate-950/20 px-4 md:px-8 py-6 md:py-10 max-w-7xl mx-auto space-y-8 select-none">
-            {/* Top Bar / Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/30 backdrop-blur-md border border-slate-800/80 p-4 md:p-5 rounded-2xl">
-                <div className="flex items-center gap-3">
-                    <button 
-                        className="flex items-center justify-center p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-slate-400 hover:text-white transition-all active:scale-[0.97]" 
-                        onClick={() => navigate('/')}
-                        title="Retour à l'accueil"
-                    >
-                        <ArrowLeft className="w-4 h-4" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl md:text-2xl font-black tracking-widest bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-display uppercase m-0">
-                            Console Admin
-                        </h1>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-widest m-0 font-semibold">
-                            Gestion des configurations du Game Hub
-                        </p>
+        <div className="h-screen w-full overflow-y-auto text-slate-100 bg-slate-950/20 select-none scrollbar-thin">
+            <div className="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-8 pb-32">
+                {/* Top Bar / Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/30 backdrop-blur-md border border-slate-800/80 p-4 md:p-5 rounded-2xl">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            className="flex items-center justify-center p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-700/80 rounded-xl text-slate-400 hover:text-white transition-all active:scale-[0.97]" 
+                            onClick={() => navigate('/')}
+                            title="Retour à l'accueil"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <div>
+                            <h1 className="text-xl md:text-2xl font-black tracking-widest bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent font-display uppercase m-0">
+                                Console Admin
+                            </h1>
+                            <p className="text-[10px] text-slate-500 uppercase tracking-widest m-0 font-semibold">
+                                Gestion des configurations du Game Hub
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between md:justify-end gap-4">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-850 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                            Admin connecté
+                        </span>
+                        <button 
+                            className="flex items-center gap-2 px-4 py-2.5 bg-red-950/20 hover:bg-red-900/30 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.97]"
+                            onClick={handleLogout}
+                        >
+                            <LogOut className="w-4 h-4" />
+                            Déconnexion
+                        </button>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-between md:justify-end gap-4">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-850 text-slate-400 text-xs font-semibold uppercase tracking-wider">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                        Admin connecté
-                    </span>
-                    <button 
-                        className="flex items-center gap-2 px-4 py-2.5 bg-red-950/20 hover:bg-red-900/30 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.97]"
-                        onClick={handleLogout}
+                {/* Navigation Tabs */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    <button
+                        className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
+                            activeTab === 'quizzes'
+                                ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                                : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                        onClick={() => { setActiveTab('quizzes'); setEditingQuiz(null); }}
                     >
-                        <LogOut className="w-4 h-4" />
-                        Déconnexion
+                        <Brain className="w-5 h-5" />
+                        Neural Quiz
+                    </button>
+
+                    <button
+                        className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
+                            activeTab === 'geo'
+                                ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                                : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                        onClick={() => { setActiveTab('geo'); setEditingQuiz(null); }}
+                    >
+                        <Globe className="w-5 h-5" />
+                        Geo Trackr
+                    </button>
+
+                    <button
+                        className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
+                            activeTab === 'draw'
+                                ? 'bg-pink-500/10 border-pink-500 text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.15)]'
+                                : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                        onClick={() => { setActiveTab('draw'); setEditingQuiz(null); }}
+                    >
+                        <Paintbrush className="w-5 h-5" />
+                        Draw Up
+                    </button>
+
+                    <button
+                        className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
+                            activeTab === 'color'
+                                ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                                : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                        onClick={() => { setActiveTab('color'); setEditingQuiz(null); }}
+                    >
+                        <Palette className="w-5 h-5" />
+                        Couleur Moi
                     </button>
                 </div>
-            </div>
 
-            {/* Navigation Tabs */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-                <button
-                    className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
-                        activeTab === 'quizzes'
-                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                            : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                    onClick={() => { setActiveTab('quizzes'); setEditingQuiz(null); }}
-                >
-                    <Brain className="w-5 h-5" />
-                    Neural Quiz
-                </button>
-
-                <button
-                    className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
-                        activeTab === 'geo'
-                            ? 'bg-cyan-500/10 border-cyan-500 text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
-                            : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                    onClick={() => { setActiveTab('geo'); setEditingQuiz(null); }}
-                >
-                    <Globe className="w-5 h-5" />
-                    Geo Trackr
-                </button>
-
-                <button
-                    className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
-                        activeTab === 'draw'
-                            ? 'bg-pink-500/10 border-pink-500 text-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.15)]'
-                            : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                    onClick={() => { setActiveTab('draw'); setEditingQuiz(null); }}
-                >
-                    <Paintbrush className="w-5 h-5" />
-                    Draw Up
-                </button>
-
-                <button
-                    className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
-                        activeTab === 'color'
-                            ? 'bg-amber-500/10 border-amber-500 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                            : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
-                    onClick={() => { setActiveTab('color'); setEditingQuiz(null); }}
-                >
-                    <Palette className="w-5 h-5" />
-                    Couleur Moi
-                </button>
-            </div>
-
-            {/* Content Area */}
-            <div className={`bg-slate-900/20 backdrop-blur-md border rounded-3xl p-6 md:p-8 transition-all duration-500 ${getActiveTabGlow()}`}>
-                <div className="animate-[fadeIn_0.4s_ease-out]">
-                    {renderContent()}
+                {/* Content Area */}
+                <div className={`bg-slate-900/20 backdrop-blur-md border rounded-3xl p-6 md:p-8 transition-all duration-500 ${getActiveTabGlow()}`}>
+                    <div className="animate-[fadeIn_0.4s_ease-out]">
+                        {renderContent()}
+                    </div>
                 </div>
             </div>
         </div>

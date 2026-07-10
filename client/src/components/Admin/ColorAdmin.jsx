@@ -43,6 +43,33 @@ function ColorAdmin() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [sortBy, setSortBy] = useState(null); // null, 'name', 'source', 'category'
+    const [sortOrder, setSortOrder] = useState('asc'); // 'asc', 'desc'
+
+    const handleSort = (field) => {
+        if (sortBy === field) {
+            if (sortOrder === 'asc') {
+                setSortOrder('desc');
+            } else {
+                setSortBy(null);
+                setSortOrder('asc');
+            }
+        } else {
+            setSortBy(field);
+            setSortOrder('asc');
+        }
+    };
+
+    const sortedCharacters = [...characters].sort((a, b) => {
+        if (!sortBy) return 0;
+        let valA = a[sortBy] || '';
+        let valB = b[sortBy] || '';
+        valA = valA.toString().toLowerCase();
+        valB = valB.toString().toLowerCase();
+        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    });
 
     useEffect(() => {
         fetchCharacters();
@@ -454,23 +481,29 @@ function ColorAdmin() {
                             <thead>
                                 <tr className="border-b border-slate-850 bg-slate-900/40 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
                                     <th className="px-6 py-4">Aperçu</th>
-                                    <th className="px-6 py-4">Nom du personnage</th>
+                                    <th className="px-6 py-4 cursor-pointer hover:text-amber-400 transition-colors select-none" onClick={() => handleSort('name')}>
+                                        Nom du personnage {sortBy === 'name' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
                                     <th className="px-6 py-4">Partie cible</th>
-                                    <th className="px-6 py-4">Source</th>
-                                    <th className="px-6 py-4">Univers</th>
+                                    <th className="px-6 py-4 cursor-pointer hover:text-amber-400 transition-colors select-none" onClick={() => handleSort('source')}>
+                                        Source {sortBy === 'source' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
+                                    <th className="px-6 py-4 cursor-pointer hover:text-amber-400 transition-colors select-none" onClick={() => handleSort('category')}>
+                                        Univers {sortBy === 'category' ? (sortOrder === 'asc' ? '▲' : '▼') : ''}
+                                    </th>
                                     <th className="px-6 py-4">Teinte HSB</th>
                                     <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-900/50 align-middle">
-                                {characters.length === 0 ? (
+                                {sortedCharacters.length === 0 ? (
                                     <tr>
                                         <td colSpan="7" className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
                                             Aucun personnage disponible.
                                         </td>
                                     </tr>
                                 ) : (
-                                    characters.map(char => (
+                                    sortedCharacters.map(char => (
                                         <tr key={char.id} className="group hover:bg-slate-900/20 transition-all">
                                             <td className="px-6 py-3">
                                                 <div 
