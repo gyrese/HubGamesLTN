@@ -1,6 +1,22 @@
 import { useState, useEffect } from 'react';
+import { 
+    Plus, 
+    Edit2, 
+    Trash2, 
+    Loader2, 
+    Search,
+    Type,
+    HelpCircle,
+    Bookmark,
+    Save,
+    X
+} from 'lucide-react';
 
-const API_URL = `${window.location.protocol}//${window.location.hostname}:3001/api/admin/draw`;
+const isHttps = window.location.protocol === 'https:';
+const serverPort = isHttps ? 3443 : 3005;
+const API_URL = import.meta.env.VITE_SERVER_URL 
+    ? `${import.meta.env.VITE_SERVER_URL}/api/admin/draw`
+    : (!import.meta.env.DEV ? '/api/admin/draw' : `${window.location.protocol}//${window.location.hostname}:${serverPort}/api/admin/draw`);
 
 function DrawAdmin() {
     const [wordsData, setWordsData] = useState({});
@@ -105,127 +121,186 @@ function DrawAdmin() {
     };
 
     return (
-        <div className="draw-admin">
-            <h2 className="text-secondary mb-4">Gestion Draw Up</h2>
-
-            {/* Category Tabs */}
-            <ul className="nav nav-tabs mb-4 border-secondary">
-                {Object.keys(wordsData).map(key => (
-                    <li className="nav-item" key={key}>
-                        <button
-                            className={`nav-link ${selectedCategory === key ? 'active bg-secondary text-white' : 'text-muted'}`}
-                            onClick={() => setSelectedCategory(key)}
-                            style={{ borderColor: 'rgba(255,255,255,0.1)' }}
-                        >
-                            {key} <span className="badge bg-dark rounded-pill ms-2">{wordsData[key].length}</span>
-                        </button>
-                    </li>
-                ))}
-            </ul>
-
-            {/* Toolbar */}
-            <div className="d-flex justify-content-end mb-3">
-                <button className="btn btn-success" onClick={handleAdd}>
-                    + Ajouter un mot
+        <div className="space-y-6">
+            {/* Header / Toolbar */}
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 pb-4 border-b border-slate-800/60">
+                <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-slate-200 uppercase tracking-wider font-display m-0">Gestion Draw Up</h3>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold m-0">
+                        Administration de la banque de mots par thèmes
+                    </p>
+                </div>
+                <button 
+                    className="flex items-center justify-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-500 active:scale-[0.98] transition-all rounded-xl text-white text-xs font-bold uppercase tracking-widest shadow-lg shadow-pink-500/20"
+                    onClick={handleAdd}
+                >
+                    <Plus className="w-4 h-4" />
+                    Ajouter un mot
                 </button>
             </div>
 
-            {/* Word List */}
+            {/* Category Tabs */}
+            <div className="flex flex-wrap gap-2 pb-2">
+                {Object.keys(wordsData).map(key => (
+                    <button
+                        key={key}
+                        className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl border transition-all active:scale-[0.97] ${
+                            selectedCategory === key 
+                                ? 'bg-pink-500/10 border-pink-500/80 text-pink-400 font-extrabold shadow-[0_0_12px_rgba(236,72,153,0.1)]' 
+                                : 'bg-slate-900/30 border-slate-850 text-slate-400 hover:text-slate-200 hover:border-slate-800'
+                        }`}
+                        onClick={() => setSelectedCategory(key)}
+                    >
+                        {key}
+                        <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
+                            selectedCategory === key ? 'bg-pink-500/20 text-pink-400' : 'bg-slate-950 text-slate-500'
+                        }`}>
+                            {wordsData[key].length}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Word List Area */}
             {isLoading ? (
-                <div className="text-center p-5">
-                    <div className="spinner-border text-secondary" role="status"></div>
+                <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+                    <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+                    <span className="text-xs uppercase tracking-widest font-bold">Chargement de la base de mots...</span>
                 </div>
             ) : (
-                <div className="table-responsive">
-                    <table className="table table-dark table-hover border-secondary">
-                        <thead>
-                            <tr>
-                                <th>Mot</th>
-                                <th>Indice</th>
-                                <th className="text-end">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {wordsData[selectedCategory]?.map((item, idx) => (
-                                <tr key={idx}>
-                                    <td className="fw-bold text-white">{item.word}</td>
-                                    <td className="text-muted fst-italic">{item.hint || '-'}</td>
-                                    <td className="text-end">
-                                        <button
-                                            className="btn btn-sm btn-outline-info me-2"
-                                            onClick={() => handleEdit(item)}
-                                        >
-                                            ✏️
-                                        </button>
-                                        <button
-                                            className="btn btn-sm btn-outline-danger"
-                                            onClick={() => handleDelete(item.word)}
-                                        >
-                                            🗑️
-                                        </button>
-                                    </td>
+                <div className="overflow-hidden border border-slate-850 rounded-2xl bg-slate-950/20">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-slate-850 bg-slate-900/40 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                                    <th className="px-6 py-4">Mot / Phrase</th>
+                                    <th className="px-6 py-4">Indice de jeu</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
-                            ))}
-                            {wordsData[selectedCategory]?.length === 0 && (
-                                <tr>
-                                    <td colSpan="3" className="text-center text-muted py-4">
-                                        Aucun mot dans cette catégorie
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-900/50">
+                                {wordsData[selectedCategory]?.map((item, idx) => (
+                                    <tr key={idx} className="group hover:bg-slate-900/20 transition-all">
+                                        <td className="px-6 py-4 text-sm font-bold text-slate-200 group-hover:text-pink-400 transition-colors">
+                                            {item.word}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-slate-400 italic">
+                                            {item.hint || '—'}
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="inline-flex gap-1.5">
+                                                <button
+                                                    className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-850 text-slate-400 hover:text-cyan-400 rounded-xl transition-all"
+                                                    onClick={() => handleEdit(item)}
+                                                    title="Éditer le mot"
+                                                >
+                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    className="p-2 bg-slate-900 hover:bg-red-950/40 border border-slate-850 hover:border-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition-all"
+                                                    onClick={() => handleDelete(item.word)}
+                                                    title="Supprimer le mot"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {(!wordsData[selectedCategory] || wordsData[selectedCategory].length === 0) && (
+                                    <tr>
+                                        <td colSpan="3" className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
+                                            Aucun mot disponible dans cette catégorie.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
 
-            {/* Edit Modal (Simple overlay for now) */}
+            {/* Edit/Add Modal Overlay */}
             {showModal && (
-                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                    <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content bg-dark border-secondary">
-                            <div className="modal-header border-secondary">
-                                <h5 className="modal-title text-white">
-                                    {editMode ? 'Modifier le mot' : 'Ajouter un mot'}
-                                </h5>
-                                <button type="button" className="btn-close btn-close-white" onClick={() => setShowModal(false)}></button>
-                            </div>
-                            <form onSubmit={handleSubmit}>
-                                <div className="modal-body">
-                                    <div className="mb-3">
-                                        <label className="form-label text-secondary">Mot / Phrase</label>
-                                        <input
-                                            type="text"
-                                            className="form-control bg-black text-white border-secondary"
-                                            value={formData.word}
-                                            onChange={e => setFormData({ ...formData, word: e.target.value })}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label text-secondary">Indice (optionnel)</label>
-                                        <input
-                                            type="text"
-                                            className="form-control bg-black text-white border-secondary"
-                                            value={formData.hint}
-                                            onChange={e => setFormData({ ...formData, hint: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="mb-3">
-                                        <label className="form-label text-secondary">Catégorie (Label)</label>
-                                        <input
-                                            type="text"
-                                            className="form-control bg-black text-white border-secondary"
-                                            value={formData.categoryLabel}
-                                            onChange={e => setFormData({ ...formData, categoryLabel: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer border-secondary">
-                                    <button type="button" className="btn btn-outline-light" onClick={() => setShowModal(false)}>Annuler</button>
-                                    <button type="submit" className="btn btn-primary">Enregistrer</button>
-                                </div>
-                            </form>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    {/* Backdrop blur overlay */}
+                    <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowModal(false)}></div>
+                    
+                    {/* Modal container */}
+                    <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+                        <div className="flex justify-between items-center bg-slate-900/60 border-b border-slate-850 px-6 py-4">
+                            <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider font-display m-0">
+                                {editMode ? 'Modifier le Mot' : 'Ajouter un Mot'}
+                            </h4>
+                            <button 
+                                className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors"
+                                onClick={() => setShowModal(false)}
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
+                        
+                        <form onSubmit={handleSubmit}>
+                            <div className="p-6 space-y-4">
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                                        <Type className="w-3.5 h-3.5 text-pink-400" />
+                                        Mot / Phrase
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-slate-950 text-white placeholder-slate-700 border border-slate-850 focus:border-pink-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all"
+                                        value={formData.word}
+                                        onChange={e => setFormData({ ...formData, word: e.target.value })}
+                                        required
+                                        placeholder="ex. Tour Eiffel"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                                        <HelpCircle className="w-3.5 h-3.5 text-pink-400" />
+                                        Indice (optionnel)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-slate-950 text-white placeholder-slate-700 border border-slate-850 focus:border-pink-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all"
+                                        value={formData.hint}
+                                        onChange={e => setFormData({ ...formData, hint: e.target.value })}
+                                        placeholder="ex. Monument parisien"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                                        <Bookmark className="w-3.5 h-3.5 text-pink-400" />
+                                        Catégorie (Label)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="w-full bg-slate-950 text-white placeholder-slate-700 border border-slate-850 focus:border-pink-500 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-pink-500/10 transition-all"
+                                        value={formData.categoryLabel}
+                                        onChange={e => setFormData({ ...formData, categoryLabel: e.target.value })}
+                                        placeholder="ex. Monuments"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-end gap-2 bg-slate-900/40 border-t border-slate-850 px-6 py-4">
+                                <button 
+                                    type="button" 
+                                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-white transition-colors"
+                                    onClick={() => setShowModal(false)}
+                                >
+                                    Annuler
+                                </button>
+                                <button 
+                                    type="submit" 
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-pink-600 hover:bg-pink-500 active:scale-[0.97] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-pink-500/20"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    Enregistrer
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

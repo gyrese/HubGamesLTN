@@ -1,4 +1,19 @@
 import { useState, useEffect } from 'react';
+import { 
+    Plus, 
+    Edit2, 
+    Trash2, 
+    Loader2, 
+    Palette, 
+    Search,
+    Compass,
+    Image as ImageIcon,
+    Tag,
+    Layers,
+    Save,
+    X,
+    Sparkles
+} from 'lucide-react';
 import ColorImageStudio from './ColorImageStudio';
 import { CATEGORY_ORDER } from '../Color/colorCategories';
 
@@ -63,7 +78,6 @@ function ColorAdmin() {
         }
     };
 
-    // Le studio renvoie soit le WebP détouré (blob), soit une couleur échantillonnée (hsb)
     const handleStudioChange = ({ blob, hsb }) => {
         if (blob) setProcessedBlob(blob);
         if (hsb) setFormCharacter(prev => ({
@@ -77,6 +91,7 @@ function ColorAdmin() {
             name: '',
             part: '',
             source: '',
+            category: '',
             target_h: 0,
             target_s: 0,
             target_b: 0,
@@ -106,7 +121,6 @@ function ColorAdmin() {
         try {
             let finalImagePath = image_path;
 
-            // 1. Upload : on privilégie le WebP détouré par le studio, sinon le fichier brut
             if (processedBlob || imageFile) {
                 const formData = new FormData();
                 if (processedBlob) {
@@ -118,7 +132,6 @@ function ColorAdmin() {
                 const uploadRes = await fetch(`${API_URL}/admin/color/upload`, {
                     method: 'POST',
                     body: formData
-                    // Bearer token automatically added by fetch interceptor
                 });
 
                 if (!uploadRes.ok) {
@@ -134,7 +147,6 @@ function ColorAdmin() {
                 throw new Error("L'image est requise lors de la création d'un nouveau personnage");
             }
 
-            // 2. Save character metadata
             const characterData = {
                 id: id.trim(),
                 name: name.trim(),
@@ -208,7 +220,6 @@ function ColorAdmin() {
         }
     };
 
-    // Helper to render target color swatch in list
     const getTargetColorStyle = (h, s, b) => {
         const v = b / 100;
         const sHsb = s / 100;
@@ -226,213 +237,309 @@ function ColorAdmin() {
         return `${base}${imagePath}`;
     };
 
-    // Univers proposés dans la datalist : les canoniques + ceux déjà présents en base.
     const categoryOptions = Array.from(new Set([
         ...CATEGORY_ORDER,
         ...characters.map(c => c.category).filter(Boolean)
     ]));
 
     return (
-        <div className="card shadow-sm bg-transparent border-secondary p-4 mt-2 text-light">
-            <h2 className="text-primary mb-4">🎨 CouleurMoi — Administration des Personnages</h2>
+        <div className="space-y-6">
+            {/* Header Title */}
+            <div className="flex justify-between items-center pb-4 border-b border-slate-800/60">
+                <div className="space-y-1">
+                    <h3 className="text-lg font-bold text-slate-200 uppercase tracking-wider font-display m-0">Couleur Moi</h3>
+                    <p className="text-xs text-slate-500 uppercase tracking-widest font-semibold m-0">
+                        Administration des personnages et calibrage chromatique
+                    </p>
+                </div>
+            </div>
 
-            {error && <div className="alert alert-danger mb-4">{error}</div>}
-            {success && <div className="alert alert-success mb-4">{success}</div>}
+            {error && (
+                <div className="p-4 bg-red-950/20 border border-red-500/20 text-red-400 text-xs font-semibold rounded-xl animate-shake">
+                    {error}
+                </div>
+            )}
+            {success && (
+                <div className="p-4 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-xl">
+                    {success}
+                </div>
+            )}
 
-            <div className="row g-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
-                {/* 1. Editor Form */}
-                <div className="col-lg-4">
-                    <div className="bg-dark p-3 border border-secondary rounded">
-                        <h4 className="text-info mb-3">
+                {/* 1. Form Editor Column */}
+                <div className="lg:col-span-4 bg-slate-900/40 border border-slate-850 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
+                        <Palette className="w-4.5 h-4.5 text-amber-400" />
+                        <h4 className="text-sm font-bold text-slate-200 uppercase tracking-wider font-display m-0">
                             {isEditing ? 'Éditer le Personnage' : 'Ajouter un Personnage'}
                         </h4>
-                        
-                        <form onSubmit={handleSubmit} className="d-flex flex-col gap-3">
-                            <div className="mb-2">
-                                <label className="form-label text-muted small mb-1">Identifiant Unique (ID)</label>
-                                <input 
-                                    type="text" name="id" value={formCharacter.id}
-                                    onChange={handleInputChange} disabled={isEditing}
-                                    placeholder="pikachu-skin" className="form-control bg-black text-white border-secondary"
-                                />
-                            </div>
-
-                            <div className="mb-2">
-                                <label className="form-label text-muted small mb-1">Nom du Personnage</label>
-                                <input 
-                                    type="text" name="name" value={formCharacter.name}
-                                    onChange={handleInputChange} placeholder="Pikachu"
-                                    className="form-control bg-black text-white border-secondary"
-                                />
-                            </div>
-
-                            <div className="mb-2">
-                                <label className="form-label text-muted small mb-1">Partie à colorer</label>
-                                <input 
-                                    type="text" name="part" value={formCharacter.part}
-                                    onChange={handleInputChange} placeholder="La peau"
-                                    className="form-control bg-black text-white border-secondary"
-                                />
-                            </div>
-
-                            <div className="mb-2">
-                                <label className="form-label text-muted small mb-1">Source / Oeuvre d'origine</label>
-                                <input
-                                    type="text" name="source" value={formCharacter.source}
-                                    onChange={handleInputChange} placeholder="Pokémon"
-                                    className="form-control bg-black text-white border-secondary"
-                                />
-                            </div>
-
-                            <div className="mb-2">
-                                <label className="form-label text-muted small mb-1">Univers / Catégorie</label>
-                                <input
-                                    type="text" name="category" value={formCharacter.category || ''}
-                                    onChange={handleInputChange} placeholder="Disney" list="color-category-options"
-                                    className="form-control bg-black text-white border-secondary"
-                                />
-                                <datalist id="color-category-options">
-                                    {categoryOptions.map(cat => <option key={cat} value={cat} />)}
-                                </datalist>
-                                <div className="form-text text-muted small">Sert à lancer une partie thématique. Laisse vide pour « hors thème ».</div>
-                            </div>
-
-                            <div className="row g-2 mb-2">
-                                <div className="col-4">
-                                    <label className="form-label text-muted small mb-1">Teinte (H)</label>
-                                    <input 
-                                        type="number" min="0" max="360" name="target_h" value={formCharacter.target_h}
-                                        onChange={handleInputChange} className="form-control bg-black text-white border-secondary"
-                                    />
-                                </div>
-                                <div className="col-4">
-                                    <label className="form-label text-muted small mb-1">Sat (S %)</label>
-                                    <input 
-                                        type="number" min="0" max="100" name="target_s" value={formCharacter.target_s}
-                                        onChange={handleInputChange} className="form-control bg-black text-white border-secondary"
-                                    />
-                                </div>
-                                <div className="col-4">
-                                    <label className="form-label text-muted small mb-1">Lumin (B %)</label>
-                                    <input 
-                                        type="number" min="0" max="100" name="target_b" value={formCharacter.target_b}
-                                        onChange={handleInputChange} className="form-control bg-black text-white border-secondary"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Color Preview */}
-                            <div className="d-flex items-center gap-2 mb-2 bg-slate-950 p-2 rounded border border-secondary">
-                                <div 
-                                    style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        borderRadius: '4px',
-                                        backgroundColor: getTargetColorStyle(formCharacter.target_h, formCharacter.target_s, formCharacter.target_b)
-                                    }}
-                                />
-                                <span className="small text-muted">Aperçu de la couleur cible</span>
-                            </div>
-
-                            <div className="mb-3">
-                                <label className="form-label text-muted small mb-1">Image — détourage intégré</label>
-                                <input
-                                    type="file" accept="image/*" onChange={handleFileChange}
-                                    className="form-control bg-black text-white border-secondary"
-                                />
-                                {formCharacter.image_path && !imageFile && (
-                                    <div className="text-muted small mt-1 truncate">
-                                        Actuel : {formCharacter.image_path}
-                                    </div>
-                                )}
-                                {imageFile && (
-                                    <ColorImageStudio
-                                        file={imageFile}
-                                        target={{ h: formCharacter.target_h, s: formCharacter.target_s, b: formCharacter.target_b }}
-                                        part={formCharacter.part}
-                                        apiUrl={API_URL}
-                                        onChange={handleStudioChange}
-                                    />
-                                )}
-                            </div>
-
-                            <div className="d-flex gap-2">
-                                <button type="submit" disabled={isLoading} className="btn btn-primary flex-fill">
-                                    {isLoading ? 'Enregistrement...' : 'Enregistrer'}
-                                </button>
-                                <button type="button" onClick={handleReset} className="btn btn-outline-secondary">
-                                    Annuler
-                                </button>
-                            </div>
-                        </form>
                     </div>
+                    
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Identifiant Unique (ID)</label>
+                            <input 
+                                type="text" 
+                                name="id" 
+                                value={formCharacter.id}
+                                onChange={handleInputChange} 
+                                disabled={isEditing}
+                                placeholder="ex. pikachu-skin" 
+                                className="w-full bg-slate-950 text-white border border-slate-850 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition-all disabled:opacity-50"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Nom du Personnage</label>
+                            <input 
+                                type="text" 
+                                name="name" 
+                                value={formCharacter.name}
+                                onChange={handleInputChange} 
+                                placeholder="ex. Pikachu"
+                                className="w-full bg-slate-950 text-white border border-slate-850 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Partie à colorer</label>
+                            <input 
+                                type="text" 
+                                name="part" 
+                                value={formCharacter.part}
+                                onChange={handleInputChange} 
+                                placeholder="ex. La peau"
+                                className="w-full bg-slate-950 text-white border border-slate-850 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Source / Oeuvre d'origine</label>
+                            <input
+                                type="text" 
+                                name="source" 
+                                value={formCharacter.source}
+                                onChange={handleInputChange} 
+                                placeholder="ex. Pokémon"
+                                className="w-full bg-slate-950 text-white border border-slate-850 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Univers / Catégorie</label>
+                            <input
+                                type="text" 
+                                name="category" 
+                                value={formCharacter.category || ''}
+                                onChange={handleInputChange} 
+                                placeholder="ex. Nintendo" 
+                                list="color-category-options"
+                                className="w-full bg-slate-950 text-white border border-slate-850 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none transition-all"
+                            />
+                            <datalist id="color-category-options">
+                                {categoryOptions.map(cat => <option key={cat} value={cat} />)}
+                            </datalist>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="space-y-1">
+                                <label className="block text-[9px] font-bold tracking-wider text-slate-550 uppercase">Teinte (H)</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="360" 
+                                    name="target_h" 
+                                    value={formCharacter.target_h}
+                                    onChange={handleInputChange} 
+                                    className="w-full bg-slate-950 text-white border border-slate-850 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-amber-500 text-center font-mono"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="block text-[9px] font-bold tracking-wider text-slate-550 uppercase">Sat (S %)</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="100" 
+                                    name="target_s" 
+                                    value={formCharacter.target_s}
+                                    onChange={handleInputChange} 
+                                    className="w-full bg-slate-950 text-white border border-slate-850 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-amber-500 text-center font-mono"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="block text-[9px] font-bold tracking-wider text-slate-550 uppercase">Lum (B %)</label>
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="100" 
+                                    name="target_b" 
+                                    value={formCharacter.target_b}
+                                    onChange={handleInputChange} 
+                                    className="w-full bg-slate-950 text-white border border-slate-850 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-amber-500 text-center font-mono"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Color Target Swatch Preview */}
+                        <div className="flex items-center gap-2.5 p-2.5 bg-slate-950/80 border border-slate-850 rounded-xl">
+                            <div 
+                                className="w-8 h-8 rounded-lg shadow-inner shrink-0 border border-white/10"
+                                style={{
+                                    backgroundColor: getTargetColorStyle(formCharacter.target_h, formCharacter.target_s, formCharacter.target_b)
+                                }}
+                            />
+                            <div className="space-y-0.5">
+                                <span className="block text-[9px] font-bold tracking-wider text-slate-500 uppercase">Couleur Cible</span>
+                                <span className="block text-[10px] font-bold font-mono text-amber-400">
+                                    HSL({formCharacter.target_h}, {formCharacter.target_s}%, {formCharacter.target_b}%)
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Image Detourage Studio Container */}
+                        <div className="space-y-1.5">
+                            <label className="block text-[10px] font-bold tracking-widest text-slate-400 uppercase">Image source (Détourage intégré)</label>
+                            <input
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleFileChange}
+                                className="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:uppercase file:bg-amber-600/10 file:text-amber-400 hover:file:bg-amber-600/20 file:cursor-pointer"
+                            />
+                            {formCharacter.image_path && !imageFile && (
+                                <div className="text-[10px] text-slate-500 italic truncate pt-1">
+                                    Fichier : {formCharacter.image_path.split('/').pop()}
+                                </div>
+                            )}
+                            {imageFile && (
+                                <ColorImageStudio
+                                    file={imageFile}
+                                    target={{ h: formCharacter.target_h, s: formCharacter.target_s, b: formCharacter.target_b }}
+                                    part={formCharacter.part}
+                                    apiUrl={API_URL.replace('/admin/color', '')}
+                                    onChange={handleStudioChange}
+                                />
+                            )}
+                        </div>
+
+                        {/* Submit Actions */}
+                        <div className="flex gap-2 pt-2">
+                            <button 
+                                type="submit" 
+                                disabled={isLoading} 
+                                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 disabled:text-slate-500 active:scale-[0.97] transition-all rounded-xl text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-amber-500/10"
+                            >
+                                {isLoading ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                Enregistrer
+                            </button>
+                            <button 
+                                type="button" 
+                                onClick={handleReset} 
+                                className="px-4 py-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:border-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
+                            >
+                                Annuler
+                            </button>
+                        </div>
+                    </form>
                 </div>
 
-                {/* 2. Character List Table */}
-                <div className="col-lg-8">
-                    <div className="table-responsive border border-secondary rounded">
-                        <table className="table table-dark table-hover mb-0">
+                {/* 2. Character List Table Column */}
+                <div className="lg:col-span-8 overflow-hidden border border-slate-850 rounded-2xl bg-slate-950/20">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr>
-                                    <th>Image</th>
-                                    <th>ID</th>
-                                    <th>Nom</th>
-                                    <th>Partie</th>
-                                    <th>Source</th>
-                                    <th>Univers</th>
-                                    <th>Cible HSB</th>
-                                    <th>Actions</th>
+                                <tr className="border-b border-slate-850 bg-slate-900/40 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                                    <th className="px-6 py-4">Aperçu</th>
+                                    <th className="px-6 py-4">Nom du personnage</th>
+                                    <th className="px-6 py-4">Partie cible</th>
+                                    <th className="px-6 py-4">Source</th>
+                                    <th className="px-6 py-4">Univers</th>
+                                    <th className="px-6 py-4">Teinte HSB</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-900/50 align-middle">
                                 {characters.length === 0 ? (
                                     <tr>
-                                        <td colSpan="8" className="text-center text-muted py-4">
+                                        <td colSpan="7" className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
                                             Aucun personnage disponible.
                                         </td>
                                     </tr>
                                 ) : (
                                     characters.map(char => (
-                                        <tr key={char.id} className="align-middle">
-                                            <td>
+                                        <tr key={char.id} className="group hover:bg-slate-900/20 transition-all">
+                                            <td className="px-6 py-3">
                                                 <div 
-                                                    className="position-relative overflow-hidden rounded bg-slate-900 border border-slate-700"
-                                                    style={{ width: '42px', height: '42px' }}
+                                                    className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-850 flex items-center justify-center"
+                                                    style={{
+                                                        background: `
+                                                            linear-gradient(rgba(15, 23, 42, 0.4), rgba(15, 23, 42, 0.4)),
+                                                            repeating-conic-gradient(#202535 0% 25%, #151825 0% 50%) 50% / 10px 10px
+                                                        `
+                                                    }}
                                                 >
+                                                    {/* Color target fill beneath transparent image */}
                                                     <div 
-                                                        className="position-absolute inset-0"
+                                                        className="absolute inset-0 opacity-80"
                                                         style={{ backgroundColor: getTargetColorStyle(char.target_h, char.target_s, char.target_b) }}
                                                     />
                                                     <img 
                                                         src={getImageUrl(char.image_path)} 
                                                         alt={char.name}
-                                                        className="w-100 h-100 object-fit-contain position-relative z-1"
+                                                        className="w-10 h-10 object-contain relative z-10"
                                                         onError={(e) => { e.target.style.display = 'none'; }}
                                                     />
                                                 </div>
                                             </td>
-                                            <td className="small font-mono">{char.id}</td>
-                                            <td className="fw-bold text-info">{char.name}</td>
-                                            <td>{char.part}</td>
-                                            <td className="text-muted">{char.source}</td>
-                                            <td>
-                                                {char.category
-                                                    ? <span className="badge bg-info text-dark">{char.category}</span>
-                                                    : <span className="text-muted small">—</span>}
-                                            </td>
-                                            <td>
-                                                <span className="badge bg-secondary font-mono">
-                                                    H:{char.target_h} S:{char.target_s} B:{char.target_b}
+                                            <td className="px-6 py-3">
+                                                <span className="block text-sm font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                                                    {char.name}
+                                                </span>
+                                                <span className="block text-[9px] font-mono text-slate-500 uppercase mt-0.5">
+                                                    ID: {char.id}
                                                 </span>
                                             </td>
-                                            <td>
-                                                <button onClick={() => handleEdit(char)} className="btn btn-sm btn-outline-light me-2">
-                                                    ÉDITER
-                                                </button>
-                                                <button onClick={() => handleDelete(char.id)} className="btn btn-sm btn-outline-danger">
-                                                    SUPPR
-                                                </button>
+                                            <td className="px-6 py-3 text-sm text-slate-300">
+                                                {char.part}
+                                            </td>
+                                            <td className="px-6 py-3 text-sm text-slate-400 font-medium">
+                                                {char.source}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                {char.category ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                                                        {char.category}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-600 text-xs">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                <span className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-900 border border-slate-850 text-slate-400 font-mono text-[10px] font-bold">
+                                                    H:{char.target_h} S:{char.target_s}% B:{char.target_b}%
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-3 text-right">
+                                                <div className="inline-flex gap-1.5">
+                                                    <button 
+                                                        onClick={() => handleEdit(char)} 
+                                                        className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-850 text-slate-400 hover:text-cyan-400 rounded-xl transition-all"
+                                                        title="Éditer"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDelete(char.id)} 
+                                                        className="p-2 bg-slate-900 hover:bg-red-950/40 border border-slate-850 hover:border-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition-all"
+                                                        title="Supprimer"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

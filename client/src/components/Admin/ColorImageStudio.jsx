@@ -1,4 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { 
+    Sparkles, 
+    Scissors, 
+    Pipette, 
+    Undo2, 
+    RotateCcw, 
+    HelpCircle, 
+    Check, 
+    AlertCircle, 
+    Eye,
+    Sliders
+} from 'lucide-react';
 
 /**
  * Studio de détourage CouleurMoi.
@@ -99,8 +111,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
             exportBlob();
         };
         img.src = url;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [file]);
+    }, [file, exportBlob]);
 
     const toImageCoords = (e) => {
         const cv = canvasRef.current;
@@ -211,7 +222,7 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
                 setAiError('Zones trouvées mais rien détouré — monte la tolérance et relance, ou clique à la main.');
             } else {
                 const z = points.length;
-                setAiInfo(`✅ ${z} zone${z > 1 ? 's' : ''} détectée${z > 1 ? 's' : ''} · couleur pré-remplie. Ajuste la tolérance ou retouche si besoin.`);
+                setAiInfo(`✅ ${z} zone${z > 1 ? 's' : ''} détectée${z > 1 ? 's' : ''} · couleur pré-remplie.`);
             }
         } catch (e) {
             setAiError(e.message || 'Échec du détourage IA.');
@@ -222,56 +233,140 @@ export default function ColorImageStudio({ file, target, part, apiUrl, onChange 
 
     const targetCss = hsbToCss(target?.h || 0, target?.s || 0, target?.b || 0);
     const checker =
-        'repeating-conic-gradient(#3a3a4a 0% 25%, #2a2a38 0% 50%) 50% / 18px 18px';
+        'repeating-conic-gradient(#202535 0% 25%, #151825 0% 50%) 50% / 16px 16px';
 
     return (
-        <div className="border border-secondary rounded p-2 mt-2 bg-black">
-            <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-                <button type="button" className="btn btn-sm btn-success fw-bold"
-                    onClick={autoSegment} disabled={aiLoading || !ready}
-                    title="Détecte et détoure automatiquement la partie renseignée ci-dessus">
-                    {aiLoading ? '⏳ Analyse IA…' : '🪄 Auto (IA)'}
-                </button>
-                <div className="btn-group btn-group-sm" role="group">
-                    <button type="button"
-                        className={`btn ${mode === 'detour' ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => setMode('detour')}>✂️ Détourer</button>
-                    <button type="button"
-                        className={`btn ${mode === 'pick' ? 'btn-info' : 'btn-outline-info'}`}
-                        onClick={() => setMode('pick')}>💧 Pipette</button>
+        <div className="border border-slate-850 rounded-2xl p-3.5 mt-3 bg-slate-950/80 space-y-4">
+            {/* Tool tray controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/60 p-2 rounded-xl border border-slate-850">
+                <div className="flex items-center gap-2">
+                    <button 
+                        type="button" 
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all active:scale-[0.97] disabled:opacity-40 ${
+                            aiLoading ? 'bg-amber-600/10 border border-amber-500/20 text-amber-400' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        }`}
+                        onClick={autoSegment} 
+                        disabled={aiLoading || !ready}
+                        title="Détourage IA automatique"
+                    >
+                        <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-pulse' : ''}`} />
+                        {aiLoading ? 'Analyse IA...' : 'Auto IA'}
+                    </button>
+
+                    <div className="h-4 w-px bg-slate-800"></div>
+
+                    <div className="inline-flex rounded-lg overflow-hidden bg-slate-950 p-0.5 border border-slate-850">
+                        <button 
+                            type="button"
+                            className={`flex items-center gap-1 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                                mode === 'detour' 
+                                    ? 'bg-amber-600/20 border border-amber-500/20 text-amber-400' 
+                                    : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                            onClick={() => setMode('detour')}
+                        >
+                            <Scissors className="w-3.5 h-3.5" />
+                            Détourer
+                        </button>
+                        <button 
+                            type="button"
+                            className={`flex items-center gap-1 px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                                mode === 'pick' 
+                                    ? 'bg-cyan-600/20 border border-cyan-500/20 text-cyan-400' 
+                                    : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                            onClick={() => setMode('pick')}
+                        >
+                            <Pipette className="w-3.5 h-3.5" />
+                            Pipette
+                        </button>
+                    </div>
                 </div>
-                <button type="button" className="btn btn-sm btn-outline-light" onClick={undo}>↶ Annuler</button>
-                <button type="button" className="btn btn-sm btn-outline-warning" onClick={reset}>⟲ Reset</button>
-                <label className="d-flex align-items-center gap-1 text-muted small mb-0 ms-1">
-                    Tolérance
-                    <input type="range" min="10" max="120" value={tol}
-                        onChange={(e) => setTol(parseInt(e.target.value))} style={{ width: 90 }} />
-                    <span className="font-mono" style={{ width: 26 }}>{tol}</span>
-                </label>
-                <label className="d-flex align-items-center gap-1 text-muted small mb-0 ms-auto">
-                    <input type="checkbox" checked={previewTarget}
-                        onChange={(e) => setPreviewTarget(e.target.checked)} />
-                    Aperçu sur couleur cible
+
+                <div className="flex items-center gap-2">
+                    <button 
+                        type="button" 
+                        className="p-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-400 hover:text-white rounded-lg transition-all"
+                        onClick={undo}
+                        title="Annuler"
+                    >
+                        <Undo2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button 
+                        type="button" 
+                        className="p-1.5 bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-450 hover:text-amber-400 rounded-lg transition-all"
+                        onClick={reset}
+                        title="Réinitialiser"
+                    >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Slider tolerance */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/20 p-3 rounded-xl border border-slate-850">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                    Tolérance de diffusion
+                    <input 
+                        type="range" 
+                        min="10" 
+                        max="120" 
+                        value={tol}
+                        onChange={(e) => setTol(parseInt(e.target.value))} 
+                        className="w-24 accent-amber-500 cursor-ew-resize h-1.5 bg-slate-950 rounded-lg appearance-none"
+                    />
+                    <span className="font-mono text-amber-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-850">{tol}</span>
+                </div>
+
+                <label className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wide cursor-pointer select-none">
+                    <input 
+                        type="checkbox" 
+                        checked={previewTarget}
+                        onChange={(e) => setPreviewTarget(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-600 bg-slate-950 border-slate-800 focus:ring-amber-500"
+                    />
+                    <Eye className="w-3.5 h-3.5 text-slate-400" />
+                    Aperçu sur cible
                 </label>
             </div>
 
-            <div className="d-flex justify-content-center rounded overflow-hidden"
-                style={{ background: previewTarget ? targetCss : checker, padding: 8 }}>
-                <canvas ref={canvasRef} onClick={handleCanvasClick}
+            {/* Canvas Area */}
+            <div 
+                className="flex justify-center rounded-2xl overflow-hidden border border-slate-850/80 p-4 transition-all duration-300"
+                style={{ background: previewTarget ? targetCss : checker }}
+            >
+                <canvas 
+                    ref={canvasRef} 
+                    onClick={handleCanvasClick}
+                    className="max-w-full max-h-[360px] h-auto rounded-lg shadow-lg border border-slate-900/60"
                     style={{
-                        maxWidth: '100%', maxHeight: 360, height: 'auto',
                         cursor: mode === 'pick' ? 'cell' : 'crosshair',
                         imageRendering: 'auto',
-                    }} />
+                    }} 
+                />
             </div>
 
-            {aiError && <div className="alert alert-warning py-1 px-2 small mt-2 mb-0">{aiError}</div>}
-            {aiInfo && <div className="alert alert-success py-1 px-2 small mt-2 mb-0">{aiInfo}</div>}
+            {/* Notifications info/error */}
+            {aiError && (
+                <div className="flex items-center gap-2 p-3 bg-red-950/20 border border-red-500/20 text-red-400 text-xs font-semibold rounded-xl">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {aiError}
+                </div>
+            )}
+            {aiInfo && (
+                <div className="flex items-center gap-2 p-3 bg-emerald-950/20 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-xl">
+                    <Check className="w-4 h-4 shrink-0" />
+                    {aiInfo}
+                </div>
+            )}
 
-            <p className="text-muted small mb-0 mt-2">
+            {/* Help instructions */}
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider leading-relaxed m-0 flex items-start gap-1.5">
+                <HelpCircle className="w-4 h-4 text-slate-650 shrink-0 mt-px" />
                 {mode === 'detour'
-                    ? '🪄 « Auto (IA) » détecte la partie renseignée et la détoure toute seule. Sinon, ✂️ clique sur la partie à recoloriser pour la rendre transparente. Ajuste la tolérance si ça déborde ou s’il reste des zones.'
-                    : '💧 Clique sur cette même partie pour définir automatiquement la couleur cible (H/S/B).'}
+                    ? 'Mode Détourage : Cliquez sur les zones de couleur à effacer pour les rendre transparentes.'
+                    : 'Mode Pipette : Cliquez sur la couleur d’origine pour l’enregistrer comme couleur cible.'}
             </p>
         </div>
     );
