@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { Palette, Check, Lightbulb, Send, Trophy, Loader2, Hourglass } from 'lucide-react';
+import { Palette, Check, Lightbulb, Trophy, Loader2, Hourglass } from 'lucide-react';
 import { socket } from '../../socket';
 import { renderSilhouette, hsbToCss } from './ColorSilhouettes';
 import './ColorStyles.css';
@@ -40,7 +40,7 @@ function SBField({ h, s, b, onChange }) {
     const onDown = (e) => { e.currentTarget.setPointerCapture(e.pointerId); apply(e.clientX, e.clientY); };
     const onMove = (e) => { if (e.buttons === 0) return; apply(e.clientX, e.clientY); };
     return (
-        <div ref={ref} className="cm-field" onPointerDown={onDown} onPointerMove={onMove}
+        <div ref={ref} className="cm-field w-full h-[18vh] min-h-[90px] max-h-[140px] aspect-[2.2/1] sm:aspect-[1.8/1]" onPointerDown={onDown} onPointerMove={onMove}
              style={{ background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)` }}>
             <div className="cm-field-thumb" style={{ left: `${s}%`, top: `${100 - b}%`, background: hsbToCss(h, s, b) }} />
         </div>
@@ -106,8 +106,6 @@ function ColorPlayerView() {
     const [hintText, setHintText] = useState('');
     const [hasGuessed, setHasGuessed] = useState(false);
 
-    // Social
-    const [chatMsg, setChatMsg] = useState('');
     const [imageError, setImageError] = useState(false);
 
     const resetSliders = (char) => {
@@ -253,17 +251,7 @@ function ColorPlayerView() {
         });
     };
 
-    const sendReaction = (emoji) => {
-        if (!joined) return;
-        socket.emit('color-reaction', { roomCode, emoji, playerName: pseudo });
-    };
 
-    const sendChatMessage = (e) => {
-        e.preventDefault();
-        if (!chatMsg.trim() || !joined) return;
-        socket.emit('color-chat-message', { roomCode, message: chatMsg.trim().slice(0, 40), playerName: pseudo });
-        setChatMsg('');
-    };
 
     const guessCssColor = hsbToCss(h, s, b);
     const contrastColor = getContrastColor(h, s, b);
@@ -272,7 +260,7 @@ function ColorPlayerView() {
     const liveInk = isLive ? contrastColor : '#20160a';
 
     return (
-        <div className="cm-root cm-scroll relative w-full h-[100dvh] overflow-y-auto flex flex-col items-center px-3 py-3 sm:px-4 sm:py-5 select-none"
+        <div className="cm-root relative w-full h-[100dvh] overflow-hidden flex flex-col items-center justify-between px-3 py-3 sm:px-4 sm:py-5 select-none"
              style={{ '--live': live, '--live-ink': liveInk }}>
             <div className="cm-bg-grid" />
             <div className="cm-bg-pool" style={{ background: `radial-gradient(70% 45% at 50% 0%, ${live}1f, transparent 72%)` }} />
@@ -339,12 +327,12 @@ function ColorPlayerView() {
                     </form>
                 </motion.main>
             ) : (
-                <div className="relative z-10 w-full max-w-[440px] flex flex-col gap-2.5 sm:gap-4 pb-4 sm:pb-10">
+                <div className="relative z-10 w-full max-w-[440px] h-full flex flex-col justify-between py-2">
 
                     {/* ════════ LOBBY ════════ */}
                     {gameState === 'LOBBY' && (
                         <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="cm-panel p-7 mt-8 flex flex-col items-center text-center gap-3">
+                                    className="cm-panel p-7 my-auto flex flex-col items-center text-center gap-3">
                             <div className="relative">
                                 <div className="absolute -inset-2 rounded-full cm-breathe" style={{ background: 'radial-gradient(circle, #f59e0b40, transparent 70%)' }} />
                                 <img src={avatar} alt="avatar" className="cm-avatar relative w-24 h-24" />
@@ -358,7 +346,7 @@ function ColorPlayerView() {
                     {/* ════════ PLAYING ════════ */}
                     {gameState === 'PLAYING' && character && (
                         <motion.div key={currentRound} initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="flex flex-col gap-2.5 sm:gap-4 mt-0.5 sm:mt-1">
+                                    className="flex-1 flex flex-col justify-between gap-2">
                             <div className="flex items-center justify-between">
                                 <div className="flex flex-col">
                                     <span className="cm-label">Recrée la couleur de</span>
@@ -369,7 +357,7 @@ function ColorPlayerView() {
                                 <span className="cm-chip cm-mono shrink-0">{currentRound}/{totalRounds}</span>
                             </div>
 
-                            <div className="cm-viewport w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 mx-auto">
+                            <div className="cm-viewport w-auto h-[25vh] max-h-[220px] aspect-square mx-auto flex-shrink-0 flex items-center justify-center">
                                 <div className="cm-viewport-fill" style={{ backgroundColor: guessCssColor }} />
                                 <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
                                      className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
@@ -377,29 +365,29 @@ function ColorPlayerView() {
                             </div>
 
                             <div className="relative">
-                                <div className="cm-panel p-3 sm:p-4 flex flex-col gap-2.5 sm:gap-3.5">
+                                <div className="cm-panel p-3 flex flex-col gap-2">
                                     <SBField h={h} s={s} b={b} onChange={(ns, nb) => { setS(ns); setB(nb); }} />
                                     <input type="range" min={0} max={359} value={h}
                                            onChange={(e) => setH(parseInt(e.target.value))} className="cm-hue" aria-label="Teinte" />
 
-                                    <div className="flex items-center gap-2.5">
+                                    <div className="flex items-center gap-2">
                                         <span className="cm-swatch w-10 h-10 shrink-0" style={{ background: guessCssColor }} />
-                                        <span className="cm-mono text-sm font-semibold text-[var(--cm-ink-2)] flex-1">H{h} · S{s} · B{b}</span>
+                                        <span className="cm-mono text-xs font-semibold text-[var(--cm-ink-2)] flex-1">H{h} · S{s} · B{b}</span>
                                         <button onClick={handleGetHint} disabled={hintUsed} title="Indice"
-                                                className="cm-icon-btn w-11 h-11 disabled:opacity-40">
-                                            <Lightbulb className="w-5 h-5" style={{ color: hintUsed ? undefined : 'var(--cm-accent)' }} />
+                                                className="cm-icon-btn w-10 h-10 disabled:opacity-40">
+                                            <Lightbulb className="w-4 h-4" style={{ color: hintUsed ? undefined : 'var(--cm-accent)' }} />
                                         </button>
-                                        <button onClick={handleSubmitGuess} className="cm-btn cm-btn-live h-11 px-5">
-                                            <Check className="w-5 h-5" /> Valider
+                                        <button onClick={handleSubmitGuess} className="cm-btn cm-btn-live h-10 px-4 text-sm">
+                                            <Check className="w-4 h-4" /> Valider
                                         </button>
                                     </div>
 
                                     <AnimatePresence>
                                         {hintText && (
                                             <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                                                        className="flex items-center gap-2 text-xs font-semibold rounded-[var(--cm-r-sm)] px-3 py-2"
+                                                        className="flex items-center gap-1.5 text-xs font-semibold rounded-[var(--cm-r-sm)] px-2.5 py-1.5"
                                                         style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', color: '#fcd34d' }}>
-                                                <Lightbulb className="w-3.5 h-3.5 shrink-0" /> {hintText}
+                                                <Lightbulb className="w-3 h-3 shrink-0" /> {hintText}
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
@@ -428,10 +416,17 @@ function ColorPlayerView() {
                     {/* ════════ ROUND END ════════ */}
                     {gameState === 'ROUND_END' && character && (
                         <motion.div initial={reduce ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="flex flex-col gap-2.5 sm:gap-4 mt-0.5 sm:mt-1">
+                                    className="flex-1 flex flex-col justify-center gap-4 my-auto">
                             <div className="flex flex-col">
                                 <span className="cm-label">Résultat · Manche {currentRound}</span>
                                 <h3 className="text-lg font-bold">{character.name} <span className="text-[var(--cm-ink-2)] font-medium">· {character.part}</span></h3>
+                            </div>
+
+                            <div className="cm-viewport w-auto h-[25vh] max-h-[220px] aspect-square mx-auto flex-shrink-0 flex items-center justify-center">
+                                <div className="cm-viewport-fill" style={{ backgroundColor: guessCssColor }} />
+                                <img src={getImageUrl(character.image_path)} onError={() => setImageError(true)}
+                                     className="cm-viewport-img" style={{ display: imageError ? 'none' : 'block' }} alt={character.name} />
+                                {imageError && renderSilhouette(character.id, guessCssColor)}
                             </div>
 
                             <div className="cm-panel overflow-hidden">
@@ -465,7 +460,7 @@ function ColorPlayerView() {
                     {/* ════════ GAME END ════════ */}
                     {gameState === 'GAME_END' && (
                         <motion.div initial={reduce ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
-                                    className="cm-panel p-7 mt-8 flex flex-col items-center text-center gap-3">
+                                    className="cm-panel p-7 my-auto flex flex-col items-center text-center gap-3">
                             <span className="w-16 h-16 rounded-2xl grid place-items-center" style={{ background: 'rgba(245,158,11,0.12)' }}>
                                 <Trophy className="w-8 h-8 text-[var(--cm-accent)]" />
                             </span>
@@ -478,25 +473,6 @@ function ColorPlayerView() {
                             </div>
                         </motion.div>
                     )}
-
-                    {/* ════════ SOCIAL ════════ */}
-                    <div className="cm-panel p-2.5 sm:p-3.5 flex flex-col gap-2 sm:gap-3 mt-0.5 sm:mt-1">
-                        <div className="flex justify-between gap-1">
-                            {['👍','🔥','😂','😱','😮','🎉'].map(emoji => (
-                                <button key={emoji} type="button" onClick={() => sendReaction(emoji)}
-                                        className="flex-1 text-2xl py-1.5 rounded-[var(--cm-r-sm)] transition-transform duration-150 hover:scale-125 active:scale-90">
-                                    {emoji}
-                                </button>
-                            ))}
-                        </div>
-                        <form onSubmit={sendChatMessage} className="flex gap-2">
-                            <input type="text" maxLength={40} placeholder="Envoyer un message…" value={chatMsg}
-                                   onChange={(e) => setChatMsg(e.target.value)} className="cm-input flex-1 py-2.5 text-sm" />
-                            <button type="submit" className="cm-icon-btn w-11 shrink-0" aria-label="Envoyer">
-                                <Send className="w-4 h-4" />
-                            </button>
-                        </form>
-                    </div>
                 </div>
             )}
         </div>
