@@ -257,6 +257,8 @@ function DrawHostView() {
         const handlePlayerGuessed = (data) => {
             setGuessedPlayers(prev => new Set([...prev, data.playerId]));
             setGuessFeed(prev => [{ type: 'correct', playerName: data.playerName, rank: data.rank, points: data.points, id: Date.now() }, ...prev]);
+            // Scores à jour → le classement live ne reste plus figé à 0
+            if (data.players) setPlayers(data.players);
         };
         const handleCloseGuess = (data) => {
             setGuessFeed(prev => [{ type: 'close', playerName: data.playerName, id: Date.now() }, ...prev]);
@@ -271,6 +273,14 @@ function DrawHostView() {
             setRevealedWord(data.word);
             setRoundResults(data.results);
             if (timerRef.current) clearInterval(timerRef.current);
+
+            // Reporter les scores de la manche dans la liste des joueurs (classement live)
+            if (Array.isArray(data.results)) {
+                setPlayers(prev => prev.map(pl => {
+                    const r = data.results.find(x => x.id === pl.id);
+                    return r ? { ...pl, score: r.score } : pl;
+                }));
+            }
             
             if (data.drawerLeft) {
                 setDrawerLeftWarning(true);

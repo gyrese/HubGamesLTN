@@ -349,11 +349,15 @@ module.exports = {
                 const player = drawGameManager.getRoom(roomCode)?.players.get(socket.id);
 
                 // Notify everyone that someone guessed correctly
+                // On rediffuse la liste des joueurs avec leurs scores à jour
+                // (le devineur ET le dessinateur ont gagné des points) afin que
+                // le classement live de l'hôte ne reste pas figé à 0.
                 io.to(`draw-${roomCode}`).emit('draw-player-guessed', {
                     playerId: socket.id,
                     playerName: player?.name,
                     rank: result.rank,
-                    points: result.points
+                    points: result.points,
+                    players: drawGameManager.getPlayersInRoom(roomCode)
                 });
 
                 // Check if all players have guessed
