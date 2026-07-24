@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0f1d"/>
+      <stop offset="50%" stop-color="#070a14"/>
+      <stop offset="100%" stop-color="#030509"/>
+    </linearGradient>
+
+    <!-- Neon Emerald Cyan Gradient -->
+    <linearGradient id="neonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="50%" stop-color="#00ff75"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+
+    <!-- Outer Ring Gradient -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#00d26a" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.8"/>
+    </linearGradient>
+
+    <!-- Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Container -->
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#bgGrad)"/>
+  <rect x="24" y="24" width="464" height="464" rx="108" fill="none" stroke="url(#borderGrad)" stroke-width="12"/>
+
+  <!-- Glowing Game Controller Icon (GAME_HUB) -->
+  <g filter="url(#neonGlow)" transform="translate(0, 4)">
+    <!-- Gamepad Shell -->
+    <path d="M152 168 C110 168, 72 200, 72 254 C72 312, 100 348, 144 348 C168 348, 186 332, 204 316 C220 302, 236 294, 256 294 C276 294, 292 302, 308 316 C326 332, 344 348, 368 348 C412 348, 440 312, 440 254 C440 200, 402 168, 360 168 Z" 
+          fill="none" 
+          stroke="url(#neonGrad)" 
+          stroke-width="28" 
+          stroke-linecap="round" 
+          stroke-linejoin="round"/>
+
+    <!-- D-Pad (Left) -->
+    <path d="M148 226 V266 M128 246 H168" 
+          stroke="url(#neonGrad)" 
+          stroke-width="18" 
+          stroke-linecap="round"/>
+
+    <!-- Action Buttons (Right) -->
+    <circle cx="344" cy="226" r="10" fill="#00ff75"/>
+    <circle cx="372" cy="248" r="10" fill="#06b6d4"/>
+    <circle cx="344" cy="270" r="10" fill="#f43f5e"/>
+    <circle cx="316" cy="248" r="10" fill="#f59e0b"/>
+
+    <!-- Center Hub Sparkle -->
+    <path d="M256 200 L260 216 L276 220 L260 224 L256 240 L252 224 L236 220 L252 216 Z" fill="#00ff75"/>
+  </g>
+</svg>

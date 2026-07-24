@@ -50,8 +50,8 @@ function DrawPlayerView() {
 
     const [selectedColor, setSelectedColor] = useState('#000000');
     const [brushSize, setBrushSize] = useState(8);
-    const [isDrawing, setIsDrawing] = useState(false);
-    const [currentStroke, setCurrentStroke] = useState([]);
+    const isDrawingRef = useRef(false);
+    const currentStrokeRef = useRef(null);
     const [isEraser, setIsEraser] = useState(false);
     const [countdownVal, setCountdownVal] = useState(0);
 
@@ -336,20 +336,28 @@ function DrawPlayerView() {
 
         const initCanvas = (w, h) => {
             if (w < 10 || h < 10) return;
-            canvas.width = w;
-            canvas.height = h;
+            const iw = Math.round(w), ih = Math.round(h);
+            // Si la taille n'a pas réellement changé, ne pas réinitialiser (éviter d'effacer le canvas)
+            if (canvasContextRef.current && canvas.width === iw && canvas.height === ih) return;
+            canvas.width = iw;
+            canvas.height = ih;
             const ctx = canvas.getContext('2d');
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, w, h);
+            ctx.fillRect(0, 0, iw, ih);
             canvasContextRef.current = ctx;
         };
 
         const ro = new ResizeObserver(entries => {
+            // Ne jamais réinitialiser (donc effacer) le canvas pendant un tracé en cours (mobile)
+            if (isDrawingRef.current) return;
             for (const e of entries) {
+                const prevW = canvas.width, prevH = canvas.height;
                 initCanvas(e.contentRect.width, e.contentRect.height);
-                strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+                if (canvas.width !== prevW || canvas.height !== prevH) {
+                    strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+                }
             }
         });
         ro.observe(canvas);
@@ -463,35 +471,31 @@ function DrawPlayerView() {
     const handleDrawStart = (e) => {
         if (!isDrawer || countdownVal > 0) return;
         e.preventDefault();
-        setIsDrawing(true);
+        isDrawingRef.current = true;
         const coords = getCanvasCoords(e);
-        setCurrentStroke([coords]);
-        const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
-        renderSmoothStroke(ctx, canvas, { color: selectedColor, size: brushSize, points: [coords] });
+        // Trait en cours stocké dans un ref (rendu synchrone, fiable sur mobile où
+        // touchmove est bien plus rapide que les re-render React).
+        currentStrokeRef.current = { color: selectedColor, size: brushSize, points: [coords] };
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, currentStrokeRef.current);
     };
 
     const handleDrawMove = (e) => {
-        if (!isDrawing || !isDrawer || countdownVal > 0) return;
+        if (!isDrawingRef.current || !isDrawer || countdownVal > 0) return;
         e.preventDefault();
-        const coords = getCanvasCoords(e);
-        const prev = currentStroke[currentStroke.length - 1];
-        if (!prev) return;
-
-        const updatedPoints = [...currentStroke, coords];
-        setCurrentStroke(updatedPoints);
-
-        const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
-        renderSmoothStroke(ctx, canvas, { color: selectedColor, size: brushSize, points: updatedPoints });
+        const stroke = currentStrokeRef.current;
+        if (!stroke) return;
+        stroke.points.push(getCanvasCoords(e));
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
     };
 
     const handleDrawEnd = () => {
-        if (!isDrawing || !isDrawer) return;
-        setIsDrawing(false);
-        if (currentStroke.length > 0) {
+        if (!isDrawingRef.current || !isDrawer) return;
+        isDrawingRef.current = false;
+        const stroke = currentStrokeRef.current;
+        currentStrokeRef.current = null;
+        if (stroke && stroke.points.length > 0) {
             const strokeId = `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            const stroke = { id: strokeId, color: selectedColor, size: brushSize, points: currentStroke };
+            stroke.id = strokeId;
             if (drawnStrokeIdsRef.current) drawnStrokeIdsRef.current.add(strokeId);
             strokesHistoryRef.current.push(stroke);
             socket.emit('draw-stroke', { roomCode, stroke });
@@ -499,7 +503,6 @@ function DrawPlayerView() {
             // Re-render final smooth stroke
             renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
         }
-        setCurrentStroke([]);
     };
 
     const handleClearCanvas = () => { 
@@ -560,37 +563,36 @@ function DrawPlayerView() {
     // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="dr-app min-h-dvh flex items-center justify-center p-5 overflow-y-auto overflow-x-hidden"
-                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+            <div className="dr-app h-dvh flex flex-col overflow-hidden"
+                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
 
-                <div className="w-full max-w-sm flex flex-col gap-5 dr-fade-up">
-                    {/* Logo */}
-                    <div className="flex flex-col items-center text-center gap-3">
-                        <div className="dr-logo-mark w-16 h-16">
-                            <span className="material-symbols-outlined text-3xl">stylus_note</span>
+                <div className="flex-1 min-h-0 w-full max-w-sm mx-auto flex flex-col px-5 pt-3 pb-3 gap-3 dr-fade-up">
+                    {/* Logo (compact, une ligne) */}
+                    <div className="flex-shrink-0 flex items-center justify-center gap-3 pt-1">
+                        <div className="dr-logo-mark w-11 h-11">
+                            <span className="material-symbols-outlined text-2xl">stylus_note</span>
                         </div>
                         <div>
-                            <h1 className="dr-h text-4xl">DRAW <span className="accent dr-grad-text">ME</span></h1>
-                            <p className="dr-eyebrow mt-1.5">Rejoindre une partie</p>
+                            <h1 className="dr-h text-2xl leading-none">DRAW <span className="dr-grad-text">ME</span></h1>
+                            <p className="dr-eyebrow mt-1">Rejoindre une partie</p>
                         </div>
                     </div>
 
                     {error && (
-                        <div className="dr-card-2 p-3.5 text-center text-sm font-semibold text-[color:var(--dr-red)] dr-pop"
+                        <div className="flex-shrink-0 dr-card-2 p-3 text-center text-sm font-semibold text-[color:var(--dr-red)] dr-pop"
                             style={{ borderColor: 'rgba(251,85,112,0.4)', background: 'rgba(251,85,112,0.1)' }}>
                             {error}
                         </div>
                     )}
 
-                    {/* Form */}
-                    <div className="dr-card p-6 flex flex-col gap-5">
-                        {/* Code */}
-                        <div className="flex flex-col gap-2">
+                    {/* Code + pseudo */}
+                    <div className="flex-shrink-0 dr-card p-4 flex flex-col gap-3">
+                        <div className="flex flex-col gap-1.5">
                             <label className="dr-eyebrow">Code du salon</label>
                             <input
                                 type="text"
-                                className="dr-input dr-mono text-center text-2xl uppercase tracking-[0.35em]"
+                                className="dr-input dr-mono text-center text-xl uppercase tracking-[0.3em] py-2.5"
                                 placeholder="ABCDE1"
                                 value={roomCode}
                                 onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
@@ -598,13 +600,11 @@ function DrawPlayerView() {
                                 readOnly={!!urlRoomCode}
                             />
                         </div>
-
-                        {/* Pseudo */}
-                        <div className="flex flex-col gap-2">
+                        <div className="flex flex-col gap-1.5">
                             <label className="dr-eyebrow">Ton pseudo</label>
                             <input
                                 type="text"
-                                className="dr-input text-sm"
+                                className="dr-input text-sm py-2.5"
                                 placeholder="Picasso"
                                 value={playerName}
                                 onChange={(e) => setPlayerName(e.target.value)}
@@ -612,33 +612,38 @@ function DrawPlayerView() {
                                 onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                             />
                         </div>
-
-                        {/* Avatars */}
-                        <div className="flex flex-col gap-2.5">
-                            <label className="dr-eyebrow">Avatar</label>
-                            <div className="dr-scroll grid grid-cols-5 gap-2.5 max-h-[150px] overflow-y-auto p-1">
-                                {ALL_AVATARS.slice(0, 30).map((url) => (
-                                    <button
-                                        key={url}
-                                        type="button"
-                                        onClick={() => setAvatar(url)}
-                                        className={`aspect-square dr-ava ${avatar === url ? 'active' : ''}`}
-                                        aria-label="Choisir cet avatar"
-                                        style={{ width: '100%', height: 'auto' }}
-                                    >
-                                        <img src={url} alt="" className="w-full h-full object-cover" />
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <button onClick={joinRoom} className="dr-btn dr-btn-primary w-full py-3.5 text-base">
-                            <span className="material-symbols-outlined text-lg">bolt</span>
-                            Rejoindre la partie
-                        </button>
                     </div>
 
-                    <button onClick={() => navigate('/draw')} className="dr-btn dr-btn-ghost py-2.5 text-sm mx-auto">
+                    {/* Avatars — seule zone qui défile (interne), la page ne scrolle jamais */}
+                    <div className="flex-1 min-h-0 flex flex-col gap-1.5">
+                        <label className="dr-eyebrow flex-shrink-0 flex items-center justify-between">
+                            <span>Choisis ton avatar</span>
+                            <span className="w-6 h-6 dr-ava dr-ava-ring">
+                                <img src={avatar} alt="" className="w-full h-full object-cover" />
+                            </span>
+                        </label>
+                        <div className="dr-scroll flex-1 min-h-0 overflow-y-auto grid grid-cols-5 gap-2 content-start p-0.5">
+                            {ALL_AVATARS.slice(0, 30).map((url) => (
+                                <button
+                                    key={url}
+                                    type="button"
+                                    onClick={() => setAvatar(url)}
+                                    className={`aspect-square dr-ava ${avatar === url ? 'active' : ''}`}
+                                    aria-label="Choisir cet avatar"
+                                    style={{ width: '100%', height: 'auto' }}
+                                >
+                                    <img src={url} alt="" className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Actions (toujours visibles) */}
+                    <button onClick={joinRoom} className="flex-shrink-0 dr-btn dr-btn-primary w-full py-3 text-base">
+                        <span className="material-symbols-outlined text-lg">bolt</span>
+                        Rejoindre la partie
+                    </button>
+                    <button onClick={() => navigate('/draw')} className="flex-shrink-0 dr-btn dr-btn-ghost py-2 text-sm mx-auto">
                         <span className="material-symbols-outlined text-base">arrow_back</span> Retour
                     </button>
                 </div>
