@@ -288,6 +288,34 @@ module.exports = {
                 res.status(500).json({ error: 'Failed to delete category' });
             }
         });
+
+        // Batch Import words (JSON array)
+        app.post('/api/admin/draw/words/import', authMiddleware, async (req, res) => {
+            try {
+                const { words } = req.body;
+                if (!Array.isArray(words) || words.length === 0) {
+                    return res.status(400).json({ error: 'Le champ "words" doit être un tableau JSON non vide.' });
+                }
+                const result = await drawWords.importWordsBatch(words);
+                res.json({ success: true, imported: result.imported });
+            } catch (error) {
+                console.error('[ADMIN] Error importing words batch:', error);
+                res.status(500).json({ error: 'Erreur lors de l\'importation des mots.' });
+            }
+        });
+
+        // Export all words as JSON
+        app.get('/api/admin/draw/words/export', authMiddleware, async (req, res) => {
+            try {
+                const allWords = await drawWords.getAllWords();
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Content-Disposition', 'attachment; filename=draw_words_export.json');
+                res.json(allWords);
+            } catch (error) {
+                console.error('[ADMIN] Error exporting words:', error);
+                res.status(500).json({ error: 'Erreur lors de l\'exportation des mots.' });
+            }
+        });
     }
 };
 

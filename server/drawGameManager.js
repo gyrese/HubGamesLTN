@@ -74,6 +74,8 @@ class DrawGameManager {
             roundStartTime: null,
             canvasHistory: [],     // Store drawing strokes for new joiners
             guessedThisRound: new Set(), // Players who guessed correctly this round
+            usedWords: new Set(),  // Anti-doublon des mots joués dans la partie
+            drawerScoreThisRound: 0,
             settings: { ...defaultSettings, ...settings },
             remoteIds: []          // Remote control socket IDs
         });
@@ -202,10 +204,13 @@ class DrawGameManager {
         room.currentRound = 1;
         room.currentDrawerIndex = 0;
         room.currentDrawerId = room.drawQueue[0];
+        room.usedWords = new Set();
+        room.drawerScoreThisRound = 0;
 
-        // Get first word
-        const wordData = await getRandomWord(room.settings.categories);
+        // Get first word without duplication
+        const wordData = await getRandomWord(room.settings.categories, Array.from(room.usedWords));
         room.currentWord = wordData;
+        if (wordData) room.usedWords.add(wordData.word);
         room.roundStartTime = Date.now();
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
@@ -285,11 +290,17 @@ class DrawGameManager {
         player.wordsGuessed++;
         player.correctGuesses++;
 
-        // Give points to the drawer
+        // Give points to the drawer (plafonné à 160 pts max par manche)
         const drawerId = this.getCurrentDrawerId(room.code);
         const drawer = room.players.get(drawerId);
         if (drawer) {
-            drawer.score += room.settings.pointsForDrawer;
+            if (room.drawerScoreThisRound === undefined) room.drawerScoreThisRound = 0;
+            const drawerBonus = Math.round(room.settings.pointsForDrawer * (0.5 + 0.5 * timeRatio));
+            if (room.drawerScoreThisRound < 160) {
+                const addScore = Math.min(drawerBonus, 160 - room.drawerScoreThisRound);
+                drawer.score += addScore;
+                room.drawerScoreThisRound += addScore;
+            }
         }
 
         const rank = room.guessedThisRound.size;
@@ -447,8 +458,13 @@ class DrawGameManager {
         // Prepare next round
         room.gameState = 'PLAYING';
         room.currentDrawerId = room.drawQueue[room.currentRound - 1];
-        const wordData = await getRandomWord(room.settings.categories);
+        if (!room.usedWords) room.usedWords = new Set();
+        room.drawerScoreThisRound = 0;
+
+        const wordData = await getRandomWord(room.settings.categories, Array.from(room.usedWords));
         room.currentWord = wordData;
+        if (wordData) room.usedWords.add(wordData.word);
+
         room.roundStartTime = Date.now();
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
@@ -480,6 +496,8 @@ class DrawGameManager {
         room.currentWord = null;
         room.canvasHistory = [];
         room.guessedThisRound = new Set();
+        room.usedWords = new Set();
+        room.drawerScoreThisRound = 0;
         room.drawOrder = [...room.players.keys()];
         room.drawQueue = [];
 

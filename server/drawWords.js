@@ -22,20 +22,41 @@ async function getWordsByCategory(categoryKey) {
     }
 }
 
-// Get random word from selected categories
-async function getRandomWord(categories = null) {
+// Get random word from selected categories, excluding already played words
+async function getRandomWord(categories = null, excludeWords = []) {
     try {
         let rows = [];
-        if (!categories || categories.length === 0 || categories.includes('all')) {
-            rows = await db.all('SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"');
-        } else {
-            // Construire les placeholders pour le IN
+        let query = 'SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"';
+        const params = [];
+
+        if (categories && categories.length > 0 && !categories.includes('all')) {
             const placeholders = categories.map(() => '?').join(',');
-            rows = await db.all(`SELECT word, category, hint FROM draw_words WHERE categoryKey IN (${placeholders}) AND word != "__INIT__"`, categories);
+            query += ` AND categoryKey IN (${placeholders})`;
+            params.push(...categories);
         }
 
+        if (excludeWords && excludeWords.length > 0) {
+            const excludePlaceholders = excludeWords.map(() => '?').join(',');
+            query += ` AND word NOT IN (${excludePlaceholders})`;
+            params.push(...excludeWords);
+        }
+
+        rows = await db.all(query, params);
+
+        // Fallback 1: Si tous les mots de la catégorie sélectionnée ont été joués, ignorer les mots exclus
+        if (rows.length === 0 && excludeWords.length > 0) {
+            let fallbackQuery = 'SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"';
+            const fallbackParams = [];
+            if (categories && categories.length > 0 && !categories.includes('all')) {
+                const placeholders = categories.map(() => '?').join(',');
+                fallbackQuery += ` AND categoryKey IN (${placeholders})`;
+                fallbackParams.push(...categories);
+            }
+            rows = await db.all(fallbackQuery, fallbackParams);
+        }
+
+        // Fallback 2: Si toujours aucun mot (ex: catégorie vide), prendre n'importe quel mot de la DB
         if (rows.length === 0) {
-            // Fallback
             rows = await db.all('SELECT word, category, hint FROM draw_words WHERE word != "__INIT__"');
         }
 
@@ -44,6 +65,28 @@ async function getRandomWord(categories = null) {
     } catch (error) {
         console.error('[DrawWords] Error getting random word:', error);
         return null;
+    }
+}
+
+// Bulk import words from array of { categoryKey, word, category, hint }
+async function importWordsBatch(wordsArray) {
+    if (!Array.isArray(wordsArray) || wordsArray.length === 0) return { imported: 0 };
+    let imported = 0;
+    try {
+        for (const item of wordsArray) {
+            if (!item.categoryKey || !item.word) continue;
+            // Supprimer le mot factice si nécessaire
+            await db.run('DELETE FROM draw_words WHERE categoryKey = ? AND word = "__INIT__"', [item.categoryKey]);
+            const res = await db.run(
+                'INSERT OR IGNORE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
+                [item.categoryKey.trim(), item.word.trim(), item.category || 'Divers', item.hint || '']
+            );
+            if (res.changes > 0) imported++;
+        }
+        return { imported };
+    } catch (error) {
+        console.error('[DrawWords] Error importing batch words:', error);
+        return { imported, error: error.message };
     }
 }
 
@@ -156,6 +199,7 @@ module.exports = {
     getAllWords,
     getWordsByCategory,
     getRandomWord,
+    importWordsBatch,
     getCategories,
     getFullDatabase,
     addCategory,

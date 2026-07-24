@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
     Plus, 
     Edit2, 
@@ -9,7 +9,9 @@ import {
     HelpCircle,
     Bookmark,
     Save,
-    X
+    X,
+    Upload,
+    Download
 } from 'lucide-react';
 
 const isHttps = window.location.protocol === 'https:';
@@ -24,6 +26,7 @@ function DrawAdmin() {
     const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editMode, setEditMode] = useState(false);
+    const fileInputRef = useRef(null);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -41,7 +44,10 @@ function DrawAdmin() {
     const fetchWords = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_URL}/words`);
+            const token = localStorage.getItem('adminToken');
+            const res = await fetch(`${API_URL}/words`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             const data = await res.json();
             setWordsData(data);
             if (!selectedCategory && Object.keys(data).length > 0) {
@@ -52,6 +58,51 @@ function DrawAdmin() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleImportJSON = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const json = JSON.parse(text);
+            const token = localStorage.getItem('adminToken');
+            const res = await fetch(`${API_URL}/words/import`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ words: json })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert(`Succès : ${result.imported} mots importés !`);
+                fetchWords();
+            } else {
+                alert(result.error || 'Erreur lors de l\'importation');
+            }
+        } catch (err) {
+            alert('Fichier JSON invalide');
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleExportJSON = () => {
+        const token = localStorage.getItem('adminToken');
+        fetch(`${API_URL}/words/export`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `draw_words_${Date.now()}.json`;
+            a.click();
+        })
+        .catch(err => alert('Erreur lors de l\'exportation'));
     };
 
     const handleAdd = () => {
@@ -130,13 +181,38 @@ function DrawAdmin() {
                         Administration de la banque de mots par thèmes
                     </p>
                 </div>
-                <button 
-                    className="flex items-center justify-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-500 active:scale-[0.98] transition-all rounded-xl text-white text-xs font-bold uppercase tracking-widest shadow-lg shadow-pink-500/20"
-                    onClick={handleAdd}
-                >
-                    <Plus className="w-4 h-4" />
-                    Ajouter un mot
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <input 
+                        type="file" 
+                        accept=".json" 
+                        ref={fileInputRef} 
+                        onChange={handleImportJSON} 
+                        className="hidden" 
+                    />
+                    <button 
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] transition-all rounded-xl text-slate-300 text-xs font-bold uppercase tracking-wider border border-slate-700"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Importer un fichier JSON de mots"
+                    >
+                        <Upload className="w-3.5 h-3.5 text-cyan-400" />
+                        Importer JSON
+                    </button>
+                    <button 
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] transition-all rounded-xl text-slate-300 text-xs font-bold uppercase tracking-wider border border-slate-700"
+                        onClick={handleExportJSON}
+                        title="Exporter la base de mots au format JSON"
+                    >
+                        <Download className="w-3.5 h-3.5 text-emerald-400" />
+                        Exporter JSON
+                    </button>
+                    <button 
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-pink-600 hover:bg-pink-500 active:scale-[0.98] transition-all rounded-xl text-white text-xs font-bold uppercase tracking-widest shadow-lg shadow-pink-500/20"
+                        onClick={handleAdd}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Ajouter un mot
+                    </button>
+                </div>
             </div>
 
             {/* Category Tabs */}
