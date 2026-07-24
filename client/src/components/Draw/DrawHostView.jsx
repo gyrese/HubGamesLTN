@@ -55,8 +55,8 @@ function DrawHostView() {
     const countdownIntervalRef = useRef(null);
 
     useEffect(() => {
-        document.body.classList.add('comic-theme');
-        return () => document.body.classList.remove('comic-theme');
+        document.body.classList.add('draw-neon');
+        return () => document.body.classList.remove('draw-neon');
     }, []);
 
     // Garde le code de salon courant accessible dans le handler `connect` (closures).
@@ -173,7 +173,7 @@ function DrawHostView() {
     const triggerPodiumConfetti = () => {
         playWinnerSound();
         const end = Date.now() + (5 * 1000);
-        const colors = ['#FFD60A', '#FF3B30', '#C2DCFF', '#FFE0DC'];
+        const colors = ['#8B5CF6', '#F0398B', '#22D3EE', '#4ADE80'];
 
         (function frame() {
             confetti({
@@ -399,30 +399,70 @@ function DrawHostView() {
         timerRef.current = setInterval(update, 1000);
     };
 
+    const drawnStrokeIdsRef = useRef(new Set());
+
+    const renderSmoothStroke = (ctx, canvas, stroke) => {
+        if (!ctx || !canvas || !stroke || !stroke.points || stroke.points.length === 0) return;
+
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const points = stroke.points.map(pt => ({
+            x: pt.x * canvas.width,
+            y: pt.y * canvas.height
+        }));
+
+        ctx.beginPath();
+
+        if (points.length === 1) {
+            ctx.fillStyle = stroke.color;
+            ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+        }
+
+        if (points.length === 2) {
+            ctx.moveTo(points[0].x, points[0].y);
+            ctx.lineTo(points[1].x, points[1].y);
+            ctx.stroke();
+            return;
+        }
+
+        // 3+ points: Courbes de Bézier quadratiques passant par les points médians
+        ctx.moveTo(points[0].x, points[0].y);
+
+        for (let i = 1; i < points.length - 1; i++) {
+            const midX = (points[i].x + points[i + 1].x) / 2;
+            const midY = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+        }
+
+        const last = points[points.length - 1];
+        const prevLast = points[points.length - 2];
+        ctx.quadraticCurveTo(prevLast.x, prevLast.y, last.x, last.y);
+
+        ctx.stroke();
+    };
+
     const drawStroke = (stroke, saveToHistory = true) => {
         if (!canvasContextRef.current || !canvasRef.current) return;
         if (saveToHistory) {
-            const strokePointsStr = JSON.stringify(stroke.points);
-            if (!strokesHistoryRef.current.some(s => JSON.stringify(s.points) === strokePointsStr)) {
-                strokesHistoryRef.current.push(stroke);
+            const strokeId = stroke.id || (stroke.points && stroke.points.length > 0 ? `${stroke.points.length}_${stroke.points[0].x}_${stroke.points[0].y}` : null);
+            if (strokeId) {
+                if (drawnStrokeIdsRef.current.has(strokeId)) return;
+                drawnStrokeIdsRef.current.add(strokeId);
             }
+            strokesHistoryRef.current.push(stroke);
         }
-        const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.size;
-        ctx.beginPath();
-        stroke.points.forEach((pt, i) => {
-            const x = pt.x * canvas.width;
-            const y = pt.y * canvas.height;
-            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
     };
 
     const clearCanvas = (clearHistory = true) => {
         if (clearHistory) {
             strokesHistoryRef.current = [];
+            drawnStrokeIdsRef.current.clear();
         }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
@@ -462,6 +502,7 @@ function DrawHostView() {
     const getSortedPlayers = () => [...players].sort((a, b) => b.score - a.score);
     const timerPct = settings.timePerRound > 0 ? (timer / settings.timePerRound) * 100 : 0;
     const timerClass = timer <= 10 ? 'timer-danger' : timer <= 30 ? 'timer-warning' : '';
+    const timerFill = timer <= 10 ? 'dr-timer-low' : timer <= 30 ? 'dr-timer-mid' : 'dr-timer-ok';
 
     const copyCode = () => {
         navigator.clipboard?.writeText(roomCode).catch(() => {});
@@ -474,10 +515,17 @@ function DrawHostView() {
     // ── CREATING ──────────────────────────────────────────────────────
     if (gameState === 'CREATING') {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="text-4xl font-black text-on-background uppercase italic mb-4">🎨 DrawUp</div>
-                    <div className="text-[#FF3B30] font-bold uppercase text-sm">Création du salon...</div>
+            <div className="dr-app min-h-dvh flex items-center justify-center overflow-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
+                <div className="text-center flex flex-col items-center gap-4">
+                    <div className="dr-logo text-3xl">
+                        <span className="dr-logo-mark w-12 h-12"><span className="material-symbols-outlined text-2xl">stylus_note</span></span>
+                        DRAW <span className="accent dr-grad-text">ME</span>
+                    </div>
+                    <div className="flex items-center gap-2 dr-eyebrow">
+                        <span className="material-symbols-outlined text-base animate-spin" style={{ animationDuration: '1.5s' }}>progress_activity</span>
+                        Création du salon…
+                    </div>
                 </div>
             </div>
         );
@@ -486,65 +534,68 @@ function DrawHostView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="min-h-screen flex flex-col p-4 text-[#161a33] relative overflow-auto">
+            <div className="dr-app min-h-dvh flex flex-col p-5 relative overflow-y-auto overflow-x-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
                 {/* Header */}
-                <div className="relative z-10 flex items-center justify-between mb-4">
-                    <button onClick={() => { clearHostSession(); navigate('/draw'); }} className="sk-btn sk-btn-secondary py-1.5 px-3 text-[10px] flex items-center gap-1">
-                        <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
+                <div className="flex items-center justify-between mb-6 max-w-5xl w-full mx-auto">
+                    <button onClick={() => { clearHostSession(); navigate('/draw'); }} className="dr-btn dr-btn-ghost py-2 px-3 text-xs">
+                        <span className="material-symbols-outlined text-base">arrow_back</span> Retour
                     </button>
-                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-4 py-1.5 border-3 border-[#161a33] rounded-full shadow-[3px_3px_0px_0px_#161a33]">
-                        🎨 DrawUp
+                    <div className="dr-logo text-xl">
+                        <span className="dr-logo-mark w-9 h-9"><span className="material-symbols-outlined text-lg">stylus_note</span></span>
+                        DRAW <span className="accent dr-grad-text">ME</span>
                     </div>
-                    <div className="w-16" />
+                    <div className="w-[92px]" />
                 </div>
 
-                <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col gap-4">
+                <div className="w-full max-w-5xl mx-auto flex flex-col gap-5 dr-fade-up">
                     {/* Split-screen: Code + QR vs Players */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         {/* Code + QR (Left panel) */}
-                        <div className="sk-box p-5 bg-white flex flex-col items-center justify-center text-center gap-4">
+                        <div className="dr-card dr-card-glow p-7 flex flex-col items-center justify-center text-center gap-5">
                             <div className="w-full">
-                                <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Code du salon</div>
-                                <div className="text-6xl font-black text-[#161a33] tracking-widest uppercase select-all leading-none mb-3">
+                                <div className="dr-eyebrow mb-2">Code du salon</div>
+                                <div className="dr-mono text-7xl font-bold dr-grad-text tracking-[0.1em] leading-none mb-4 select-all">
                                     {roomCode}
                                 </div>
-                                <button
-                                    onClick={copyCode}
-                                    className="sk-btn sk-btn-secondary text-[11px] py-1.5 px-3 mx-auto flex items-center gap-1.5"
-                                >
-                                    <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
-                                    {copied ? 'Copié !' : 'Copier'}
+                                <button onClick={copyCode} className="dr-btn dr-btn-ghost text-xs py-2 px-4 mx-auto">
+                                    <span className="material-symbols-outlined text-base">{copied ? 'check' : 'content_copy'}</span>
+                                    {copied ? 'Copié !' : 'Copier le code'}
                                 </button>
                             </div>
-                            <div className="border-3 border-[#161a33] rounded-xl p-3 bg-white shadow-[3px_3px_0px_0px_#161a33]">
-                                <QRCodeSVG value={joinUrl} size={130} />
+                            <div className="rounded-2xl p-3 bg-white" style={{ boxShadow: 'var(--dr-glow-v)' }}>
+                                <QRCodeSVG value={joinUrl} size={140} bgColor="#ffffff" fgColor="#08080F" />
                             </div>
-                            <div className="text-[10px] font-bold text-[#161a33]/60">Scanne le QR Code pour rejoindre sur mobile</div>
+                            <div className="text-xs text-[color:var(--dr-muted)] flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm">qr_code_scanner</span>
+                                Scanne pour rejoindre sur mobile
+                            </div>
                         </div>
 
                         {/* Players (Right panel) */}
-                        <div className="sk-box p-5 bg-white flex flex-col">
-                            <div className="flex items-center justify-between mb-3 border-b-3 border-[#161a33] pb-2">
-                                <h2 className="text-xs font-black uppercase text-[#FF3B30]">Les Artistes ({players.length})</h2>
-                                <span className="material-symbols-outlined text-base text-[#FF3B30] animate-pulse">groups</span>
+                        <div className="dr-card p-6 flex flex-col">
+                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-[color:var(--dr-line)]">
+                                <h2 className="dr-h text-base">Les artistes <span className="dr-grad-text">{players.length}</span></h2>
+                                <span className="material-symbols-outlined text-xl text-[color:var(--dr-violet-lt)]">groups</span>
                             </div>
                             {players.length === 0 ? (
-                                <div className="flex-1 flex flex-col items-center justify-center py-8">
-                                    <p className="text-xs text-[#FF3B30] font-bold italic animate-pulse">En attente de joueurs...</p>
+                                <div className="flex-1 flex flex-col items-center justify-center py-10 gap-2">
+                                    <span className="material-symbols-outlined text-4xl text-[color:var(--dr-dim)]">person_add</span>
+                                    <p className="text-sm text-[color:var(--dr-muted)]">En attente de joueurs…</p>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-3 gap-2 overflow-y-auto max-h-[260px] p-1">
-                                    {players.map(p => (
-                                        <div key={p.id} className="flex flex-col items-center gap-1 bg-[#FFFBF0] border-2 border-[#161a33]/20 rounded-xl p-2.5">
-                                            <div className="w-12 h-12 sk-ava">
+                                <div className="dr-scroll grid grid-cols-3 sm:grid-cols-4 gap-2.5 overflow-y-auto max-h-[280px] p-1">
+                                    {players.map((p, i) => (
+                                        <div key={p.id} className="dr-card-2 flex flex-col items-center gap-1.5 p-2.5 dr-pop" style={{ animationDelay: `${i * 50}ms` }}>
+                                            <div className="w-12 h-12 dr-ava">
                                                 {p.avatar?.startsWith('/') ? (
                                                     <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center text-xl bg-[#C2DCFF]">{p.avatar || '👤'}</div>
+                                                    <div className="w-full h-full flex items-center justify-center text-xl">{p.avatar || '👤'}</div>
                                                 )}
                                             </div>
-                                            <span className="text-[9px] font-black uppercase truncate w-full text-center text-[#161a33]">{p.name}</span>
+                                            <span className="text-[10px] font-semibold truncate w-full text-center text-[color:var(--dr-text)]">{p.name}</span>
                                         </div>
                                     ))}
                                 </div>
@@ -553,48 +604,48 @@ function DrawHostView() {
                     </div>
 
                     {/* Settings & Word categories */}
-                    <div className="sk-box p-5 bg-white flex flex-col gap-4">
-                        <div className="flex items-center gap-2 mb-1 border-b-3 border-[#161a33] pb-2">
-                            <span className="material-symbols-outlined text-sm text-[#FF3B30]">tune</span>
-                            <h2 className="text-xs font-black uppercase text-[#FF3B30]">Paramètres de la partie</h2>
+                    <div className="dr-card p-6 flex flex-col gap-5">
+                        <div className="flex items-center gap-2 pb-3 border-b border-[color:var(--dr-line)]">
+                            <span className="material-symbols-outlined text-lg text-[color:var(--dr-violet-lt)]">tune</span>
+                            <h2 className="dr-h text-base">Paramètres de la partie</h2>
                         </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                             <div>
-                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2">Manches par joueur</div>
+                                <div className="dr-eyebrow mb-3">Manches par joueur</div>
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.max(1, s.roundsPerPlayer - 1) }))}
-                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">-</button>
-                                    <span className="font-black text-xl text-[#161a33] min-w-[2rem] text-center">{settings.roundsPerPlayer}</span>
+                                        className="dr-icon-btn text-xl">−</button>
+                                    <span className="dr-mono font-bold text-2xl text-[color:var(--dr-text)] min-w-[2.5rem] text-center">{settings.roundsPerPlayer}</span>
                                     <button onClick={() => setSettings(s => ({ ...s, roundsPerPlayer: Math.min(5, s.roundsPerPlayer + 1) }))}
-                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">+</button>
+                                        className="dr-icon-btn text-xl">+</button>
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2">Temps par manche</div>
+                                <div className="dr-eyebrow mb-3">Temps par manche</div>
                                 <div className="flex items-center gap-3">
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.max(30, s.timePerRound - 15) }))}
-                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">-</button>
-                                    <span className="font-black text-xl text-[#161a33] min-w-[4rem] text-center">{settings.timePerRound}s</span>
+                                        className="dr-icon-btn text-xl">−</button>
+                                    <span className="dr-mono font-bold text-2xl text-[color:var(--dr-text)] min-w-[4rem] text-center">{settings.timePerRound}s</span>
                                     <button onClick={() => setSettings(s => ({ ...s, timePerRound: Math.min(180, s.timePerRound + 15) }))}
-                                        className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center text-lg">+</button>
+                                        className="dr-icon-btn text-xl">+</button>
                                 </div>
                             </div>
                         </div>
 
                         {/* Word Categories */}
                         {availableCategories.length > 0 && (
-                            <div className="mt-2">
-                                <div className="text-[10px] font-black uppercase text-[#FF3B30]/80 mb-2.5 flex items-center justify-between">
+                            <div>
+                                <div className="dr-eyebrow mb-3 flex items-center justify-between">
                                     <span>Thèmes de mots</span>
                                     <button
                                         onClick={() => setSettings(s => ({ ...s, categories: ['all'] }))}
-                                        className="text-[9px] font-black text-[#FF3B30]/60 hover:text-[#FF3B30] transition-colors"
+                                        className="text-[10px] font-bold text-[color:var(--dr-violet-lt)] hover:text-[color:var(--dr-text)] transition-colors normal-case tracking-normal"
                                     >
-                                        {settings.categories.includes('all') ? '✓ Tous' : 'Tout sélectionner'}
+                                        {settings.categories.includes('all') ? '✓ Tous sélectionnés' : 'Tout sélectionner'}
                                     </button>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
+                                <div className="flex flex-wrap gap-2">
                                     {availableCategories.map(key => {
                                         const isAll = settings.categories.includes('all');
                                         const isActive = isAll || settings.categories.includes(key);
@@ -602,7 +653,7 @@ function DrawHostView() {
                                             <button
                                                 key={key}
                                                 onClick={() => toggleCategory(key)}
-                                                className={`sk-pill ${isActive ? 'sk-pill-active' : ''}`}
+                                                className={`dr-pill ${isActive ? 'dr-pill-active' : ''}`}
                                             >
                                                 {CATEGORY_LABELS[key] || key}
                                             </button>
@@ -617,10 +668,10 @@ function DrawHostView() {
                     <button
                         onClick={startGame}
                         disabled={players.length < 2}
-                        className="sk-btn sk-btn-primary w-full py-4 text-sm mt-2 flex items-center justify-center gap-2"
+                        className="dr-btn dr-btn-primary w-full py-4 text-base"
                     >
-                        <span className="material-symbols-outlined text-base">play_arrow</span>
-                        {players.length < 2 ? `Minimum 2 joueurs (${players.length}/2)` : '🎨 Lancer la Partie'}
+                        <span className="material-symbols-outlined text-lg">play_arrow</span>
+                        {players.length < 2 ? `Minimum 2 joueurs (${players.length}/2)` : 'Lancer la partie'}
                     </button>
                 </div>
             </div>
@@ -632,75 +683,67 @@ function DrawHostView() {
         const guessersCount = guessedPlayers.size;
         const nonDrawers = players.filter(p => p.id !== currentDrawerId).length;
 
+        const drawer = players.find(p => p.id === currentDrawerId);
         return (
-            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative">
+            <div className="dr-app h-dvh flex flex-col overflow-hidden relative">
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#161a33]/40 backdrop-blur-sm">
-                        <div className="comic-countdown-container">
-                            <div className="comic-countdown-text font-black italic text-8xl">
-                                {countdownVal}
-                            </div>
-                        </div>
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#08080F]/80 backdrop-blur-md">
+                        <div key={countdownVal} className="dr-countdown text-[9rem] leading-none">{countdownVal}</div>
                     </div>
                 )}
 
                 {/* Header */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
-                    <div className="bg-[#FF3B30] text-white font-black text-xs uppercase px-3 py-1.5 border-3 border-[#161a33] rounded-full shadow-[2px_2px_0px_0px_#161a33]">
-                        🎨 DrawUp
+                <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0 border-b border-[color:var(--dr-line)]">
+                    <div className="dr-logo text-base">
+                        <span className="dr-logo-mark w-8 h-8"><span className="material-symbols-outlined text-base">stylus_note</span></span>
+                        <span className="hidden sm:inline">DRAW <span className="accent dr-grad-text">ME</span></span>
                     </div>
-                    <div className="bg-[#C2DCFF] text-[#161a33] font-black text-xs uppercase px-3 py-1.5 border-3 border-[#161a33] rounded-full shadow-[2px_2px_0px_0px_#161a33]">
-                        Manche {currentRound}/{totalRounds}
-                    </div>
+                    <div className="dr-pill dr-pill-violet"><span className="dr-mono">Manche {currentRound}/{totalRounds}</span></div>
 
                     {/* Word blanks */}
-                    <div className="flex-1 flex items-center justify-center gap-1.5 flex-wrap">
-                        <span className="sk-pill sk-pill-active py-0.5 px-2.5 text-[10px] mr-1">{wordCategory}</span>
+                    <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
+                        <span className="dr-pill dr-pill-cyan">{wordCategory}</span>
                         {Array.from({ length: wordLength }).map((_, i) => (
-                            <div key={i} className="w-5 h-1 bg-[#161a33] rounded-full" />
+                            <div key={i} className="dr-blank" style={{ width: '22px' }} />
                         ))}
-                        <span className="text-[10px] font-black text-[#161a33]/50 ml-1">({wordLength} lettres)</span>
+                        <span className="dr-mono text-xs text-[color:var(--dr-dim)]">{wordLength} lettres</span>
                     </div>
 
                     {/* Timer */}
-                    <div className={`flex flex-col items-center ${timerClass} text-[#161a33]`}>
-                        <span className="font-black text-2xl leading-none tabular-nums">{timer}</span>
-                        <div className="w-16 h-2 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden mt-1">
-                            <div
-                                className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
-                                style={{ width: `${timerPct}%` }}
-                            />
+                    <div className={`flex flex-col items-center gap-1 ${timerClass}`}>
+                        <span className="dr-mono font-bold text-2xl leading-none text-[color:var(--dr-text)]">{timer}</span>
+                        <div className="w-20 dr-timer-track" style={{ height: '6px' }}>
+                            <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
                         </div>
                     </div>
 
                     {/* End round manually */}
-                    <button onClick={endRound} className="sk-btn sk-btn-danger py-1.5 px-3 text-[10px] flex items-center gap-1">
-                        ⏹ Terminer
+                    <button onClick={endRound} className="dr-btn dr-btn-danger py-2 px-3 text-xs">
+                        <span className="material-symbols-outlined text-base">stop_circle</span> Terminer
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="flex flex-1 min-h-0 gap-3 p-3">
+                <div className="flex flex-1 min-h-0 gap-4 p-4">
                     {/* Canvas area */}
-                    <div className="flex-1 flex flex-col min-w-0 gap-2">
-                        <div className="sk-box px-4 py-2 bg-[#C2DCFF] flex items-center gap-2" style={{ borderRadius: '12px', boxShadow: '3px 3px 0px 0px #161a33' }}>
-                            <div className="w-7 h-7 sk-ava">
-                                {players.find(p => p.id === currentDrawerId)?.avatar?.startsWith('/') ? (
-                                    <img src={players.find(p => p.id === currentDrawerId)?.avatar} alt="" className="w-full h-full object-cover" />
+                    <div className="flex-1 flex flex-col min-w-0 gap-3">
+                        <div className="dr-card-2 px-4 py-2.5 flex items-center gap-3">
+                            <div className="w-8 h-8 dr-ava dr-ava-ring">
+                                {drawer?.avatar?.startsWith('/') ? (
+                                    <img src={drawer.avatar} alt="" className="w-full h-full object-cover" />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-sm">
-                                        {players.find(p => p.id === currentDrawerId)?.avatar || '🎨'}
-                                    </div>
+                                    <div className="w-full h-full flex items-center justify-center text-sm">{drawer?.avatar || '🎨'}</div>
                                 )}
                             </div>
-                            <span className="font-black text-xs uppercase text-[#161a33]">
-                                <span className="text-[#FF3B30]">{drawerName}</span> dessine...
+                            <span className="text-sm text-[color:var(--dr-muted)] flex items-center gap-1.5">
+                                <span className="dr-h text-sm dr-grad-text">{drawerName}</span> dessine…
                             </span>
-                            <div className="ml-auto sk-pill sk-pill-yellow py-0.5 px-2.5 text-[9px]">
+                            <div className="ml-auto dr-pill dr-pill-lime">
+                                <span className="material-symbols-outlined text-sm">check_circle</span>
                                 {guessersCount}/{nonDrawers} ont trouvé
                             </div>
                         </div>
-                        <div className="flex-1 min-h-0 flex items-center justify-center p-2 relative">
+                        <div className="flex-1 min-h-0 flex items-center justify-center relative">
                             <div className="canvas-container-4-3">
                                 <canvas ref={canvasRef} className="draw-canvas" />
                             </div>
@@ -708,61 +751,69 @@ function DrawHostView() {
                     </div>
 
                     {/* Sidebar */}
-                    <div className="w-60 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+                    <div className="w-72 flex-shrink-0 flex flex-col gap-4 min-h-0">
                         {/* Leaderboard */}
-                        <div className="sk-box p-3 bg-white flex flex-col">
-                            <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
-                                <span className="material-symbols-outlined text-xs">leaderboard</span> Classement
+                        <div className="dr-card p-4 flex flex-col flex-shrink-0">
+                            <h3 className="dr-eyebrow mb-3 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm text-[color:var(--dr-violet-lt)]">leaderboard</span> Classement
                             </h3>
-                            <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[200px] p-0.5">
-                                {getSortedPlayers().map((p, i) => (
-                                    <div key={p.id} className={`flex items-center gap-1.5 p-1.5 rounded-lg border-2 text-[10px] ${
-                                        p.id === currentDrawerId
-                                            ? 'border-[#FF3B30] bg-[#FF3B30]/15'
-                                            : guessedPlayers.has(p.id)
-                                                ? 'border-[#00D26A] bg-[#00D26A]/15'
-                                                : 'border-[#161a33]/15 bg-[#FFFBF0]'
-                                    }`}>
-                                        <span className="font-black text-[#161a33] w-4 text-center">{i + 1}</span>
-                                        <div className="w-5 h-5 sk-ava">
-                                            {p.avatar?.startsWith('/') ? (
-                                                <img src={p.avatar} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[9px]">{p.avatar || '👤'}</div>
-                                            )}
+                            <div className="dr-scroll flex flex-col gap-1.5 overflow-y-auto max-h-[240px] pr-1">
+                                {getSortedPlayers().map((p, i) => {
+                                    const isDrawing = p.id === currentDrawerId;
+                                    const found = guessedPlayers.has(p.id);
+                                    return (
+                                        <div key={p.id} className="flex items-center gap-2 p-2 rounded-xl text-sm border"
+                                            style={{
+                                                borderColor: isDrawing ? 'rgba(139,92,246,0.5)' : found ? 'rgba(74,222,128,0.4)' : 'var(--dr-line)',
+                                                background: isDrawing ? 'rgba(139,92,246,0.12)' : found ? 'rgba(74,222,128,0.1)' : 'transparent',
+                                            }}>
+                                            <span className="dr-mono font-bold text-[color:var(--dr-muted)] w-5 text-center">{i + 1}</span>
+                                            <div className="w-6 h-6 dr-ava">
+                                                {p.avatar?.startsWith('/') ? (
+                                                    <img src={p.avatar} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[10px]">{p.avatar || '👤'}</div>
+                                                )}
+                                            </div>
+                                            <span className="flex-1 font-medium truncate text-[color:var(--dr-text)]">{p.name}</span>
+                                            <span className="dr-mono font-bold text-[color:var(--dr-lime)]">{p.score}</span>
+                                            <span className="material-symbols-outlined text-base" style={{
+                                                color: isDrawing ? 'var(--dr-violet-lt)' : found ? 'var(--dr-lime)' : 'var(--dr-dim)',
+                                                fontVariationSettings: found ? "'FILL' 1" : undefined,
+                                            }}>
+                                                {isDrawing ? 'stylus_note' : found ? 'check_circle' : 'more_horiz'}
+                                            </span>
                                         </div>
-                                        <span className="flex-1 font-bold truncate text-[#161a33]">{p.name}</span>
-                                        <span className="font-black text-[#161a33]">{p.score}</span>
-                                        <span className="text-sm">{p.id === currentDrawerId ? '🎨' : guessedPlayers.has(p.id) ? '✅' : '💭'}</span>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
 
                         {/* Guess feed */}
-                        <div className="sk-box p-3 bg-white flex-1 flex flex-col min-h-0">
-                            <h3 className="text-[10px] font-black uppercase text-[#FF3B30] mb-2 flex items-center gap-1">
-                                <span className="material-symbols-outlined text-xs">chat</span> Réponses
+                        <div className="dr-card p-4 flex-1 flex flex-col min-h-0">
+                            <h3 className="dr-eyebrow mb-3 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-sm text-[color:var(--dr-violet-lt)]">forum</span> Réponses
                             </h3>
-                            <div className="flex flex-col gap-1.5 overflow-y-auto flex-1 p-0.5">
+                            <div className="dr-scroll flex flex-col gap-1.5 overflow-y-auto flex-1 pr-1">
                                 {guessFeed.slice(0, 20).map(g => (
-                                    <div key={g.id} className={`text-[10px] p-1.5 rounded-lg border-2 ${
-                                        g.type === 'correct'
-                                            ? 'bg-[#00D26A]/15 border-[#00D26A] font-black text-[#161a33]'
-                                            : g.type === 'close'
-                                                ? 'bg-[#FFD60A]/15 border-[#FFD60A] font-bold text-[#FF3B30]'
-                                                : 'bg-[#161a33]/5 border-[#161a33]/10 text-[#161a33]/70 font-medium'
-                                    }`}>
+                                    <div key={g.id} className="text-xs p-2 rounded-lg border dr-slide-in"
+                                        style={
+                                            g.type === 'correct'
+                                                ? { background: 'rgba(74,222,128,0.12)', borderColor: 'rgba(74,222,128,0.4)', color: 'var(--dr-lime)' }
+                                                : g.type === 'close'
+                                                    ? { background: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)', color: 'var(--dr-amber)' }
+                                                    : { background: 'rgba(255,255,255,0.03)', borderColor: 'var(--dr-line)', color: 'var(--dr-muted)' }
+                                        }>
                                         {g.type === 'correct'
-                                            ? `✅ ${g.playerName} a trouvé ! (+${g.points})`
+                                            ? <span className="font-semibold">✅ {g.playerName} a trouvé ! (+{g.points})</span>
                                             : g.type === 'close'
-                                                ? `🔥 ${g.playerName} s'approche...`
-                                                : `${g.playerName}: ${g.guess}`
+                                                ? <span className="font-semibold">🔥 {g.playerName} s'approche…</span>
+                                                : <><span className="font-semibold text-[color:var(--dr-text)]">{g.playerName}</span> : {g.guess}</>
                                         }
                                     </div>
                                 ))}
                                 {guessFeed.length === 0 && (
-                                    <p className="text-[9px] text-[#161a33]/40 italic text-center py-2">En attente...</p>
+                                    <p className="text-xs text-[color:var(--dr-dim)] italic text-center py-3">En attente des réponses…</p>
                                 )}
                             </div>
                         </div>
@@ -775,54 +826,62 @@ function DrawHostView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-[#FFFBF0]">
-                <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
+            <div className="dr-app min-h-dvh flex flex-col items-center justify-center p-5 relative overflow-y-auto overflow-x-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
+                <div className="w-full max-w-lg flex flex-col gap-5 dr-fade-up">
                     {drawerLeftWarning && (
-                        <div className="bg-[#FFE0DC] border-3 border-[#FF3B30] text-[#FF3B30] font-black text-sm uppercase p-4 text-center rounded-xl animate-pulse shadow-[3px_3px_0px_0px_#FF3B30]">
-                            ⚠️ Le dessinateur s'est déconnecté ! Passage au tour suivant...
+                        <div className="dr-card-2 p-4 text-center dr-h text-sm dr-pop flex items-center justify-center gap-2"
+                            style={{ color: 'var(--dr-red)', borderColor: 'rgba(251,85,112,0.5)', background: 'rgba(251,85,112,0.1)' }}>
+                            <span className="material-symbols-outlined">warning</span>
+                            Le dessinateur s'est déconnecté ! Tour suivant…
                         </div>
                     )}
 
-                    {/* Word reveal — style bulle BD */}
-                    <div className="bg-[#FF3B30] border-4 border-[#161a33] p-6 shadow-[6px_6px_0_#161a33] text-center -rotate-1 rounded-xl">
-                        <div className="text-[10px] font-black uppercase text-white/80 tracking-wider mb-1">Le mot était</div>
-                        <h2 className="text-5xl sk-h text-white tracking-tight">{revealedWord?.word}</h2>
-                        <div className="sk-pill sk-pill-yellow py-0.5 px-3 text-[10px] mt-2">{revealedWord?.category}</div>
+                    {/* Word reveal */}
+                    <div className="dr-card dr-card-glow p-8 text-center dr-pop">
+                        <div className="dr-eyebrow">Le mot était</div>
+                        <h2 className="dr-h text-6xl dr-grad-text mt-2">{revealedWord?.word}</h2>
+                        <div className="dr-pill dr-pill-cyan mt-4 inline-flex">{revealedWord?.category}</div>
                     </div>
 
                     {/* Results */}
-                    <div className="sk-box p-4 bg-white flex flex-col gap-2">
-                        {roundResults.map(p => (
-                            <div key={p.id} className={`flex items-center gap-3 p-2 rounded-xl border-2 ${
-                                p.wasDrawer ? 'border-[#FF3B30] bg-[#FF3B30]/15' :
-                                p.guessedThisRound ? 'border-[#00D26A] bg-[#00D26A]/15' :
-                                'border-[#161a33]/15 bg-[#FFFBF0]'
-                            }`}>
-                                <div className="w-8 h-8 sk-ava">
+                    <div className="dr-card p-4 flex flex-col gap-2">
+                        {roundResults.map((p, i) => (
+                            <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl border dr-slide-in"
+                                style={{
+                                    animationDelay: `${i * 40}ms`,
+                                    borderColor: p.wasDrawer ? 'rgba(139,92,246,0.5)' : p.guessedThisRound ? 'rgba(74,222,128,0.4)' : 'var(--dr-line)',
+                                    background: p.wasDrawer ? 'rgba(139,92,246,0.12)' : p.guessedThisRound ? 'rgba(74,222,128,0.1)' : 'transparent',
+                                }}>
+                                <div className="w-9 h-9 dr-ava">
                                     {p.avatar?.startsWith('/') ? (
                                         <img src={p.avatar} alt="" className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-base">{p.avatar || '👤'}</div>
                                     )}
                                 </div>
-                                <span className="flex-1 font-black text-xs uppercase text-[#161a33]">{p.name}</span>
-                                <span className="text-xs font-bold text-[#161a33]/70">
-                                    {p.wasDrawer ? '🎨 Dessinateur' : p.guessedThisRound ? '✅ Trouvé !' : '❌ Pas trouvé'}
+                                <span className="flex-1 dr-h text-sm">{p.name}</span>
+                                <span className="text-xs font-medium flex items-center gap-1"
+                                    style={{ color: p.wasDrawer ? 'var(--dr-violet-lt)' : p.guessedThisRound ? 'var(--dr-lime)' : 'var(--dr-dim)' }}>
+                                    <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: p.guessedThisRound ? "'FILL' 1" : undefined }}>
+                                        {p.wasDrawer ? 'stylus_note' : p.guessedThisRound ? 'check_circle' : 'cancel'}
+                                    </span>
+                                    {p.wasDrawer ? 'Dessinateur' : p.guessedThisRound ? 'Trouvé !' : 'Pas trouvé'}
                                 </span>
-                                <span className="font-black text-sm text-[#161a33]">{p.score} pts</span>
+                                <span className="dr-mono font-bold text-sm text-[color:var(--dr-text)]">{p.score}</span>
                             </div>
                         ))}
                     </div>
 
                     {/* Countdown */}
-                    <div className="sk-box p-5 bg-white text-center flex flex-col items-center gap-2">
-                        <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Prochain tour dans</div>
-                        <div className="text-5xl font-black text-[#161a33]">{nextRoundCountdown}</div>
+                    <div className="dr-card p-6 text-center flex flex-col items-center gap-3">
+                        <div className="dr-eyebrow">Prochain tour dans</div>
+                        <div className="dr-mono text-6xl font-bold dr-grad-text">{nextRoundCountdown}</div>
                         <button
                             onClick={() => { if (countdownRef.current) clearInterval(countdownRef.current); nextRound(); }}
-                            className="sk-btn sk-btn-warning text-xs py-2 px-4"
+                            className="dr-btn dr-btn-ghost text-sm py-2.5 px-5"
                         >
-                            ⏭ Passer maintenant
+                            <span className="material-symbols-outlined text-base">skip_next</span> Passer maintenant
                         </button>
                     </div>
                 </div>
@@ -836,60 +895,54 @@ function DrawHostView() {
         const podium = finalResults.slice(0, 3);
         const rest = finalResults.slice(3);
 
+        const podiumStyles = [
+            { grad: 'linear-gradient(135deg,#FBBF24,#F0398B)', glow: '0 0 30px rgba(251,191,36,0.5)', h: 'h-24', medal: '🥇', ava: 'w-16 h-16' },
+            { grad: 'var(--dr-grad-cyan)', glow: 'var(--dr-glow-c)', h: 'h-16', medal: '🥈', ava: 'w-12 h-12' },
+            { grad: 'var(--dr-grad)', glow: 'var(--dr-glow-m)', h: 'h-12', medal: '🥉', ava: 'w-12 h-12' },
+        ];
+        const renderPodium = (p, rank) => {
+            if (!p) return <div className="flex-1" />;
+            const st = podiumStyles[rank];
+            return (
+                <div className="flex flex-col items-center gap-2 flex-1 dr-pop" style={{ animationDelay: `${rank * 120}ms` }}>
+                    <div className={`${st.ava} dr-ava`} style={{ borderColor: 'transparent', boxShadow: st.glow }}>
+                        {p.avatar?.startsWith('/') ? <img src={p.avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{p.avatar || '👤'}</div>}
+                    </div>
+                    <div className="dr-h text-sm text-center truncate w-full">{p.name}</div>
+                    <div className="dr-mono font-bold text-sm text-[color:var(--dr-lime)]">{p.score}</div>
+                    <div className={`${st.h} w-full rounded-t-2xl flex items-start justify-center pt-2 text-3xl`} style={{ background: st.grad, boxShadow: st.glow }}>
+                        {st.medal}
+                    </div>
+                </div>
+            );
+        };
+
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-[#FFFBF0]">
-                <div className="relative z-10 w-full max-w-lg flex flex-col gap-4">
+            <div className="dr-app min-h-dvh flex flex-col items-center justify-center p-5 relative overflow-y-auto overflow-x-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
+                <div className="w-full max-w-lg flex flex-col gap-5 dr-fade-up">
                     {/* Winner */}
-                    <div className="bg-[#FFD60A] border-4 border-[#161a33] p-5 shadow-[6px_6px_0_#161a33] text-center -rotate-1 rounded-xl">
-                        <div className="text-4xl mb-2">👑</div>
-                        <h2 className="text-2xl sk-h text-[#161a33]">{winner?.name}</h2>
-                        <div className="text-sm font-bold text-[#161a33]/70 mt-1">{winner?.score} points de génie</div>
+                    <div className="dr-card dr-card-glow p-7 text-center dr-pop">
+                        <div className="text-5xl mb-2">👑</div>
+                        <div className="dr-eyebrow">Champion·ne</div>
+                        <h2 className="dr-h text-4xl dr-grad-text mt-1">{winner?.name}</h2>
+                        <div className="dr-mono text-sm text-[color:var(--dr-muted)] mt-2">{winner?.score} points de génie</div>
                     </div>
 
                     {/* Podium */}
-                    <div className="sk-box p-5 bg-white">
+                    <div className="dr-card p-6">
                         <div className="flex items-end justify-center gap-3">
-                            {/* 2nd */}
-                            {podium[1] && (
-                                <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 sk-ava bg-[#C2DCFF]">
-                                        {podium[1].avatar?.startsWith('/') ? <img src={podium[1].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[1].avatar || '👤'}</div>}
-                                    </div>
-                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[1].name}</div>
-                                    <div className="text-xs font-black text-[#FF3B30]">{podium[1].score} pts</div>
-                                    <div className="bg-[#C2DCFF] border-3 border-[#161a33] rounded-t-xl w-full h-14 flex items-center justify-center font-black text-lg shadow-[2px_2px_0px_0px_#161a33]">🥈</div>
-                                </div>
-                            )}
-                            {/* 1st */}
-                            {podium[0] && (
-                                <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-14 h-14 sk-ava bg-[#FFD60A]">
-                                        {podium[0].avatar?.startsWith('/') ? <img src={podium[0].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl">{podium[0].avatar || '👤'}</div>}
-                                    </div>
-                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[0].name}</div>
-                                    <div className="text-xs font-black text-[#FF3B30]">{podium[0].score} pts</div>
-                                    <div className="bg-[#FFD60A] border-3 border-[#161a33] rounded-t-xl w-full h-18 flex items-center justify-center font-black text-xl shadow-[2px_2px_0px_0px_#161a33]">🥇</div>
-                                </div>
-                            )}
-                            {/* 3rd */}
-                            {podium[2] && (
-                                <div className="flex flex-col items-center gap-2 flex-1">
-                                    <div className="w-12 h-12 sk-ava bg-[#FFE0DC]">
-                                        {podium[2].avatar?.startsWith('/') ? <img src={podium[2].avatar} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xl">{podium[2].avatar || '👤'}</div>}
-                                    </div>
-                                    <div className="text-[10px] font-black uppercase text-[#161a33] text-center truncate w-full">{podium[2].name}</div>
-                                    <div className="text-xs font-black text-[#FF3B30]">{podium[2].score} pts</div>
-                                    <div className="bg-[#FFE0DC] border-3 border-[#161a33] rounded-t-xl w-full h-10 flex items-center justify-center font-black text-base shadow-[2px_2px_0px_0px_#161a33]">🥉</div>
-                                </div>
-                            )}
+                            {renderPodium(podium[1], 1)}
+                            {renderPodium(podium[0], 0)}
+                            {renderPodium(podium[2], 2)}
                         </div>
                         {rest.length > 0 && (
-                            <div className="mt-4 flex flex-col gap-1 border-t-3 border-[#161a33]/20 pt-3">
+                            <div className="mt-5 flex flex-col gap-1.5 border-t border-[color:var(--dr-line)] pt-4">
                                 {rest.map((p, i) => (
-                                    <div key={p.id} className="flex items-center gap-2 text-[10px] text-[#161a33]">
-                                        <span className="font-black text-[#161a33]/50 w-4">#{i + 4}</span>
-                                        <span className="flex-1 font-bold truncate">{p.name}</span>
-                                        <span className="font-black">{p.score} pts</span>
+                                    <div key={p.id} className="flex items-center gap-2.5 text-sm">
+                                        <span className="dr-mono font-bold text-[color:var(--dr-dim)] w-6">{i + 4}</span>
+                                        <span className="flex-1 font-medium truncate text-[color:var(--dr-text)]">{p.name}</span>
+                                        <span className="dr-mono font-bold text-[color:var(--dr-lime)]">{p.score}</span>
                                     </div>
                                 ))}
                             </div>
@@ -900,11 +953,11 @@ function DrawHostView() {
                     {awards.length > 0 && (
                         <div className="grid grid-cols-2 gap-3">
                             {awards.map((a, i) => (
-                                <div key={i} className="sk-box p-3 bg-white text-center flex flex-col items-center">
-                                    <div className="text-2xl mb-1">{a.icon}</div>
-                                    <div className="text-[10px] font-black uppercase text-[#FF3B30]">{a.title}</div>
-                                    <div className="text-xs font-bold text-[#161a33] truncate">{a.playerName}</div>
-                                    <div className="text-[9px] text-[#161a33]/60 font-bold mt-0.5">{a.value}</div>
+                                <div key={i} className="dr-card-2 p-4 text-center flex flex-col items-center">
+                                    <div className="text-3xl mb-1">{a.icon}</div>
+                                    <div className="dr-eyebrow text-[color:var(--dr-violet-lt)]">{a.title}</div>
+                                    <div className="text-sm font-semibold text-[color:var(--dr-text)] truncate mt-0.5">{a.playerName}</div>
+                                    <div className="dr-mono text-xs text-[color:var(--dr-muted)] mt-0.5">{a.value}</div>
                                 </div>
                             ))}
                         </div>
@@ -912,13 +965,11 @@ function DrawHostView() {
 
                     {/* Buttons */}
                     <div className="flex gap-3">
-                        <button onClick={restartGame}
-                            className="sk-btn sk-btn-primary flex-1 py-3 text-xs flex items-center justify-center gap-1">
-                            🔄 Rejouer
+                        <button onClick={restartGame} className="dr-btn dr-btn-primary flex-1 py-3.5">
+                            <span className="material-symbols-outlined text-lg">replay</span> Rejouer
                         </button>
-                        <button onClick={() => { clearHostSession(); navigate('/'); }}
-                            className="sk-btn sk-btn-secondary flex-1 py-3 text-xs flex items-center justify-center gap-1">
-                            🏠 Menu
+                        <button onClick={() => { clearHostSession(); navigate('/'); }} className="dr-btn dr-btn-ghost flex-1 py-3.5">
+                            <span className="material-symbols-outlined text-lg">home</span> Menu
                         </button>
                     </div>
                 </div>

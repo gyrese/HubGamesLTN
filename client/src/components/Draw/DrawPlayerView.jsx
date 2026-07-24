@@ -167,9 +167,9 @@ function DrawPlayerView() {
     }, []);
 
     useEffect(() => {
-        document.body.classList.add('comic-theme');
+        document.body.classList.add('draw-neon');
         return () => {
-            document.body.classList.remove('comic-theme');
+            document.body.classList.remove('draw-neon');
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
         };
@@ -379,30 +379,70 @@ function DrawPlayerView() {
         doJoin(roomCode, playerName, avatar);
     };
 
+    const drawnStrokeIdsRef = useRef(new Set());
+
+    const renderSmoothStroke = (ctx, canvas, stroke) => {
+        if (!ctx || !canvas || !stroke || !stroke.points || stroke.points.length === 0) return;
+
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const points = stroke.points.map(pt => ({
+            x: pt.x * canvas.width,
+            y: pt.y * canvas.height
+        }));
+
+        ctx.beginPath();
+
+        if (points.length === 1) {
+            ctx.fillStyle = stroke.color;
+            ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            return;
+        }
+
+        if (points.length === 2) {
+            ctx.moveTo(points[0].x, points[0].y);
+            ctx.lineTo(points[1].x, points[1].y);
+            ctx.stroke();
+            return;
+        }
+
+        // 3+ points: Courbes de Bézier quadratiques passant par les points médians
+        ctx.moveTo(points[0].x, points[0].y);
+
+        for (let i = 1; i < points.length - 1; i++) {
+            const midX = (points[i].x + points[i + 1].x) / 2;
+            const midY = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+        }
+
+        const last = points[points.length - 1];
+        const prevLast = points[points.length - 2];
+        ctx.quadraticCurveTo(prevLast.x, prevLast.y, last.x, last.y);
+
+        ctx.stroke();
+    };
+
     const drawStroke = (stroke, saveToHistory = true) => {
         if (!canvasContextRef.current || !canvasRef.current) return;
         if (saveToHistory) {
-            const strokePointsStr = JSON.stringify(stroke.points);
-            if (!strokesHistoryRef.current.some(s => JSON.stringify(s.points) === strokePointsStr)) {
-                strokesHistoryRef.current.push(stroke);
+            const strokeId = stroke.id || (stroke.points && stroke.points.length > 0 ? `${stroke.points.length}_${stroke.points[0].x}_${stroke.points[0].y}` : null);
+            if (strokeId) {
+                if (drawnStrokeIdsRef.current.has(strokeId)) return;
+                drawnStrokeIdsRef.current.add(strokeId);
             }
+            strokesHistoryRef.current.push(stroke);
         }
-        const ctx = canvasContextRef.current;
-        const canvas = canvasRef.current;
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.size;
-        ctx.beginPath();
-        stroke.points.forEach((pt, i) => {
-            const x = pt.x * canvas.width;
-            const y = pt.y * canvas.height;
-            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        });
-        ctx.stroke();
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
     };
 
     const clearCanvas = (clearHistory = true) => {
         if (clearHistory) {
             strokesHistoryRef.current = [];
+            drawnStrokeIdsRef.current.clear();
         }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
@@ -428,12 +468,7 @@ function DrawPlayerView() {
         setCurrentStroke([coords]);
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
-        ctx.strokeStyle = selectedColor;
-        ctx.lineWidth = brushSize;
-        ctx.beginPath();
-        ctx.moveTo(coords.x * canvas.width, coords.y * canvas.height);
-        ctx.lineTo(coords.x * canvas.width + 0.1, coords.y * canvas.height + 0.1);
-        ctx.stroke();
+        renderSmoothStroke(ctx, canvas, { color: selectedColor, size: brushSize, points: [coords] });
     };
 
     const handleDrawMove = (e) => {
@@ -442,24 +477,27 @@ function DrawPlayerView() {
         const coords = getCanvasCoords(e);
         const prev = currentStroke[currentStroke.length - 1];
         if (!prev) return;
-        setCurrentStroke(s => [...s, coords]);
+
+        const updatedPoints = [...currentStroke, coords];
+        setCurrentStroke(updatedPoints);
+
         const ctx = canvasContextRef.current;
         const canvas = canvasRef.current;
-        ctx.strokeStyle = selectedColor;
-        ctx.lineWidth = brushSize;
-        ctx.beginPath();
-        ctx.moveTo(prev.x * canvas.width, prev.y * canvas.height);
-        ctx.lineTo(coords.x * canvas.width, coords.y * canvas.height);
-        ctx.stroke();
+        renderSmoothStroke(ctx, canvas, { color: selectedColor, size: brushSize, points: updatedPoints });
     };
 
     const handleDrawEnd = () => {
         if (!isDrawing || !isDrawer) return;
         setIsDrawing(false);
         if (currentStroke.length > 0) {
-            const stroke = { color: selectedColor, size: brushSize, points: currentStroke };
+            const strokeId = `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const stroke = { id: strokeId, color: selectedColor, size: brushSize, points: currentStroke };
+            if (drawnStrokeIdsRef.current) drawnStrokeIdsRef.current.add(strokeId);
             strokesHistoryRef.current.push(stroke);
             socket.emit('draw-stroke', { roomCode, stroke });
+
+            // Re-render final smooth stroke
+            renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
         }
         setCurrentStroke([]);
     };
@@ -517,98 +555,92 @@ function DrawPlayerView() {
 
     const timerPct = timePerRound > 0 ? (timer / timePerRound) * 100 : 0;
     const timerClass = timer <= 10 ? 'timer-danger' : timer <= 30 ? 'timer-warning' : '';
+    const timerFill = timer <= 10 ? 'dr-timer-low' : timer <= 30 ? 'dr-timer-mid' : 'dr-timer-ok';
 
     // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-auto">
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+            <div className="dr-app min-h-dvh flex items-center justify-center p-5 overflow-y-auto overflow-x-hidden"
+                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
+
+                <div className="w-full max-w-sm flex flex-col gap-5 dr-fade-up">
+                    {/* Logo */}
+                    <div className="flex flex-col items-center text-center gap-3">
+                        <div className="dr-logo-mark w-16 h-16">
+                            <span className="material-symbols-outlined text-3xl">stylus_note</span>
+                        </div>
+                        <div>
+                            <h1 className="dr-h text-4xl">DRAW <span className="accent dr-grad-text">ME</span></h1>
+                            <p className="dr-eyebrow mt-1.5">Rejoindre une partie</p>
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex-1 flex items-center justify-center p-4 relative">
-                    <div className="relative z-10 w-full max-w-sm flex flex-col gap-4">
-                        {/* Header */}
-                        <div className="text-center">
-                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#FF3B30] border-[3px] border-[#161a33] shadow-[3px_3px_0px_0px_#161a33] mb-3">
-                                <span className="text-3xl">🎨</span>
-                            </div>
-                            <h1 className="text-4xl font-black uppercase italic text-[#161a33] tracking-tight">DrawUp</h1>
-                            <p className="text-[10px] font-black text-[#FF3B30] uppercase tracking-widest mt-1">Rejoindre une partie</p>
+                    {error && (
+                        <div className="dr-card-2 p-3.5 text-center text-sm font-semibold text-[color:var(--dr-red)] dr-pop"
+                            style={{ borderColor: 'rgba(251,85,112,0.4)', background: 'rgba(251,85,112,0.1)' }}>
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Form */}
+                    <div className="dr-card p-6 flex flex-col gap-5">
+                        {/* Code */}
+                        <div className="flex flex-col gap-2">
+                            <label className="dr-eyebrow">Code du salon</label>
+                            <input
+                                type="text"
+                                className="dr-input dr-mono text-center text-2xl uppercase tracking-[0.35em]"
+                                placeholder="ABCDE1"
+                                value={roomCode}
+                                onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
+                                maxLength={6}
+                                readOnly={!!urlRoomCode}
+                            />
                         </div>
 
-                        {error && (
-                            <div className="bg-[#FFD60A] border-[3px] border-[#161a33] rounded-xl p-3 text-[#161a33] text-xs font-black text-center shadow-[3px_3px_0px_0px_#161a33]">
-                                {error}
-                            </div>
-                        )}
-
-                        {/* Form */}
-                        <div className="sk-box p-6 flex flex-col gap-4">
-                            {/* Code */}
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Code du salon</label>
-                                <input
-                                    type="text"
-                                    className="sk-input text-center text-2xl uppercase tracking-[0.3em] font-black placeholder:text-[#161a33]/30"
-                                    placeholder="ABCDE1"
-                                    value={roomCode}
-                                    onChange={(e) => !urlRoomCode && setRoomCode(e.target.value.toUpperCase())}
-                                    maxLength={6}
-                                    readOnly={!!urlRoomCode}
-                                />
-                            </div>
-
-                            {/* Pseudo */}
-                            <div className="flex flex-col gap-1">
-                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Ton pseudo</label>
-                                <input
-                                    type="text"
-                                    className="sk-input text-xs"
-                                    placeholder="Picasso"
-                                    value={playerName}
-                                    onChange={(e) => setPlayerName(e.target.value)}
-                                    maxLength={20}
-                                    onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
-                                />
-                            </div>
-
-                            {/* Avatars */}
-                            <div className="flex flex-col gap-2">
-                                <label className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider">Avatar</label>
-                                <div className="grid grid-cols-5 gap-2 max-h-[140px] overflow-y-auto p-1 border-2 border-[#161a33]/15 rounded-xl bg-[#FFFBF0]">
-                                    {ALL_AVATARS.slice(0, 30).map((url) => (
-                                        <button
-                                            key={url}
-                                            type="button"
-                                            onClick={() => setAvatar(url)}
-                                            className={`aspect-square sk-ava ${avatar === url ? 'active' : ''}`}
-                                            style={{ width: '100%', height: 'auto' }}
-                                        >
-                                            <img src={url} alt="" className="w-full h-full object-cover" />
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={joinRoom}
-                                className="sk-btn sk-btn-warning w-full py-3.5 flex items-center justify-center gap-2"
-                            >
-                                <span className="material-symbols-outlined text-base">brush</span>
-                                Rejoindre la Partie
-                            </button>
+                        {/* Pseudo */}
+                        <div className="flex flex-col gap-2">
+                            <label className="dr-eyebrow">Ton pseudo</label>
+                            <input
+                                type="text"
+                                className="dr-input text-sm"
+                                placeholder="Picasso"
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                maxLength={20}
+                                onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
+                            />
                         </div>
 
-                        <button onClick={() => navigate('/draw')} className="sk-btn sk-btn-secondary py-2 flex items-center justify-center gap-1 mx-auto text-xs">
-                            <span className="material-symbols-outlined text-sm">arrow_back</span> Retour
+                        {/* Avatars */}
+                        <div className="flex flex-col gap-2.5">
+                            <label className="dr-eyebrow">Avatar</label>
+                            <div className="dr-scroll grid grid-cols-5 gap-2.5 max-h-[150px] overflow-y-auto p-1">
+                                {ALL_AVATARS.slice(0, 30).map((url) => (
+                                    <button
+                                        key={url}
+                                        type="button"
+                                        onClick={() => setAvatar(url)}
+                                        className={`aspect-square dr-ava ${avatar === url ? 'active' : ''}`}
+                                        aria-label="Choisir cet avatar"
+                                        style={{ width: '100%', height: 'auto' }}
+                                    >
+                                        <img src={url} alt="" className="w-full h-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button onClick={joinRoom} className="dr-btn dr-btn-primary w-full py-3.5 text-base">
+                            <span className="material-symbols-outlined text-lg">bolt</span>
+                            Rejoindre la partie
                         </button>
                     </div>
+
+                    <button onClick={() => navigate('/draw')} className="dr-btn dr-btn-ghost py-2.5 text-sm mx-auto">
+                        <span className="material-symbols-outlined text-base">arrow_back</span> Retour
+                    </button>
                 </div>
             </div>
         );
@@ -617,29 +649,28 @@ function DrawPlayerView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-hidden">
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
-                    </div>
-                </div>
+            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
-                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-                    <div className="relative z-10 flex flex-col items-center gap-5 max-w-xs w-full">
-                        <div className="w-24 h-24 sk-ava">
-                            <img src={avatar} alt="" className="w-full h-full object-cover" />
+                <div className="flex flex-col items-center gap-6 max-w-xs w-full dr-fade-up">
+                    <div className="w-28 h-28 dr-ava dr-ava-ring">
+                        <img src={avatar} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="text-center">
+                        <h2 className="dr-h text-3xl">{playerName}</h2>
+                        <div className="dr-pill dr-pill-violet mt-3">
+                            <span className="material-symbols-outlined text-sm">tag</span>
+                            <span className="dr-mono tracking-widest">{roomCode}</span>
                         </div>
-                        <div className="text-center">
-                            <h2 className="text-2xl sk-h text-[#161a33]">{playerName}</h2>
-                            <div className="text-xs font-black text-[#FF3B30] uppercase mt-1">Salon : {roomCode}</div>
+                    </div>
+                    <div className="dr-card w-full p-7 flex flex-col items-center gap-3">
+                        <div className="flex gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--dr-violet)] animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--dr-magenta)] animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--dr-cyan)] animate-bounce" style={{ animationDelay: '300ms' }} />
                         </div>
-                        <div className="sk-box p-6 text-center w-full bg-white flex flex-col items-center justify-center gap-2">
-                            <span className="material-symbols-outlined text-[#FF3B30] text-3xl animate-pulse">hourglass_empty</span>
-                            <p className="text-sm font-black text-[#161a33] uppercase">En attente du lancement...</p>
-                        </div>
+                        <p className="dr-h text-base text-center">En attente du lancement…</p>
+                        <p className="text-xs text-[color:var(--dr-muted)] text-center">L'hôte va bientôt démarrer la partie.</p>
                     </div>
                 </div>
             </div>
@@ -649,46 +680,42 @@ function DrawPlayerView() {
     // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-                
+            <div className="dr-app h-dvh flex flex-col overflow-hidden relative"
+                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
-                        <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
-                        <div className="text-lg font-black uppercase tracking-wider text-[#161a33] mt-4">Prépare-toi à dessiner !</div>
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
+                        <div key={countdownVal} className="dr-countdown text-[7rem] leading-none">{countdownVal}</div>
+                        <div className="dr-h text-lg mt-3 text-[color:var(--dr-muted)]">Prépare-toi à dessiner !</div>
                     </div>
                 )}
 
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+                {/* Header — timer */}
+                <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 border-b border-[color:var(--dr-line)]">
+                    <div className={`dr-mono font-bold text-2xl ${timerClass} text-[color:var(--dr-text)]`}>{timer}</div>
+                    <div className="flex-1 dr-timer-track">
+                        <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
                     </div>
-                </div>
-
-                {/* Header */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
-                    <div className={`font-black text-xl tabular-nums ${timerClass} text-[#161a33]`}>{timer}</div>
-                    <div className="flex-1 h-3 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
-                             style={{ width: `${timerPct}%` }} />
-                    </div>
-                    <div className="sk-pill sk-pill-blue py-1 px-3 text-[10px]">{currentRound}/{totalRounds}</div>
+                    <div className="dr-pill dr-pill-violet"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
                 </div>
 
                 {/* Word banner */}
                 {myWord && (
-                    <div className="px-4 py-2.5 bg-[#FF3B30] border-b-3 border-[#161a33] flex-shrink-0 flex items-center justify-between gap-2">
-                        <div>
-                            <div className="text-[9px] font-black uppercase text-white/80">À toi de dessiner :</div>
-                            <div className="text-xl font-black uppercase italic text-white tracking-tight">{myWord.word}</div>
-                            {myWord.hint && <div className="text-[9px] text-white/80 font-bold">💡 {myWord.hint}</div>}
+                    <div className="dr-pop mx-3 mt-3 flex-shrink-0 flex items-center justify-between gap-3 rounded-2xl p-3.5"
+                        style={{ background: 'var(--dr-grad)', boxShadow: 'var(--dr-glow-v)' }}>
+                        <div className="min-w-0">
+                            <div className="dr-eyebrow text-white/85">À toi de dessiner</div>
+                            <div className="dr-h text-2xl text-white truncate">{myWord.word}</div>
+                            {myWord.hint && (
+                                <div className="text-[11px] text-white/85 font-medium flex items-center gap-1 mt-0.5">
+                                    <span className="material-symbols-outlined text-sm">lightbulb</span>{myWord.hint}
+                                </div>
+                            )}
                         </div>
                         <button onClick={handleSkipWord}
-                            className="sk-btn sk-btn-warning text-[10px] py-1 px-2.5 flex-shrink-0">
-                            🔄 Passer
+                            className="dr-btn dr-btn-ghost flex-shrink-0 text-xs py-2 px-3"
+                            style={{ background: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.35)', color: '#fff' }}>
+                            <span className="material-symbols-outlined text-base">refresh</span> Passer
                         </button>
                     </div>
                 )}
@@ -711,41 +738,43 @@ function DrawPlayerView() {
                 </div>
 
                 {/* Tools */}
-                <div className="flex-shrink-0 px-3 pb-3 flex flex-col gap-2">
+                <div className="flex-shrink-0 px-3 pb-3 flex flex-col gap-2.5">
                     {/* Colors */}
-                    <div className="sk-box p-2 flex justify-center gap-1.5 bg-white">
-                        {COLORS.map(c => (
-                            <button
-                                key={c.value}
-                                onClick={() => { setSelectedColor(c.value); setIsEraser(false); }}
-                                className={`w-8 h-8 rounded-full border-2 border-[#161a33] transition-transform duration-100 ${
-                                    selectedColor === c.value && !isEraser
-                                        ? 'scale-125 shadow-[2px_2px_0px_0px_#161a33]'
-                                        : 'hover:scale-110'
-                                 }`}
-                                style={{ backgroundColor: c.value, boxShadow: c.value === '#ffffff' ? 'inset 0 0 0 1px #ccc' : undefined }}
-                                title={c.name}
-                            />
-                        ))}
+                    <div className="dr-card-2 p-2.5 grid grid-cols-9 gap-1.5">
+                        {COLORS.map(c => {
+                            const isSel = selectedColor === c.value && !isEraser;
+                            return (
+                                <button
+                                    key={c.value}
+                                    onClick={() => { setSelectedColor(c.value); setIsEraser(false); }}
+                                    className="aspect-square rounded-full transition-transform duration-100"
+                                    style={{
+                                        backgroundColor: c.value,
+                                        transform: isSel ? 'scale(1.18)' : undefined,
+                                        border: c.value === '#ffffff' ? '1px solid #ccc' : '1px solid rgba(0,0,0,0.2)',
+                                        boxShadow: isSel ? '0 0 0 2px #fff, 0 0 14px rgba(255,255,255,0.7)' : undefined,
+                                    }}
+                                    aria-label={c.name}
+                                    title={c.name}
+                                />
+                            );
+                        })}
                     </div>
 
                     {/* Sizes + actions */}
-                    <div className="sk-box p-2.5 flex items-center justify-center gap-2 bg-white">
+                    <div className="dr-card-2 p-2 flex items-center justify-center gap-2">
                         {BRUSH_SIZES.map(size => (
                             <button
                                 key={size}
                                 onClick={() => { setBrushSize(size); setIsEraser(false); }}
-                                className={`w-9 h-9 rounded-lg border-2 border-[#161a33] flex items-center justify-center transition-colors ${
-                                    brushSize === size && !isEraser
-                                        ? 'bg-[#FFD60A]'
-                                        : 'bg-[#FFFBF0] hover:bg-[#C2DCFF]'
-                                }`}
+                                className={`dr-icon-btn ${brushSize === size && !isEraser ? 'active' : ''}`}
+                                aria-label={`Taille ${size}`}
                             >
-                                <div className="rounded-full bg-[#161a33]"
+                                <div className="rounded-full bg-current"
                                     style={{ width: Math.min(size * 0.7, 20), height: Math.min(size * 0.7, 20) }} />
                             </button>
                         ))}
-                        <div className="w-0.5 h-6 bg-[#161a33]/20" />
+                        <div className="w-px h-6 bg-[color:var(--dr-line-2)]" />
                         <button
                             onClick={() => {
                                 const nextEraser = !isEraser;
@@ -758,31 +787,26 @@ function DrawPlayerView() {
                                     setBrushSize(8);
                                 }
                             }}
-                            className={`w-9 h-9 rounded-lg border-2 border-[#161a33] flex items-center justify-center transition-colors ${
-                                isEraser
-                                    ? 'bg-[#FFD60A]'
-                                    : 'bg-[#FFFBF0] hover:bg-[#FFE0DC]'
-                             }`}
-                            title="Gomme"
+                            className={`dr-icon-btn ${isEraser ? 'active' : ''}`}
+                            aria-label="Gomme"
                         >
-                            <span className="material-symbols-outlined text-base text-[#161a33]">ink_eraser</span>
+                            <span className="material-symbols-outlined text-lg">ink_eraser</span>
                         </button>
                         <button
                             onClick={handleUndo}
                             disabled={strokesHistoryRef.current.length === 0}
-                            className="sk-btn sk-btn-secondary w-9 h-9 p-0 flex items-center justify-center disabled:opacity-40"
-                            title="Annuler"
-                            style={{ boxShadow: '2px 2px 0px 0px #161a33' }}
+                            className="dr-icon-btn"
+                            aria-label="Annuler"
                         >
-                            <span className="material-symbols-outlined text-base">undo</span>
+                            <span className="material-symbols-outlined text-lg">undo</span>
                         </button>
                         <button
                             onClick={handleClearCanvas}
-                            className="sk-btn sk-btn-danger w-9 h-9 p-0 flex items-center justify-center"
-                            title="Effacer tout"
-                            style={{ boxShadow: '2px 2px 0px 0px #161a33' }}
+                            className="dr-icon-btn"
+                            aria-label="Tout effacer"
+                            style={{ color: 'var(--dr-red)', borderColor: 'rgba(251,85,112,0.4)' }}
                         >
-                            <span className="material-symbols-outlined text-base">delete</span>
+                            <span className="material-symbols-outlined text-lg">delete</span>
                         </button>
                     </div>
                 </div>
@@ -793,60 +817,51 @@ function DrawPlayerView() {
     // ── PLAYING — DEVINEUR ────────────────────────────────────────────
     if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="h-screen flex flex-col overflow-hidden bg-[#FFFBF0] relative"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-dvh flex flex-col overflow-hidden relative"
+                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#FFFBF0]/95 backdrop-blur-sm">
-                        <div className="text-8xl font-black text-[#FF3B30] animate-bounce">{countdownVal}</div>
-                        <div className="text-lg font-black uppercase tracking-wider text-[#161a33] mt-4">Prépare-toi à deviner !</div>
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
+                        <div key={countdownVal} className="dr-countdown text-[7rem] leading-none">{countdownVal}</div>
+                        <div className="dr-h text-lg mt-3 text-[color:var(--dr-muted)]">Prépare-toi à deviner !</div>
                     </div>
                 )}
 
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+                {/* Header — timer + score */}
+                <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 border-b border-[color:var(--dr-line)]">
+                    <div className={`dr-mono font-bold text-xl ${timerClass} text-[color:var(--dr-text)]`}>{timer}</div>
+                    <div className="flex-1 dr-timer-track">
+                        <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
                     </div>
-                </div>
-
-                {/* Header */}
-                <div className="flex items-center gap-3 px-4 py-2 bg-white border-b-3 border-[#161a33] flex-shrink-0">
-                    <div className={`font-black text-xl tabular-nums ${timerClass} text-[#161a33]`}>{timer}</div>
-                    <div className="flex-1 h-3 bg-[#161a33]/10 border-2 border-[#161a33] rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${timer <= 10 ? 'bg-[#FF3B30]' : timer <= 30 ? 'bg-[#ff9f1c]' : 'bg-[#FFD60A]'}`}
-                             style={{ width: `${timerPct}%` }} />
-                    </div>
-                    <div className="sk-pill sk-pill-blue py-1 px-3 text-[10px]">{currentRound}/{totalRounds}</div>
-                    <div className="font-black text-sm text-[#161a33]">{myScore} pts</div>
+                    <div className="dr-pill dr-pill-violet"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
+                    <div className="dr-mono font-bold text-sm text-[color:var(--dr-lime)]">{myScore}</div>
                 </div>
 
                 {/* Drawer info + word blanks */}
-                <div className="flex items-center justify-center gap-3 px-4 py-2.5 bg-[#C2DCFF] border-b-3 border-[#161a33] flex-shrink-0">
-                    <div className="text-[10px] font-bold text-[#161a33]">
-                        🎨 <span className="font-black text-[#FF3B30]">{drawerName}</span> dessine...
+                <div className="flex flex-col items-center gap-2 px-4 py-3 flex-shrink-0 bg-[rgba(139,92,246,0.06)] border-b border-[color:var(--dr-line)]">
+                    <div className="text-xs text-[color:var(--dr-muted)] flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm text-[color:var(--dr-violet-lt)]">stylus_note</span>
+                        <span className="dr-h text-sm text-[color:var(--dr-text)]">{drawerName}</span> dessine…
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                        <span className="sk-pill sk-pill-active py-0.5 px-2.5 text-[9px]">{wordCategory}</span>
+                        <span className="dr-pill dr-pill-cyan">{wordCategory}</span>
                         {Array.from({ length: wordLength }).map((_, i) => (
-                            <div key={i} className="w-3.5 h-1 bg-[#161a33] rounded-full" />
+                            <div key={i} className="dr-blank" />
                         ))}
-                        <span className="text-[9px] font-black text-[#161a33]/50">({wordLength})</span>
+                        <span className="dr-mono text-[11px] text-[color:var(--dr-dim)]">{wordLength}</span>
                     </div>
                 </div>
 
                 {/* Canvas */}
                 <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
-                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-85' : ''}`}>
+                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-90' : ''}`}>
                         <canvas ref={canvasRef} className="draw-canvas" />
                         {hasGuessed && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#FFD60A]/85 backdrop-blur-sm">
-                                <div className="text-5xl mb-2 animate-bounce">✅</div>
-                                <h3 className="text-3xl sk-h text-[#161a33]">Bravo !</h3>
-                                <div className="sk-pill sk-pill-active py-1 px-4 text-xs mt-2">
-                                    +{guessResult?.points} pts — #{guessResult?.rank}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#08080F]/80 backdrop-blur-sm dr-pop">
+                                <span className="material-symbols-outlined text-6xl text-[color:var(--dr-lime)] mb-1" style={{ fontVariationSettings: "'FILL' 1", filter: 'drop-shadow(0 0 16px rgba(74,222,128,0.6))' }}>check_circle</span>
+                                <h3 className="dr-h text-3xl dr-glow-lime">Bravo !</h3>
+                                <div className="dr-pill dr-pill-lime mt-2 text-sm">
+                                    +{guessResult?.points} pts · #{guessResult?.rank}
                                 </div>
                             </div>
                         )}
@@ -857,28 +872,30 @@ function DrawPlayerView() {
                 {!hasGuessed && (
                     <div className="flex-shrink-0 px-3 pb-3">
                         {guessResult?.closeMatch && (
-                            <div className="text-center text-[10px] font-black text-[#ff9f1c] uppercase mb-1.5 animate-pulse">
-                                🔥 Très proche ! Vérifie l'orthographe
+                            <div className="text-center text-[11px] font-bold text-[color:var(--dr-amber)] mb-1.5 flex items-center justify-center gap-1 dr-slide-in">
+                                <span className="material-symbols-outlined text-sm">local_fire_department</span> Très proche ! Vérifie l'orthographe
                             </div>
                         )}
-                        <div className={`sk-box p-2.5 flex gap-2 bg-white ${shakeGuess ? 'shake-input border-[#ff9f1c]' : ''}`}>
+                        <div className={`flex gap-2 ${shakeGuess ? 'shake-input' : ''}`}>
                             <input
                                 ref={guessInputRef}
                                 type="text"
-                                className="sk-input flex-1 py-2 text-sm"
-                                placeholder="Tape ta réponse..."
+                                className="dr-input flex-1 text-sm"
+                                placeholder="Tape ta réponse…"
                                 value={guess}
                                 onChange={(e) => setGuess(e.target.value)}
                                 onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
                                 disabled={hasGuessed || countdownVal > 0}
                                 autoComplete="off"
+                                style={shakeGuess ? { borderColor: 'var(--dr-amber)' } : undefined}
                             />
                             <button
                                 onClick={submitGuess}
                                 disabled={hasGuessed || !guess.trim() || countdownVal > 0}
-                                className="sk-btn sk-btn-warning py-2.5 px-4 flex items-center justify-center"
+                                className="dr-btn dr-btn-primary px-5"
+                                aria-label="Valider ma réponse"
                             >
-                                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
                             </button>
                         </div>
                     </div>
@@ -890,31 +907,22 @@ function DrawPlayerView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-hidden">
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
+            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-hidden">
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
+                <div className="w-full max-w-xs flex flex-col items-center gap-5 dr-fade-up">
+                    <div className="dr-card dr-card-glow w-full p-6 text-center">
+                        <div className="dr-eyebrow">Le mot était</div>
+                        <h2 className="dr-h text-4xl dr-grad-text mt-1.5">{revealedWord?.word}</h2>
                     </div>
-                </div>
-
-                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-                    <div className="relative z-10 w-full max-w-xs flex flex-col items-center gap-4">
-                        <div className="bg-[#FF3B30] border-3 border-[#161a33] rounded-xl p-5 shadow-[4px_4px_0_#161a33] text-center w-full -rotate-1">
-                            <div className="text-[9px] font-black uppercase text-white/80 tracking-wider">Le mot était</div>
-                            <h2 className="text-3xl sk-h text-white">{revealedWord?.word}</h2>
-                        </div>
-                        <div className="sk-box p-5 text-center w-full bg-white">
-                            <div className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider mb-1">Ton score</div>
-                            <div className="text-5xl font-black text-[#161a33]">{myScore}</div>
-                            <div className="text-[10px] text-[#161a33]/50 font-bold mt-1">points</div>
-                        </div>
-                        <p className="text-[10px] font-black uppercase text-[#FF3B30] tracking-wider animate-pulse mt-2">
-                            Prochain tour bientôt...
-                        </p>
+                    <div className="dr-card w-full p-6 text-center">
+                        <div className="dr-eyebrow">Ton score</div>
+                        <div className="dr-mono text-6xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}</div>
+                        <div className="text-xs text-[color:var(--dr-muted)] mt-1">points</div>
                     </div>
+                    <p className="dr-eyebrow flex items-center gap-1.5 mt-1">
+                        <span className="material-symbols-outlined text-sm animate-spin" style={{ animationDuration: '2s' }}>progress_activity</span>
+                        Prochain tour bientôt
+                    </p>
                 </div>
             </div>
         );
@@ -925,70 +933,62 @@ function DrawPlayerView() {
         const myRank = finalResults.findIndex(p => p.id === socket.id) + 1;
         const winner = finalResults[0];
         const medals = ['🥇', '🥈', '🥉'];
+        const rankColor = myRank === 1 ? 'var(--dr-amber)' : myRank === 2 ? 'var(--dr-cyan)' : myRank === 3 ? 'var(--dr-magenta)' : 'var(--dr-violet)';
 
         return (
-            <div className="min-h-screen flex flex-col bg-[#FFFBF0] overflow-auto">
-                {/* Simulated status bar */}
-                <div className="flex items-center justify-between px-6 py-2 text-xs font-black text-[#161a33]/60 border-b-2 border-[#161a33]/10 flex-shrink-0 w-full select-none bg-[#FFFBF0]">
-                    <span className="flex items-center gap-1">9:41 <span className="material-symbols-outlined text-xs">edit</span></span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-sm">signal_cellular_alt</span>
-                        <span className="material-symbols-outlined text-sm">battery_charging_full</span>
-                    </div>
-                </div>
+            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-y-auto overflow-x-hidden"
+                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+                <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
-                <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-                    <div className="relative z-10 w-full max-w-xs flex flex-col gap-4">
-                        {/* My result */}
-                        <div className={`border-3 border-[#161a33] rounded-xl p-5 shadow-[4px_4px_0_#161a33] text-center -rotate-1 ${
-                            myRank === 1 ? 'bg-[#FFD60A]' : myRank === 2 ? 'bg-[#C2DCFF]' : myRank === 3 ? 'bg-[#FFE0DC]' : 'bg-white'
-                        }`}>
-                            <div className="text-4xl mb-2">{medals[myRank - 1] || '🎨'}</div>
-                            <h2 className="text-2xl sk-h text-[#161a33]">
-                                {myRank === 1 ? 'Victoire !' : `#${myRank}`}
-                            </h2>
-                            <div className="text-3xl font-black text-[#161a33] mt-1">{myScore} pts</div>
-                            {myRank !== 1 && (
-                                <div className="text-[10px] font-bold text-[#161a33]/60 mt-1">
-                                    Vainqueur : <span className="font-black text-[#FF3B30]">{winner?.name}</span>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Full ranking */}
-                        <div className="sk-box p-4 bg-white">
-                            <div className="text-[10px] font-black uppercase text-[#FF3B30] mb-2.5 tracking-wider">Classement final</div>
-                            <div className="flex flex-col gap-1.5">
-                                {finalResults.map((p, i) => (
-                                    <div key={p.id} className={`flex items-center gap-2 p-1.5 rounded-lg border-2 text-xs ${
-                                        p.id === socket.id ? 'border-[#FF3B30] bg-[#FF3B30]/10 font-black' : 'border-[#161a33]/10 bg-[#FFFBF0] font-bold'
-                                    }`}>
-                                        <span className="w-6 text-center font-black text-[#161a33]">{medals[i] || `#${i + 1}`}</span>
-                                        <span className="flex-1 truncate text-[#161a33]">{p.name}</span>
-                                        <span className="font-black text-[#161a33]">{p.score} pts</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Awards */}
-                        {awards.length > 0 && (
-                            <div className="grid grid-cols-2 gap-2">
-                                {awards.map((a, i) => (
-                                    <div key={i} className="sk-box p-3 text-center bg-white">
-                                        <div className="text-2xl mb-1">{a.icon}</div>
-                                        <div className="text-[9px] font-black uppercase text-[#FF3B30]">{a.title}</div>
-                                        <div className="text-[10px] font-bold text-[#161a33] truncate">{a.playerName}</div>
-                                    </div>
-                                ))}
+                <div className="w-full max-w-xs flex flex-col gap-4 dr-fade-up">
+                    {/* My result */}
+                    <div className="dr-card dr-card-glow p-6 text-center dr-pop" style={{ borderColor: rankColor }}>
+                        <div className="text-5xl mb-1">{medals[myRank - 1] || '🎨'}</div>
+                        <h2 className="dr-h text-2xl" style={{ color: rankColor }}>
+                            {myRank === 1 ? 'Victoire !' : `${myRank}ᵉ place`}
+                        </h2>
+                        <div className="dr-mono text-4xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}<span className="text-lg text-[color:var(--dr-muted)] ml-1">pts</span></div>
+                        {myRank !== 1 && (
+                            <div className="text-xs text-[color:var(--dr-muted)] mt-2">
+                                Vainqueur : <span className="dr-h text-xs dr-grad-text">{winner?.name}</span>
                             </div>
                         )}
-
-                        <button onClick={() => navigate('/')}
-                            className="sk-btn sk-btn-warning w-full py-3 flex items-center justify-center gap-2 text-xs">
-                            🏠 Retour au menu
-                        </button>
                     </div>
+
+                    {/* Full ranking */}
+                    <div className="dr-card p-4">
+                        <div className="dr-eyebrow mb-3">Classement final</div>
+                        <div className="flex flex-col gap-1.5">
+                            {finalResults.map((p, i) => {
+                                const me = p.id === socket.id;
+                                return (
+                                    <div key={p.id} className={`flex items-center gap-2.5 p-2 rounded-xl text-sm dr-slide-in ${me ? 'dr-card-2' : ''}`}
+                                        style={{ animationDelay: `${i * 40}ms`, ...(me ? { borderColor: 'rgba(139,92,246,0.5)', background: 'rgba(139,92,246,0.12)' } : {}) }}>
+                                        <span className="dr-mono w-7 text-center font-bold text-[color:var(--dr-muted)]">{medals[i] || `${i + 1}`}</span>
+                                        <span className={`flex-1 truncate ${me ? 'dr-h text-sm' : 'font-medium text-[color:var(--dr-text)]'}`}>{p.name}</span>
+                                        <span className="dr-mono font-bold text-[color:var(--dr-lime)]">{p.score}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Awards */}
+                    {awards.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2.5">
+                            {awards.map((a, i) => (
+                                <div key={i} className="dr-card-2 p-3 text-center">
+                                    <div className="text-2xl mb-1">{a.icon}</div>
+                                    <div className="dr-eyebrow text-[color:var(--dr-violet-lt)]">{a.title}</div>
+                                    <div className="text-xs font-semibold text-[color:var(--dr-text)] truncate mt-0.5">{a.playerName}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <button onClick={() => navigate('/')} className="dr-btn dr-btn-primary w-full py-3.5">
+                        <span className="material-symbols-outlined text-lg">home</span> Retour au menu
+                    </button>
                 </div>
             </div>
         );
