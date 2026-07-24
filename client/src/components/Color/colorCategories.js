@@ -15,6 +15,8 @@ export const CATEGORY_META = {
     'Sitcoms animés': { emoji: '📺', accent: '#f472b6' },
     'Manga & Anime': { emoji: '🥋', accent: '#ef4444' },
     'Classiques & Rétro': { emoji: '🎩', accent: '#a78bfa' },
+    'Logo Marques': { emoji: '🏷️', accent: '#3b82f6' },
+    'Drapeaux': { emoji: '🚩', accent: '#10b981' },
 };
 
 // Ordre d'affichage préféré des catégories canoniques (les inconnues suivent, triées par le serveur).
