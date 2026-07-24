@@ -563,8 +563,8 @@ function DrawPlayerView() {
     // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="dr-app h-dvh flex flex-col overflow-hidden"
-                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-svh flex flex-col overflow-hidden"
+                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
 
                 <div className="flex-1 min-h-0 w-full max-w-sm mx-auto flex flex-col px-5 pt-3 pb-3 gap-3 dr-fade-up">
@@ -654,7 +654,7 @@ function DrawPlayerView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-hidden">
+            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-hidden">
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
                 <div className="flex flex-col items-center gap-6 max-w-xs w-full dr-fade-up">
@@ -685,8 +685,8 @@ function DrawPlayerView() {
     // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="dr-app h-dvh flex flex-col overflow-hidden relative"
-                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-svh flex flex-col overflow-hidden relative"
+                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
                 {countdownVal > 0 && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
@@ -822,8 +822,8 @@ function DrawPlayerView() {
     // ── PLAYING — DEVINEUR ────────────────────────────────────────────
     if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="dr-app h-dvh flex flex-col overflow-hidden relative"
-                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-svh flex flex-col overflow-hidden relative"
+                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
 
                 {countdownVal > 0 && (
                     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
@@ -857,9 +857,9 @@ function DrawPlayerView() {
                     </div>
                 </div>
 
-                {/* Canvas */}
-                <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
-                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-90' : ''}`}>
+                {/* Canvas + réponse regroupés et centrés (évite le grand vide en portrait) */}
+                <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-3 py-3 relative">
+                    <div className={`canvas-container-4-3 draw-canvas-viewer w-full ${hasGuessed ? 'opacity-90' : ''}`}>
                         <canvas ref={canvasRef} className="draw-canvas" />
                         {hasGuessed && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#08080F]/80 backdrop-blur-sm dr-pop">
@@ -871,40 +871,39 @@ function DrawPlayerView() {
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Guess input */}
-                {!hasGuessed && (
-                    <div className="flex-shrink-0 px-3 pb-3">
-                        {guessResult?.closeMatch && (
-                            <div className="text-center text-[11px] font-bold text-[color:var(--dr-amber)] mb-1.5 flex items-center justify-center gap-1 dr-slide-in">
-                                <span className="material-symbols-outlined text-sm">local_fire_department</span> Très proche ! Vérifie l'orthographe
+                    {!hasGuessed && (
+                        <div className="w-full flex-shrink-0">
+                            {guessResult?.closeMatch && (
+                                <div className="text-center text-[11px] font-bold text-[color:var(--dr-amber)] mb-1.5 flex items-center justify-center gap-1 dr-slide-in">
+                                    <span className="material-symbols-outlined text-sm">local_fire_department</span> Très proche ! Vérifie l'orthographe
+                                </div>
+                            )}
+                            <div className={`flex gap-2 ${shakeGuess ? 'shake-input' : ''}`}>
+                                <input
+                                    ref={guessInputRef}
+                                    type="text"
+                                    className="dr-input flex-1 text-base"
+                                    placeholder="Tape ta réponse…"
+                                    value={guess}
+                                    onChange={(e) => setGuess(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
+                                    disabled={hasGuessed || countdownVal > 0}
+                                    autoComplete="off"
+                                    style={shakeGuess ? { borderColor: 'var(--dr-amber)' } : undefined}
+                                />
+                                <button
+                                    onClick={submitGuess}
+                                    disabled={hasGuessed || !guess.trim() || countdownVal > 0}
+                                    className="dr-btn dr-btn-primary px-5"
+                                    aria-label="Valider ma réponse"
+                                >
+                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+                                </button>
                             </div>
-                        )}
-                        <div className={`flex gap-2 ${shakeGuess ? 'shake-input' : ''}`}>
-                            <input
-                                ref={guessInputRef}
-                                type="text"
-                                className="dr-input flex-1 text-sm"
-                                placeholder="Tape ta réponse…"
-                                value={guess}
-                                onChange={(e) => setGuess(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
-                                disabled={hasGuessed || countdownVal > 0}
-                                autoComplete="off"
-                                style={shakeGuess ? { borderColor: 'var(--dr-amber)' } : undefined}
-                            />
-                            <button
-                                onClick={submitGuess}
-                                disabled={hasGuessed || !guess.trim() || countdownVal > 0}
-                                className="dr-btn dr-btn-primary px-5"
-                                aria-label="Valider ma réponse"
-                            >
-                                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
-                            </button>
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
         );
     }
@@ -912,7 +911,7 @@ function DrawPlayerView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-hidden">
+            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-hidden">
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
                 <div className="w-full max-w-xs flex flex-col items-center gap-5 dr-fade-up">
                     <div className="dr-card dr-card-glow w-full p-6 text-center">
@@ -941,7 +940,7 @@ function DrawPlayerView() {
         const rankColor = myRank === 1 ? 'var(--dr-amber)' : myRank === 2 ? 'var(--dr-cyan)' : myRank === 3 ? 'var(--dr-magenta)' : 'var(--dr-violet)';
 
         return (
-            <div className="dr-app min-h-dvh flex items-center justify-center p-6 overflow-y-auto overflow-x-hidden"
+            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-y-auto overflow-x-hidden"
                 style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 

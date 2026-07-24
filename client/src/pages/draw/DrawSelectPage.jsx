@@ -11,8 +11,8 @@ function DrawSelectPage() {
     }, []);
 
     return (
-        <div className="dr-app h-dvh flex items-center justify-center p-6 overflow-hidden select-none"
-            style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="dr-app h-svh flex items-center justify-center p-6 overflow-hidden select-none"
+            style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
             <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
             <main className="w-full max-w-sm flex flex-col items-center gap-8 dr-fade-up">
