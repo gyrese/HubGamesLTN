@@ -398,7 +398,7 @@
   {
     "id": "brand_ferrari_scudetto",
     "name": "Ferrari",
-    "part": "Jaune du scudetto",
+    "part": "Le fond de l'écusson",
     "source": "Ferrari · Écurie (1929)",
     "category": "Logo Marques",
     "target_h": 55,
@@ -409,7 +409,7 @@
   {
     "id": "brand_coca_cola_disc",
     "name": "Coca-Cola",
-    "part": "Rouge du disque",
+    "part": "Le disque",
     "source": "Coca-Cola · Boisson (1886)",
     "category": "Logo Marques",
     "target_h": 358,
@@ -420,7 +420,7 @@
   {
     "id": "brand_pepsi_can",
     "name": "Pepsi",
-    "part": "Bleu du logo",
+    "part": "Le bas du logo",
     "source": "Pepsi · Boisson (1898)",
     "category": "Logo Marques",
     "target_h": 209,
@@ -431,7 +431,7 @@
   {
     "id": "brand_tiffany_box",
     "name": "Tiffany & Co.",
-    "part": "Boîte cadeau bleu Tiffany",
+    "part": "La boîte cadeau",
     "source": "Tiffany & Co. · Joaillerie (1837)",
     "category": "Logo Marques",
     "target_h": 178,
@@ -442,7 +442,7 @@
   {
     "id": "brand_mcdonalds_arches",
     "name": "McDonald's",
-    "part": "Arches dorées",
+    "part": "Les arches",
     "source": "McDonald's · Restauration rapide (1940)",
     "category": "Logo Marques",
     "target_h": 44,
@@ -453,7 +453,7 @@
   {
     "id": "brand_starbucks_logo",
     "name": "Starbucks",
-    "part": "Vert du logo sirène",
+    "part": "Le fond du logo sirène",
     "source": "Starbucks · Café (1971)",
     "category": "Logo Marques",
     "target_h": 160,
@@ -464,7 +464,7 @@
   {
     "id": "brand_hermes_orange",
     "name": "Hermès",
-    "part": "Orange Hermès",
+    "part": "La boîte Hermès",
     "source": "Hermès · Luxe (1837)",
     "category": "Logo Marques",
     "target_h": 28,
@@ -475,7 +475,7 @@
   {
     "id": "brand_cadbury_wrapper",
     "name": "Cadbury",
-    "part": "Emballage Dairy Milk",
+    "part": "L'emballage Dairy Milk",
     "source": "Cadbury · Confiserie (1824)",
     "category": "Logo Marques",
     "target_h": 281,
@@ -486,7 +486,7 @@
   {
     "id": "brand_heinz_ketchup",
     "name": "Heinz",
-    "part": "Rouge étiquette ketchup",
+    "part": "L'étiquette ketchup",
     "source": "Heinz · Alimentation (1869)",
     "category": "Logo Marques",
     "target_h": 3,
@@ -497,7 +497,7 @@
   {
     "id": "brand_ups_pullman_brown",
     "name": "UPS",
-    "part": "Brun Pullman",
+    "part": "Le blason UPS",
     "source": "UPS · Logistique (1907)",
     "category": "Logo Marques",
     "target_h": 13,
@@ -508,7 +508,7 @@
   {
     "id": "brand_youtube_play",
     "name": "YouTube",
-    "part": "Rouge du bouton lecture",
+    "part": "Le bouton lecture",
     "source": "YouTube · Plateforme vidéo (2005)",
     "category": "Logo Marques",
     "target_h": 0,
@@ -519,7 +519,7 @@
   {
     "id": "brand_whatsapp_bubble",
     "name": "WhatsApp",
-    "part": "Vert de la bulle de chat",
+    "part": "La bulle de chat",
     "source": "WhatsApp · Messagerie (2009)",
     "category": "Logo Marques",
     "target_h": 142,
@@ -530,7 +530,7 @@
   {
     "id": "brand_facebook_f",
     "name": "Facebook",
-    "part": "Bleu Facebook",
+    "part": "La pastille du « f »",
     "source": "Facebook · Réseau social (2004)",
     "category": "Logo Marques",
     "target_h": 214,
@@ -541,7 +541,7 @@
   {
     "id": "brand_amazon_smile",
     "name": "Amazon",
-    "part": "Orange de la flèche sourire",
+    "part": "La flèche sourire",
     "source": "Amazon · Commerce (1994)",
     "category": "Logo Marques",
     "target_h": 36,
@@ -552,7 +552,7 @@
   {
     "id": "brand_lego_brick",
     "name": "LEGO",
-    "part": "Rouge LEGO",
+    "part": "Le fond carré du logo",
     "source": "LEGO · Briques jouet (1932)",
     "category": "Logo Marques",
     "target_h": 357,
@@ -563,7 +563,7 @@
   {
     "id": "brand_ikea_store",
     "name": "IKEA",
-    "part": "Bleu IKEA",
+    "part": "Le panneau du logo",
     "source": "IKEA · Meubles (1943)",
     "category": "Logo Marques",
     "target_h": 214,
@@ -574,7 +574,7 @@
   {
     "id": "brand_fedex_arrow",
     "name": "FedEx",
-    "part": "Violet FedEx",
+    "part": "Les lettres « Fed »",
     "source": "FedEx · Logistique (1971)",
     "category": "Logo Marques",
     "target_h": 269,
@@ -585,7 +585,7 @@
   {
     "id": "brand_mastercard_red",
     "name": "Mastercard",
-    "part": "Cercle rouge",
+    "part": "Le cercle de gauche",
     "source": "Mastercard · Paiements (1966)",
     "category": "Logo Marques",
     "target_h": 353,
@@ -596,7 +596,7 @@
   {
     "id": "brand_spotify_icon",
     "name": "Spotify",
-    "part": "Vert Spotify",
+    "part": "La pastille du logo",
     "source": "Spotify · Streaming musical (2008)",
     "category": "Logo Marques",
     "target_h": 141,
@@ -607,7 +607,7 @@
   {
     "id": "brand_microsoft_blue",
     "name": "Microsoft",
-    "part": "Bleu Microsoft",
+    "part": "Le carré en bas à gauche",
     "source": "Microsoft · Logiciel (1975)",
     "category": "Logo Marques",
     "target_h": 199,
@@ -618,7 +618,7 @@
   {
     "id": "brand_tmobile_magenta",
     "name": "T-Mobile",
-    "part": "Magenta",
+    "part": "Le fond du logo",
     "source": "T-Mobile · Télécoms (1990)",
     "category": "Logo Marques",
     "target_h": 329,
@@ -629,7 +629,7 @@
   {
     "id": "brand_discord_blurple",
     "name": "Discord",
-    "part": "Bleu violacé",
+    "part": "Le fond du logo",
     "source": "Discord · Messagerie (2015)",
     "category": "Logo Marques",
     "target_h": 235,
@@ -640,7 +640,7 @@
   {
     "id": "brand_airbnb_belo",
     "name": "Airbnb",
-    "part": "Corail Rausch",
+    "part": "Le symbole (le « Bélo »)",
     "source": "Airbnb · Voyage (2008)",
     "category": "Logo Marques",
     "target_h": 358,
@@ -651,7 +651,7 @@
   {
     "id": "brand_shell_pecten",
     "name": "Shell",
-    "part": "Jaune Shell",
+    "part": "Le fond du coquillage",
     "source": "Shell · Énergie (1907)",
     "category": "Logo Marques",
     "target_h": 49,
@@ -662,7 +662,7 @@
   {
     "id": "brand_snapchat_ghost",
     "name": "Snapchat",
-    "part": "Jaune Snapchat",
+    "part": "Le fond du logo",
     "source": "Snapchat · Social (2011)",
     "category": "Logo Marques",
     "target_h": 59,
@@ -673,7 +673,7 @@
   {
     "id": "brand_twitch_glitch",
     "name": "Twitch",
-    "part": "Violet Twitch",
+    "part": "Le pictogramme",
     "source": "Twitch · Streaming (2011)",
     "category": "Logo Marques",
     "target_h": 264,
@@ -684,7 +684,7 @@
   {
     "id": "brand_reddit_snoo",
     "name": "Reddit",
-    "part": "Rouge orangé",
+    "part": "Le rond du logo",
     "source": "Reddit · Social (2005)",
     "category": "Logo Marques",
     "target_h": 16,
@@ -695,7 +695,7 @@
   {
     "id": "brand_telegram_plane",
     "name": "Telegram",
-    "part": "Bleu Telegram",
+    "part": "Le rond du logo",
     "source": "Telegram · Messagerie (2013)",
     "category": "Logo Marques",
     "target_h": 200,
@@ -706,7 +706,7 @@
   {
     "id": "brand_milka_bar",
     "name": "Milka",
-    "part": "Lilas",
+    "part": "L'emballage de la tablette",
     "source": "Milka · Confiserie (1901)",
     "category": "Logo Marques",
     "target_h": 258,
@@ -717,7 +717,7 @@
   {
     "id": "brand_lacoste_croc",
     "name": "Lacoste",
-    "part": "Vert Lacoste",
+    "part": "Le crocodile",
     "source": "Lacoste · Mode (1933)",
     "category": "Logo Marques",
     "target_h": 153,
@@ -728,7 +728,7 @@
   {
     "id": "brand_xbox_sphere",
     "name": "Xbox",
-    "part": "Vert Xbox",
+    "part": "La sphère",
     "source": "Xbox · Jeu vidéo (2001)",
     "category": "Logo Marques",
     "target_h": 120,
@@ -739,7 +739,7 @@
   {
     "id": "brand_playstation_glyph",
     "name": "PlayStation",
-    "part": "Bleu PlayStation",
+    "part": "Le sigle « PS »",
     "source": "PlayStation · Jeu vidéo (1994)",
     "category": "Logo Marques",
     "target_h": 217,
@@ -750,7 +750,7 @@
   {
     "id": "brand_nintendo_switch_joycon",
     "name": "Nintendo Switch",
-    "part": "Rouge Nintendo",
+    "part": "Le Joy-Con droit",
     "source": "Nintendo Switch · Jeu vidéo (2017)",
     "category": "Logo Marques",
     "target_h": 355,
@@ -761,7 +761,7 @@
   {
     "id": "brand_steam_cog",
     "name": "Steam",
-    "part": "Bleu marine Steam",
+    "part": "Le fond du logo",
     "source": "Steam · Plateforme de jeu (2003)",
     "category": "Logo Marques",
     "target_h": 213,
@@ -772,7 +772,7 @@
   {
     "id": "brand_razer_snakes",
     "name": "Razer",
-    "part": "Vert Razer",
+    "part": "Le logo aux trois serpents",
     "source": "Razer · Matériel gaming (2005)",
     "category": "Logo Marques",
     "target_h": 112,
@@ -783,7 +783,7 @@
   {
     "id": "brand_pinterest_pin",
     "name": "Pinterest",
-    "part": "Rouge Pinterest",
+    "part": "Le pictogramme « P »",
     "source": "Pinterest · Plateforme sociale (2010)",
     "category": "Logo Marques",
     "target_h": 351,
@@ -794,7 +794,7 @@
   {
     "id": "brand_linkedin_in",
     "name": "LinkedIn",
-    "part": "Bleu LinkedIn",
+    "part": "Le carré « in »",
     "source": "LinkedIn · Réseau professionnel (2003)",
     "category": "Logo Marques",
     "target_h": 210,
@@ -805,7 +805,7 @@
   {
     "id": "brand_netflix_n",
     "name": "Netflix",
-    "part": "Rouge Netflix",
+    "part": "Le « N »",
     "source": "Netflix · Streaming (1997)",
     "category": "Logo Marques",
     "target_h": 357,
@@ -816,7 +816,7 @@
   {
     "id": "brand_burger_king_bun",
     "name": "Burger King",
-    "part": "Orange flamme",
+    "part": "Les pains du burger",
     "source": "Burger King · Restauration rapide (1954)",
     "category": "Logo Marques",
     "target_h": 25,
@@ -827,7 +827,7 @@
   {
     "id": "brand_nivea_disc",
     "name": "Nivea",
-    "part": "Bleu Nivea",
+    "part": "La boîte ronde",
     "source": "Nivea · Soin de la peau (1911)",
     "category": "Logo Marques",
     "target_h": 221,
@@ -838,7 +838,7 @@
   {
     "id": "brand_visa_blue",
     "name": "Visa",
-    "part": "Bleu Visa",
+    "part": "Le logotype Visa",
     "source": "Visa · Paiements (1958)",
     "category": "Logo Marques",
     "target_h": 237,
@@ -849,7 +849,7 @@
   {
     "id": "brand_paypal_blue",
     "name": "PayPal",
-    "part": "Bleu PayPal",
+    "part": "Le « P » de gauche",
     "source": "PayPal · Paiements (1998)",
     "category": "Logo Marques",
     "target_h": 219,
@@ -860,7 +860,7 @@
   {
     "id": "brand_target_bullseye",
     "name": "Target",
-    "part": "Rouge Target",
+    "part": "Les anneaux de la cible",
     "source": "Target · Commerce de détail (1962)",
     "category": "Logo Marques",
     "target_h": 0,
@@ -871,7 +871,7 @@
   {
     "id": "brand_samsung_blue",
     "name": "Samsung",
-    "part": "Bleu Samsung",
+    "part": "L'ovale du logo",
     "source": "Samsung · Électronique (1938)",
     "category": "Logo Marques",
     "target_h": 231,
@@ -882,7 +882,7 @@
   {
     "id": "brand_dhl_panel",
     "name": "DHL",
-    "part": "Jaune DHL",
+    "part": "Le fond du logo",
     "source": "DHL · Logistique (1969)",
     "category": "Logo Marques",
     "target_h": 48,
@@ -893,7 +893,7 @@
   {
     "id": "brand_tesla_red",
     "name": "Tesla",
-    "part": "Rouge Tesla",
+    "part": "Le « T »",
     "source": "Tesla · Automobile (2003)",
     "category": "Logo Marques",
     "target_h": 0,
@@ -904,7 +904,7 @@
   {
     "id": "brand_android_robot",
     "name": "Android",
-    "part": "Vert Android",
+    "part": "Le robot Bugdroid",
     "source": "Android · Système mobile (2008)",
     "category": "Logo Marques",
     "target_h": 147,
@@ -915,7 +915,7 @@
   {
     "id": "brand_duolingo_green",
     "name": "Duolingo",
-    "part": "Vert Duolingo",
+    "part": "Le hibou Duo",
     "source": "Duolingo · Éducation (2011)",
     "category": "Logo Marques",
     "target_h": 94,
@@ -926,7 +926,7 @@
   {
     "id": "brand_intel_wordmark",
     "name": "Intel",
-    "part": "Bleu Intel",
+    "part": "Le logotype Intel",
     "source": "Intel · Semi-conducteurs (1968)",
     "category": "Logo Marques",
     "target_h": 206,
@@ -937,7 +937,7 @@
   {
     "id": "brand_toyota_emblem",
     "name": "Toyota",
-    "part": "Rouge Toyota",
+    "part": "L'emblème",
     "source": "Toyota · Automobile (1937)",
     "category": "Logo Marques",
     "target_h": 355,
@@ -948,7 +948,7 @@
   {
     "id": "brand_nvidia_eye",
     "name": "Nvidia",
-    "part": "Vert Nvidia",
+    "part": "Le pictogramme (l'œil)",
     "source": "Nvidia · Technology (1993)",
     "category": "Logo Marques",
     "target_h": 82,
@@ -959,7 +959,7 @@
   {
     "id": "brand_ford_oval",
     "name": "Ford",
-    "part": "Bleu Ford",
+    "part": "L'ovale",
     "source": "Ford · Automobile (1903)",
     "category": "Logo Marques",
     "target_h": 214,
@@ -970,7 +970,7 @@
   {
     "id": "brand_volkswagen_roundel",
     "name": "Volkswagen",
-    "part": "Bleu Volkswagen",
+    "part": "Le rond du logo",
     "source": "Volkswagen · Automobile (1937)",
     "category": "Logo Marques",
     "target_h": 218,
@@ -981,7 +981,7 @@
   {
     "id": "brand_adobe_a",
     "name": "Adobe",
-    "part": "Rouge Adobe",
+    "part": "Le « A »",
     "source": "Adobe · Logiciel (1982)",
     "category": "Logo Marques",
     "target_h": 4,
@@ -992,7 +992,7 @@
   {
     "id": "brand_hp_circle",
     "name": "HP",
-    "part": "Bleu HP",
+    "part": "Le rond du logo",
     "source": "HP · Technology (1939)",
     "category": "Logo Marques",
     "target_h": 198,
@@ -1003,7 +1003,7 @@
   {
     "id": "brand_kfc_bucket",
     "name": "KFC",
-    "part": "Rouge KFC",
+    "part": "Le fond du logo",
     "source": "KFC · Restauration rapide (1952)",
     "category": "Logo Marques",
     "target_h": 350,
@@ -1014,7 +1014,7 @@
   {
     "id": "brand_marvel_box",
     "name": "Marvel",
-    "part": "Rouge Marvel",
+    "part": "Le cartouche du logo",
     "source": "Marvel · Comics (1939)",
     "category": "Logo Marques",
     "target_h": 358,
@@ -1025,7 +1025,7 @@
   {
     "id": "brand_bmw_roundel",
     "name": "BMW",
-    "part": "Bleu BMW",
+    "part": "Les quartiers du rond",
     "source": "BMW · Automobile (1916)",
     "category": "Logo Marques",
     "target_h": 206,
@@ -1036,7 +1036,7 @@
   {
     "id": "brand_imdb_box",
     "name": "IMDb",
-    "part": "Jaune IMDb",
+    "part": "Le cartouche",
     "source": "IMDb · Entertainment (1990)",
     "category": "Logo Marques",
     "target_h": 47,
@@ -1047,7 +1047,7 @@
   {
     "id": "brand_rolex_crown",
     "name": "Rolex",
-    "part": "Vert Rolex",
+    "part": "Le fond du logo",
     "source": "Rolex · Luxury watches (1905)",
     "category": "Logo Marques",
     "target_h": 149,
@@ -1058,7 +1058,7 @@
   {
     "id": "brand_barbie_script",
     "name": "Barbie",
-    "part": "Rose du logo actuel",
+    "part": "Le script Barbie",
     "source": "Barbie · Poupée mannequin (1959)",
     "category": "Logo Marques",
     "target_h": 323,
