@@ -65,6 +65,12 @@ function DrawPlayerView() {
     const guessInputRef = useRef(null);
     const strokesHistoryRef = useRef([]);
     const countdownIntervalRef = useRef(null);
+    // Traits en cours reçus des autres (id → stroke), rendus avant leur validation finale
+    const liveStrokesRef = useRef(new Map());
+    // Émission throttlée du trait en cours quand c'est nous qui dessinons
+    const liveSentCountRef = useRef(0);
+    const lastLiveEmitRef = useRef(0);
+    const liveEmitTimerRef = useRef(null);
 
     // Reuse doJoin for mount, manually joining, and silent socket reconnects
     const doJoin = (code, name, userAvatar, silent = false) => {
@@ -172,6 +178,7 @@ function DrawPlayerView() {
             document.body.classList.remove('draw-neon');
             if (timerRef.current) clearInterval(timerRef.current);
             if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            if (liveEmitTimerRef.current) clearTimeout(liveEmitTimerRef.current);
         };
     }, []);
 
@@ -223,13 +230,17 @@ function DrawPlayerView() {
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => drawStroke(stroke, true);
+        const handleStroke = (stroke) => {
+            // Le trait est finalisé : on abandonne sa version "en cours"
+            if (stroke && stroke.id) liveStrokesRef.current.delete(stroke.id);
+            drawStroke(stroke, true);
+        };
+        const handleLiveStroke = (data) => applyLiveStroke(data);
         const handleClear = () => clearCanvas(true);
-        
+
         const handleUndoStroke = () => {
             strokesHistoryRef.current.pop();
-            clearCanvas(false);
-            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            redrawAll();
         };
 
         const handleWordSkipped = (data) => { 
@@ -288,6 +299,7 @@ function DrawPlayerView() {
         socket.on('draw-your-word', handleYourWord);
         socket.on('draw-next-round', handleNextRound);
         socket.on('draw-stroke', handleStroke);
+        socket.on('draw-stroke-live', handleLiveStroke);
         socket.on('draw-clear', handleClear);
         socket.on('draw-undo-stroke', handleUndoStroke);
         socket.on('draw-word-skipped', handleWordSkipped);
@@ -301,6 +313,7 @@ function DrawPlayerView() {
             socket.off('draw-your-word', handleYourWord);
             socket.off('draw-next-round', handleNextRound);
             socket.off('draw-stroke', handleStroke);
+            socket.off('draw-stroke-live', handleLiveStroke);
             socket.off('draw-clear', handleClear);
             socket.off('draw-undo-stroke', handleUndoStroke);
             socket.off('draw-word-skipped', handleWordSkipped);
@@ -356,7 +369,7 @@ function DrawPlayerView() {
                 const prevW = canvas.width, prevH = canvas.height;
                 initCanvas(e.contentRect.width, e.contentRect.height);
                 if (canvas.width !== prevW || canvas.height !== prevH) {
-                    strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+                    redrawAll();
                 }
             }
         });
@@ -365,7 +378,7 @@ function DrawPlayerView() {
         requestAnimationFrame(() => {
             const r = canvas.getBoundingClientRect();
             initCanvas(r.width, r.height);
-            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            redrawAll();
         });
 
         return () => ro.disconnect();
@@ -447,10 +460,29 @@ function DrawPlayerView() {
         renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
     };
 
+    // Trait en cours d'un autre joueur : on accumule les points reçus et on
+    // repasse par-dessus le tracé (même rendu que le dessinateur en local).
+    const applyLiveStroke = (data) => {
+        if (!data || !data.id || !Array.isArray(data.points) || data.points.length === 0) return;
+        if (drawnStrokeIdsRef.current.has(data.id)) return; // trait déjà finalisé
+        const existing = liveStrokesRef.current.get(data.id);
+        const stroke = existing || { id: data.id, color: data.color, size: data.size, points: [] };
+        stroke.points.push(...data.points);
+        if (!existing) liveStrokesRef.current.set(data.id, stroke);
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+    };
+
+    const redrawAll = () => {
+        clearCanvas(false);
+        strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+        liveStrokesRef.current.forEach(s => renderSmoothStroke(canvasContextRef.current, canvasRef.current, s));
+    };
+
     const clearCanvas = (clearHistory = true) => {
         if (clearHistory) {
             strokesHistoryRef.current = [];
             drawnStrokeIdsRef.current.clear();
+            liveStrokesRef.current.clear();
         }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
@@ -468,6 +500,45 @@ function DrawPlayerView() {
         };
     };
 
+    // Envoi des points du trait en cours (~16/s) pour que les autres voient le
+    // dessin se tracer sans attendre le lever de doigt.
+    const LIVE_EMIT_INTERVAL = 60; // ms
+
+    const flushLiveStroke = (force = false) => {
+        const stroke = currentStrokeRef.current;
+        if (!stroke || !stroke.id) return;
+        if (stroke.points.length <= liveSentCountRef.current) return;
+
+        const now = Date.now();
+        const elapsed = now - lastLiveEmitRef.current;
+        if (!force && elapsed < LIVE_EMIT_INTERVAL) {
+            // Programme un envoi différé pour ne pas perdre les derniers points
+            if (!liveEmitTimerRef.current) {
+                liveEmitTimerRef.current = setTimeout(() => {
+                    liveEmitTimerRef.current = null;
+                    flushLiveStroke(true);
+                }, LIVE_EMIT_INTERVAL - elapsed);
+            }
+            return;
+        }
+
+        if (liveEmitTimerRef.current) {
+            clearTimeout(liveEmitTimerRef.current);
+            liveEmitTimerRef.current = null;
+        }
+
+        const points = stroke.points.slice(liveSentCountRef.current);
+        liveSentCountRef.current = stroke.points.length;
+        lastLiveEmitRef.current = now;
+        socket.emit('draw-stroke-live', {
+            roomCode,
+            id: stroke.id,
+            color: stroke.color,
+            size: stroke.size,
+            points
+        });
+    };
+
     const handleDrawStart = (e) => {
         if (!isDrawer || countdownVal > 0) return;
         e.preventDefault();
@@ -475,8 +546,18 @@ function DrawPlayerView() {
         const coords = getCanvasCoords(e);
         // Trait en cours stocké dans un ref (rendu synchrone, fiable sur mobile où
         // touchmove est bien plus rapide que les re-render React).
-        currentStrokeRef.current = { color: selectedColor, size: brushSize, points: [coords] };
+        // L'id est généré dès le début : il identifie le trait pendant le streaming
+        // puis lors de sa validation finale.
+        currentStrokeRef.current = {
+            id: `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            color: selectedColor,
+            size: brushSize,
+            points: [coords]
+        };
+        liveSentCountRef.current = 0;
+        lastLiveEmitRef.current = 0;
         renderSmoothStroke(canvasContextRef.current, canvasRef.current, currentStrokeRef.current);
+        flushLiveStroke(true);
     };
 
     const handleDrawMove = (e) => {
@@ -486,6 +567,7 @@ function DrawPlayerView() {
         if (!stroke) return;
         stroke.points.push(getCanvasCoords(e));
         renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        flushLiveStroke();
     };
 
     const handleDrawEnd = () => {
@@ -493,10 +575,13 @@ function DrawPlayerView() {
         isDrawingRef.current = false;
         const stroke = currentStrokeRef.current;
         currentStrokeRef.current = null;
+        if (liveEmitTimerRef.current) {
+            clearTimeout(liveEmitTimerRef.current);
+            liveEmitTimerRef.current = null;
+        }
+        liveSentCountRef.current = 0;
         if (stroke && stroke.points.length > 0) {
-            const strokeId = `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            stroke.id = strokeId;
-            if (drawnStrokeIdsRef.current) drawnStrokeIdsRef.current.add(strokeId);
+            if (drawnStrokeIdsRef.current) drawnStrokeIdsRef.current.add(stroke.id);
             strokesHistoryRef.current.push(stroke);
             socket.emit('draw-stroke', { roomCode, stroke });
 
@@ -514,8 +599,7 @@ function DrawPlayerView() {
         if (!isDrawer) return;
         if (strokesHistoryRef.current.length > 0) {
             strokesHistoryRef.current.pop();
-            clearCanvas(false);
-            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            redrawAll();
             socket.emit('draw-undo', { roomCode });
         }
     };

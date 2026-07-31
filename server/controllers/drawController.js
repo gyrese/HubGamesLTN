@@ -17,6 +17,21 @@ function isStrokeAllowed(socketId) {
     return true;
 }
 
+// Rate-limit dédié aux fragments de trait en cours (relayés, jamais stockés).
+// Le client émet ~16/s ; on laisse de la marge sans permettre un flood.
+const liveStrokeRateMap = new Map(); // socketId → { count, resetAt }
+function isLiveStrokeAllowed(socketId) {
+    const now = Date.now();
+    const entry = liveStrokeRateMap.get(socketId);
+    if (!entry || now > entry.resetAt) {
+        liveStrokeRateMap.set(socketId, { count: 1, resetAt: now + 1000 });
+        return true;
+    }
+    if (entry.count >= 40) return false;
+    entry.count++;
+    return true;
+}
+
 const canControlDrawGame = (room, socketId) => {
     if (!room) return false;
     if (room.hostId === socketId) return true;
@@ -314,6 +329,18 @@ module.exports = {
             socket.to(`draw-${roomCode}`).emit('draw-stroke', stroke);
         });
 
+        // Fragments du trait en cours : relayés tels quels pour un rendu temps réel
+        // chez les autres joueurs / l'hôte. Non stockés dans canvasHistory : c'est
+        // le 'draw-stroke' final (même id) qui fait foi.
+        socket.on('draw-stroke-live', ({ roomCode, id, color, size, points }) => {
+            const room = drawGameManager.getRoom(roomCode);
+            if (!room) return;
+            if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) return;
+            if (!id || !Array.isArray(points) || points.length === 0) return;
+            if (!isLiveStrokeAllowed(socket.id)) return;
+            socket.to(`draw-${roomCode}`).emit('draw-stroke-live', { id, color, size, points });
+        });
+
         socket.on('draw-clear', ({ roomCode }) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room) return;
@@ -330,7 +357,8 @@ module.exports = {
             if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) return;
             if (room.canvasHistory.length > 0) {
                 room.canvasHistory.pop();
-                io.to(`draw-${roomCode}`).emit('draw-undo-stroke');
+                // socket.to : le dessinateur a déjà retiré le trait en local
+                socket.to(`draw-${roomCode}`).emit('draw-undo-stroke');
             }
         });
 
@@ -505,6 +533,7 @@ module.exports = {
         socket.on('disconnect', () => {
             // Nettoyer le rate-limit tracker
             strokeRateMap.delete(socket.id);
+            liveStrokeRateMap.delete(socket.id);
 
             const drawResult = drawGameManager.removePlayer(socket.id);
             if (!drawResult) return;

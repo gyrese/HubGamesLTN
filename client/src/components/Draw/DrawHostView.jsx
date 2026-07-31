@@ -53,6 +53,8 @@ function DrawHostView() {
     const countdownRef = useRef(null);
     const strokesHistoryRef = useRef([]);
     const countdownIntervalRef = useRef(null);
+    // Traits en cours reçus du dessinateur (id → stroke), rendus avant validation finale
+    const liveStrokesRef = useRef(new Map());
 
     useEffect(() => {
         document.body.classList.add('draw-neon');
@@ -245,13 +247,17 @@ function DrawHostView() {
             startTimer(data.timePerRound, data.roundStartTime);
         };
 
-        const handleStroke = (stroke) => drawStroke(stroke, true);
+        const handleStroke = (stroke) => {
+            // Le trait est finalisé : on abandonne sa version "en cours"
+            if (stroke && stroke.id) liveStrokesRef.current.delete(stroke.id);
+            drawStroke(stroke, true);
+        };
+        const handleLiveStroke = (data) => applyLiveStroke(data);
         const handleClear = () => clearCanvas(true);
 
         const handleUndoStroke = () => {
             strokesHistoryRef.current.pop();
-            clearCanvas(false);
-            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            redrawAll();
         };
 
         const handlePlayerGuessed = (data) => {
@@ -322,6 +328,7 @@ function DrawHostView() {
         socket.on('draw-game-started', handleGameStarted);
         socket.on('draw-next-round', handleNextRound);
         socket.on('draw-stroke', handleStroke);
+        socket.on('draw-stroke-live', handleLiveStroke);
         socket.on('draw-clear', handleClear);
         socket.on('draw-undo-stroke', handleUndoStroke);
         socket.on('draw-player-guessed', handlePlayerGuessed);
@@ -339,6 +346,7 @@ function DrawHostView() {
             socket.off('draw-game-started', handleGameStarted);
             socket.off('draw-next-round', handleNextRound);
             socket.off('draw-stroke', handleStroke);
+            socket.off('draw-stroke-live', handleLiveStroke);
             socket.off('draw-clear', handleClear);
             socket.off('draw-undo-stroke', handleUndoStroke);
             socket.off('draw-player-guessed', handlePlayerGuessed);
@@ -371,7 +379,7 @@ function DrawHostView() {
         const ro = new ResizeObserver(entries => {
             for (const e of entries) {
                 initCanvas(e.contentRect.width, e.contentRect.height);
-                strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+                redrawAll();
             }
         });
         ro.observe(canvas);
@@ -380,7 +388,7 @@ function DrawHostView() {
         requestAnimationFrame(() => {
             const r = canvas.getBoundingClientRect();
             initCanvas(r.width, r.height);
-            strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+            redrawAll();
         });
 
         return () => ro.disconnect();
@@ -469,10 +477,29 @@ function DrawHostView() {
         renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
     };
 
+    // Trait en cours du dessinateur : on accumule les points reçus et on repasse
+    // par-dessus le tracé (même rendu que chez lui en local).
+    const applyLiveStroke = (data) => {
+        if (!data || !data.id || !Array.isArray(data.points) || data.points.length === 0) return;
+        if (drawnStrokeIdsRef.current.has(data.id)) return; // trait déjà finalisé
+        const existing = liveStrokesRef.current.get(data.id);
+        const stroke = existing || { id: data.id, color: data.color, size: data.size, points: [] };
+        stroke.points.push(...data.points);
+        if (!existing) liveStrokesRef.current.set(data.id, stroke);
+        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+    };
+
+    const redrawAll = () => {
+        clearCanvas(false);
+        strokesHistoryRef.current.forEach(s => drawStroke(s, false));
+        liveStrokesRef.current.forEach(s => renderSmoothStroke(canvasContextRef.current, canvasRef.current, s));
+    };
+
     const clearCanvas = (clearHistory = true) => {
         if (clearHistory) {
             strokesHistoryRef.current = [];
             drawnStrokeIdsRef.current.clear();
+            liveStrokesRef.current.clear();
         }
         if (!canvasContextRef.current || !canvasRef.current) return;
         const ctx = canvasContextRef.current;
