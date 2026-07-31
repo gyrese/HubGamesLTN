@@ -4,6 +4,7 @@ import { socket } from '../../socket';
 import { QRCodeSVG } from 'qrcode.react';
 import confetti from 'canvas-confetti';
 import { playCountdownSound, playTickSound, playSuccessSound, playFailSound, playWinnerSound } from '../../utils/audio';
+import { renderStroke, renderAction, createSurface } from './drawEngine';
 import './DrawStyles.css';
 
 // ─── Session hôte (persistance + reconnexion, pattern GeoTrackr) ───
@@ -374,6 +375,9 @@ function DrawHostView() {
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, w, h);
             canvasContextRef.current = ctx;
+            // La surface de base suit la taille du canvas visible ; l'appelant
+            // rejoue l'historique dessus juste après (redrawAll).
+            baseRef.current = createSurface(canvas.width, canvas.height);
         };
 
         const ro = new ResizeObserver(entries => {
@@ -419,80 +423,79 @@ function DrawHostView() {
 
     const drawnStrokeIdsRef = useRef(new Set());
 
-    const renderSmoothStroke = (ctx, canvas, stroke) => {
-        if (!ctx || !canvas || !stroke || !stroke.points || stroke.points.length === 0) return;
+    // ─── Pipeline de rendu ────────────────────────────────────────────
+    // Deux surfaces : `base` (hors écran) porte les traits validés et les coups de
+    // pot ; le canvas visible est recomposé à partir d'elle, plus les traits en
+    // cours. Un trait en cours est ainsi toujours redessiné d'une seule passe sur
+    // une surface vierge — sinon le halo du néon s'accumulerait à chaque fragment
+    // reçu et l'écran de l'hôte divergerait de celui du dessinateur.
+    const baseRef = useRef(null);
+    const composeFrameRef = useRef(null);
 
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.size;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        const points = stroke.points.map(pt => ({
-            x: pt.x * canvas.width,
-            y: pt.y * canvas.height
-        }));
-
-        ctx.beginPath();
-
-        if (points.length === 1) {
-            ctx.fillStyle = stroke.color;
-            ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
-            ctx.fill();
-            return;
-        }
-
-        if (points.length === 2) {
-            ctx.moveTo(points[0].x, points[0].y);
-            ctx.lineTo(points[1].x, points[1].y);
-            ctx.stroke();
-            return;
-        }
-
-        // 3+ points: Courbes de Bézier quadratiques passant par les points médians
-        ctx.moveTo(points[0].x, points[0].y);
-
-        for (let i = 1; i < points.length - 1; i++) {
-            const midX = (points[i].x + points[i + 1].x) / 2;
-            const midY = (points[i].y + points[i + 1].y) / 2;
-            ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
-        }
-
-        const last = points[points.length - 1];
-        const prevLast = points[points.length - 2];
-        ctx.quadraticCurveTo(prevLast.x, prevLast.y, last.x, last.y);
-
-        ctx.stroke();
+    const compose = () => {
+        composeFrameRef.current = null;
+        const ctx = canvasContextRef.current;
+        const canvas = canvasRef.current;
+        const base = baseRef.current;
+        if (!ctx || !canvas || !base) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(base.canvas, 0, 0);
+        liveStrokesRef.current.forEach(s => renderStroke(ctx, s));
     };
 
-    const drawStroke = (stroke, saveToHistory = true) => {
-        if (!canvasContextRef.current || !canvasRef.current) return;
+    // Au plus une recomposition par frame : les fragments de trait arrivent
+    // nettement plus vite que ça.
+    const scheduleCompose = () => {
+        if (composeFrameRef.current) return;
+        composeFrameRef.current = requestAnimationFrame(compose);
+    };
+
+    // Rejoue tout l'historique sur la surface de base (démarrage, redimensionnement,
+    // annulation). Les remplissages en dépendent : ils doivent revoir les traits qui
+    // les bornaient, dans le même ordre.
+    const rebuildBase = () => {
+        const base = baseRef.current;
+        if (!base) return;
+        base.ctx.fillStyle = 'white';
+        base.ctx.fillRect(0, 0, base.canvas.width, base.canvas.height);
+        strokesHistoryRef.current.forEach(a => renderAction(base.ctx, a));
+    };
+
+    // Valide une action (trait ou remplissage) : elle passe dans la surface de base.
+    const drawStroke = (action, saveToHistory = true) => {
+        if (!action) return;
         if (saveToHistory) {
-            const strokeId = stroke.id || (stroke.points && stroke.points.length > 0 ? `${stroke.points.length}_${stroke.points[0].x}_${stroke.points[0].y}` : null);
-            if (strokeId) {
-                if (drawnStrokeIdsRef.current.has(strokeId)) return;
-                drawnStrokeIdsRef.current.add(strokeId);
+            const actionId = action.id || (action.points && action.points.length > 0 ? `${action.points.length}_${action.points[0].x}_${action.points[0].y}` : null);
+            if (actionId) {
+                if (drawnStrokeIdsRef.current.has(actionId)) return;
+                drawnStrokeIdsRef.current.add(actionId);
             }
-            strokesHistoryRef.current.push(stroke);
+            strokesHistoryRef.current.push(action);
         }
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        if (action.id) liveStrokesRef.current.delete(action.id);
+        // Canvas pas encore dimensionné (historique reçu à la reconnexion, avant
+        // le premier layout) : l'action est déjà dans l'historique, redrawAll la
+        // rejouera dès l'initialisation.
+        if (!baseRef.current) return;
+        renderAction(baseRef.current.ctx, action);
+        scheduleCompose();
     };
 
-    // Trait en cours du dessinateur : on accumule les points reçus et on repasse
-    // par-dessus le tracé (même rendu que chez lui en local).
+    // Trait en cours du dessinateur : on accumule les points reçus, la
+    // recomposition se charge de l'afficher.
     const applyLiveStroke = (data) => {
         if (!data || !data.id || !Array.isArray(data.points) || data.points.length === 0) return;
         if (drawnStrokeIdsRef.current.has(data.id)) return; // trait déjà finalisé
         const existing = liveStrokesRef.current.get(data.id);
-        const stroke = existing || { id: data.id, color: data.color, size: data.size, points: [] };
+        const stroke = existing || { id: data.id, color: data.color, size: data.size, brush: data.brush, points: [] };
         stroke.points.push(...data.points);
         if (!existing) liveStrokesRef.current.set(data.id, stroke);
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        scheduleCompose();
     };
 
     const redrawAll = () => {
-        clearCanvas(false);
-        strokesHistoryRef.current.forEach(s => drawStroke(s, false));
-        liveStrokesRef.current.forEach(s => renderSmoothStroke(canvasContextRef.current, canvasRef.current, s));
+        rebuildBase();
+        scheduleCompose();
     };
 
     const clearCanvas = (clearHistory = true) => {
@@ -501,10 +504,8 @@ function DrawHostView() {
             drawnStrokeIdsRef.current.clear();
             liveStrokesRef.current.clear();
         }
-        if (!canvasContextRef.current || !canvasRef.current) return;
-        const ctx = canvasContextRef.current;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        rebuildBase();
+        scheduleCompose();
     };
 
     const startGame = () => {

@@ -332,13 +332,15 @@ module.exports = {
         // Fragments du trait en cours : relayés tels quels pour un rendu temps réel
         // chez les autres joueurs / l'hôte. Non stockés dans canvasHistory : c'est
         // le 'draw-stroke' final (même id) qui fait foi.
-        socket.on('draw-stroke-live', ({ roomCode, id, color, size, points }) => {
+        socket.on('draw-stroke-live', ({ roomCode, id, color, size, brush, points }) => {
             const room = drawGameManager.getRoom(roomCode);
             if (!room) return;
             if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) return;
             if (!id || !Array.isArray(points) || points.length === 0) return;
             if (!isLiveStrokeAllowed(socket.id)) return;
-            socket.to(`draw-${roomCode}`).emit('draw-stroke-live', { id, color, size, points });
+            // `brush` doit suivre, sinon le trait s'affiche au crayon pendant le
+            // tracé puis change d'aspect au moment de sa validation.
+            socket.to(`draw-${roomCode}`).emit('draw-stroke-live', { id, color, size, brush, points });
         });
 
         socket.on('draw-clear', ({ roomCode }) => {

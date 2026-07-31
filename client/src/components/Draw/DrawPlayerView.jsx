@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { socket } from '../../socket';
 import { playCountdownSound, playSuccessSound, playFailSound, playWinnerSound } from '../../utils/audio';
+import { BRUSHES, renderStroke, renderAction, createSurface } from './drawEngine';
 import './DrawStyles.css';
 
 // Avatars partagés avec GeoTrackr (60 webp)
@@ -52,7 +53,11 @@ function DrawPlayerView() {
     const [brushSize, setBrushSize] = useState(8);
     const isDrawingRef = useRef(false);
     const currentStrokeRef = useRef(null);
-    const [isEraser, setIsEraser] = useState(false);
+    // Outil courant : une des brosses de drawEngine, 'fill' (pot) ou 'eraser'.
+    // La gomme est un outil à part entière et n'écrase plus la couleur choisie :
+    // on la quitte en retrouvant sa couleur et sa taille.
+    const [tool, setTool] = useState('pen');
+    const isEraser = tool === 'eraser';
     const [countdownVal, setCountdownVal] = useState(0);
 
     const [revealedWord, setRevealedWord] = useState(null);
@@ -360,6 +365,9 @@ function DrawPlayerView() {
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, iw, ih);
             canvasContextRef.current = ctx;
+            // La surface de base suit la taille du canvas visible ; l'appelant
+            // rejoue l'historique dessus juste après (redrawAll).
+            baseRef.current = createSurface(iw, ih);
         };
 
         const ro = new ResizeObserver(entries => {
@@ -402,80 +410,79 @@ function DrawPlayerView() {
 
     const drawnStrokeIdsRef = useRef(new Set());
 
-    const renderSmoothStroke = (ctx, canvas, stroke) => {
-        if (!ctx || !canvas || !stroke || !stroke.points || stroke.points.length === 0) return;
+    // ─── Pipeline de rendu ────────────────────────────────────────────
+    // Deux surfaces : `base` (hors écran) porte les traits validés et les coups de
+    // pot ; le canvas visible est recomposé à partir d'elle, plus les traits en
+    // cours. Un trait en cours est ainsi toujours redessiné d'une seule passe sur
+    // une surface vierge — sinon le halo du néon s'accumulerait à chaque point
+    // ajouté et l'écran du dessinateur divergerait de celui de l'hôte.
+    const baseRef = useRef(null);
+    const composeFrameRef = useRef(null);
 
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = stroke.size;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        const points = stroke.points.map(pt => ({
-            x: pt.x * canvas.width,
-            y: pt.y * canvas.height
-        }));
-
-        ctx.beginPath();
-
-        if (points.length === 1) {
-            ctx.fillStyle = stroke.color;
-            ctx.arc(points[0].x, points[0].y, stroke.size / 2, 0, Math.PI * 2);
-            ctx.fill();
-            return;
-        }
-
-        if (points.length === 2) {
-            ctx.moveTo(points[0].x, points[0].y);
-            ctx.lineTo(points[1].x, points[1].y);
-            ctx.stroke();
-            return;
-        }
-
-        // 3+ points: Courbes de Bézier quadratiques passant par les points médians
-        ctx.moveTo(points[0].x, points[0].y);
-
-        for (let i = 1; i < points.length - 1; i++) {
-            const midX = (points[i].x + points[i + 1].x) / 2;
-            const midY = (points[i].y + points[i + 1].y) / 2;
-            ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
-        }
-
-        const last = points[points.length - 1];
-        const prevLast = points[points.length - 2];
-        ctx.quadraticCurveTo(prevLast.x, prevLast.y, last.x, last.y);
-
-        ctx.stroke();
+    const compose = () => {
+        composeFrameRef.current = null;
+        const ctx = canvasContextRef.current;
+        const canvas = canvasRef.current;
+        const base = baseRef.current;
+        if (!ctx || !canvas || !base) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(base.canvas, 0, 0);
+        liveStrokesRef.current.forEach(s => renderStroke(ctx, s));
+        if (currentStrokeRef.current) renderStroke(ctx, currentStrokeRef.current);
     };
 
-    const drawStroke = (stroke, saveToHistory = true) => {
-        if (!canvasContextRef.current || !canvasRef.current) return;
+    // Au plus une recomposition par frame : touchmove tire bien plus vite que ça.
+    const scheduleCompose = () => {
+        if (composeFrameRef.current) return;
+        composeFrameRef.current = requestAnimationFrame(compose);
+    };
+
+    // Rejoue tout l'historique sur la surface de base (démarrage, redimensionnement,
+    // annulation). Les remplissages en dépendent : ils doivent revoir les traits
+    // qui les bornaient, dans le même ordre.
+    const rebuildBase = () => {
+        const base = baseRef.current;
+        if (!base) return;
+        base.ctx.fillStyle = 'white';
+        base.ctx.fillRect(0, 0, base.canvas.width, base.canvas.height);
+        strokesHistoryRef.current.forEach(a => renderAction(base.ctx, a));
+    };
+
+    // Valide une action (trait ou remplissage) : elle passe dans la surface de base.
+    const drawStroke = (action, saveToHistory = true) => {
+        if (!action) return;
         if (saveToHistory) {
-            const strokeId = stroke.id || (stroke.points && stroke.points.length > 0 ? `${stroke.points.length}_${stroke.points[0].x}_${stroke.points[0].y}` : null);
-            if (strokeId) {
-                if (drawnStrokeIdsRef.current.has(strokeId)) return;
-                drawnStrokeIdsRef.current.add(strokeId);
+            const actionId = action.id || (action.points && action.points.length > 0 ? `${action.points.length}_${action.points[0].x}_${action.points[0].y}` : null);
+            if (actionId) {
+                if (drawnStrokeIdsRef.current.has(actionId)) return;
+                drawnStrokeIdsRef.current.add(actionId);
             }
-            strokesHistoryRef.current.push(stroke);
+            strokesHistoryRef.current.push(action);
         }
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        if (action.id) liveStrokesRef.current.delete(action.id);
+        // Canvas pas encore dimensionné (historique reçu à la reconnexion, avant
+        // le premier layout) : l'action est déjà dans l'historique, redrawAll la
+        // rejouera dès l'initialisation.
+        if (!baseRef.current) return;
+        renderAction(baseRef.current.ctx, action);
+        scheduleCompose();
     };
 
-    // Trait en cours d'un autre joueur : on accumule les points reçus et on
-    // repasse par-dessus le tracé (même rendu que le dessinateur en local).
+    // Trait en cours d'un autre joueur : on accumule les points reçus, la
+    // recomposition se charge de l'afficher.
     const applyLiveStroke = (data) => {
         if (!data || !data.id || !Array.isArray(data.points) || data.points.length === 0) return;
         if (drawnStrokeIdsRef.current.has(data.id)) return; // trait déjà finalisé
         const existing = liveStrokesRef.current.get(data.id);
-        const stroke = existing || { id: data.id, color: data.color, size: data.size, points: [] };
+        const stroke = existing || { id: data.id, color: data.color, size: data.size, brush: data.brush, points: [] };
         stroke.points.push(...data.points);
         if (!existing) liveStrokesRef.current.set(data.id, stroke);
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        scheduleCompose();
     };
 
     const redrawAll = () => {
-        clearCanvas(false);
-        strokesHistoryRef.current.forEach(s => drawStroke(s, false));
-        liveStrokesRef.current.forEach(s => renderSmoothStroke(canvasContextRef.current, canvasRef.current, s));
+        rebuildBase();
+        scheduleCompose();
     };
 
     const clearCanvas = (clearHistory = true) => {
@@ -484,10 +491,8 @@ function DrawPlayerView() {
             drawnStrokeIdsRef.current.clear();
             liveStrokesRef.current.clear();
         }
-        if (!canvasContextRef.current || !canvasRef.current) return;
-        const ctx = canvasContextRef.current;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        rebuildBase();
+        scheduleCompose();
     };
 
     const getCanvasCoords = (e) => {
@@ -535,28 +540,43 @@ function DrawPlayerView() {
             id: stroke.id,
             color: stroke.color,
             size: stroke.size,
+            brush: stroke.brush,
             points
         });
     };
 
+    const newActionId = () => `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
     const handleDrawStart = (e) => {
         if (!isDrawer || countdownVal > 0) return;
         e.preventDefault();
-        isDrawingRef.current = true;
         const coords = getCanvasCoords(e);
+
+        // Pot de peinture : action ponctuelle, rien à tracer. Elle emprunte
+        // 'draw-stroke' comme les traits — le serveur la stocke et la relaie sans
+        // l'interpréter, donc annulation et reconnexion marchent sans code dédié.
+        if (tool === 'fill') {
+            const action = { id: newActionId(), type: 'fill', color: selectedColor, point: coords };
+            drawStroke(action, true);
+            socket.emit('draw-stroke', { roomCode, stroke: action });
+            return;
+        }
+
+        isDrawingRef.current = true;
         // Trait en cours stocké dans un ref (rendu synchrone, fiable sur mobile où
         // touchmove est bien plus rapide que les re-render React).
         // L'id est généré dès le début : il identifie le trait pendant le streaming
         // puis lors de sa validation finale.
         currentStrokeRef.current = {
-            id: `${socket.id || 'p'}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            color: selectedColor,
-            size: brushSize,
+            id: newActionId(),
+            color: isEraser ? '#ffffff' : selectedColor,
+            size: isEraser ? Math.max(brushSize, 30) : brushSize,
+            brush: isEraser ? 'pen' : tool,
             points: [coords]
         };
         liveSentCountRef.current = 0;
         lastLiveEmitRef.current = 0;
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, currentStrokeRef.current);
+        scheduleCompose();
         flushLiveStroke(true);
     };
 
@@ -566,7 +586,7 @@ function DrawPlayerView() {
         const stroke = currentStrokeRef.current;
         if (!stroke) return;
         stroke.points.push(getCanvasCoords(e));
-        renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        scheduleCompose();
         flushLiveStroke();
     };
 
@@ -581,12 +601,11 @@ function DrawPlayerView() {
         }
         liveSentCountRef.current = 0;
         if (stroke && stroke.points.length > 0) {
-            if (drawnStrokeIdsRef.current) drawnStrokeIdsRef.current.add(stroke.id);
-            strokesHistoryRef.current.push(stroke);
+            // Le trait quitte la couche « en cours » pour la surface de base.
+            drawStroke(stroke, true);
             socket.emit('draw-stroke', { roomCode, stroke });
-
-            // Re-render final smooth stroke
-            renderSmoothStroke(canvasContextRef.current, canvasRef.current, stroke);
+        } else {
+            scheduleCompose();
         }
     };
 
@@ -835,7 +854,11 @@ function DrawPlayerView() {
                             return (
                                 <button
                                     key={c.value}
-                                    onClick={() => { setSelectedColor(c.value); setIsEraser(false); }}
+                                    onClick={() => {
+                                        setSelectedColor(c.value);
+                                        // Choisir une couleur sort de la gomme (le pot, lui, s'en sert)
+                                        setTool(t => (t === 'eraser' ? 'pen' : t));
+                                    }}
                                     className="aspect-square rounded-full transition-transform duration-100"
                                     style={{
                                         backgroundColor: c.value,
@@ -850,13 +873,46 @@ function DrawPlayerView() {
                         })}
                     </div>
 
-                    {/* Sizes + actions */}
+                    {/* Outils : brosses, pot de peinture, gomme */}
+                    <div className="dr-card-2 p-2 flex items-center justify-center gap-2">
+                        {BRUSHES.map(b => (
+                            <button
+                                key={b.id}
+                                onClick={() => setTool(b.id)}
+                                className={`dr-icon-btn ${tool === b.id ? 'active' : ''}`}
+                                aria-label={b.label}
+                                title={b.label}
+                            >
+                                <span className="material-symbols-outlined text-lg">{b.icon}</span>
+                            </button>
+                        ))}
+                        <div className="w-px h-6 bg-[color:var(--dr-line-2)]" />
+                        <button
+                            onClick={() => setTool('fill')}
+                            className={`dr-icon-btn ${tool === 'fill' ? 'active' : ''}`}
+                            aria-label="Pot de peinture"
+                            title="Pot de peinture — remplit la zone touchée"
+                        >
+                            <span className="material-symbols-outlined text-lg">format_color_fill</span>
+                        </button>
+                        <button
+                            onClick={() => setTool('eraser')}
+                            className={`dr-icon-btn ${isEraser ? 'active' : ''}`}
+                            aria-label="Gomme"
+                            title="Gomme"
+                        >
+                            <span className="material-symbols-outlined text-lg">ink_eraser</span>
+                        </button>
+                    </div>
+
+                    {/* Tailles + actions */}
                     <div className="dr-card-2 p-2 flex items-center justify-center gap-2">
                         {BRUSH_SIZES.map(size => (
                             <button
                                 key={size}
-                                onClick={() => { setBrushSize(size); setIsEraser(false); }}
-                                className={`dr-icon-btn ${brushSize === size && !isEraser ? 'active' : ''}`}
+                                onClick={() => setBrushSize(size)}
+                                disabled={tool === 'fill'}
+                                className={`dr-icon-btn ${brushSize === size ? 'active' : ''}`}
                                 aria-label={`Taille ${size}`}
                             >
                                 <div className="rounded-full bg-current"
@@ -864,23 +920,6 @@ function DrawPlayerView() {
                             </button>
                         ))}
                         <div className="w-px h-6 bg-[color:var(--dr-line-2)]" />
-                        <button
-                            onClick={() => {
-                                const nextEraser = !isEraser;
-                                setIsEraser(nextEraser);
-                                if (nextEraser) {
-                                    setSelectedColor('#ffffff');
-                                    setBrushSize(30);
-                                } else {
-                                    setSelectedColor('#000000');
-                                    setBrushSize(8);
-                                }
-                            }}
-                            className={`dr-icon-btn ${isEraser ? 'active' : ''}`}
-                            aria-label="Gomme"
-                        >
-                            <span className="material-symbols-outlined text-lg">ink_eraser</span>
-                        </button>
                         <button
                             onClick={handleUndo}
                             disabled={strokesHistoryRef.current.length === 0}
