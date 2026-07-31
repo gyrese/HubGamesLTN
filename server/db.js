@@ -185,24 +185,38 @@ async function seedFromJSON() {
         }
 
         // 3. Seeding Draw Words
-        const drawWordsJsonFile = path.join(__dirname, 'data', 'drawWords.json');
-        const countWords = await db.get('SELECT COUNT(*) as count FROM draw_words');
-        if (countWords.count === 0 && fs.existsSync(drawWordsJsonFile)) {
-            console.log('[DATABASE] Migration : Importation de drawWords.json vers SQLite...');
+        // Note : hors de server/data/ (volume Docker) — comme colorCharacters.json. Dans le volume,
+        // le fichier de l'image n'écrase jamais la copie figée au premier démarrage : les mots ajoutés
+        // au JSON n'arrivaient donc jamais en prod. Ici le fichier vient de l'image à chaque déploiement,
+        // et le hash ci-dessous déclenche la resynchronisation. Les mots créés via l'admin sont conservés
+        // (INSERT OR REPLACE, aucun DELETE).
+        const drawWordsJsonFile = path.join(__dirname, 'drawWords.json');
+        if (fs.existsSync(drawWordsJsonFile)) {
             const rawData = fs.readFileSync(drawWordsJsonFile, 'utf8');
-            const data = JSON.parse(rawData);
-            let totalWords = 0;
-            for (const categoryKey of Object.keys(data)) {
-                const wordsList = data[categoryKey] || [];
-                for (const item of wordsList) {
-                    await db.run(
-                        'INSERT OR REPLACE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
-                        [categoryKey, item.word, item.category, item.hint || '']
-                    );
-                    totalWords++;
+            const hash = crypto.createHash('sha1').update(rawData).digest('hex');
+
+            await db.run(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT)`);
+            const meta = await db.get(`SELECT value FROM app_meta WHERE key = 'draw_words_seed_hash'`);
+            const countWords = await db.get('SELECT COUNT(*) as count FROM draw_words');
+
+            if (countWords.count === 0 || !meta || meta.value !== hash) {
+                const reason = countWords.count === 0 ? 'table vide' : 'drawWords.json modifié';
+                console.log(`[DATABASE] Migration : (re)synchronisation de drawWords.json vers SQLite (${reason})...`);
+                const data = JSON.parse(rawData);
+                let totalWords = 0;
+                for (const categoryKey of Object.keys(data)) {
+                    const wordsList = data[categoryKey] || [];
+                    for (const item of wordsList) {
+                        await db.run(
+                            'INSERT OR REPLACE INTO draw_words (categoryKey, word, category, hint) VALUES (?, ?, ?, ?)',
+                            [categoryKey, item.word, item.category, item.hint || '']
+                        );
+                        totalWords++;
+                    }
                 }
+                await db.run(`INSERT OR REPLACE INTO app_meta (key, value) VALUES ('draw_words_seed_hash', ?)`, [hash]);
+                console.log(`[DATABASE] Migration : ${totalWords} mots pictionary synchronisés.`);
             }
-            console.log(`[DATABASE] Migration : ${totalWords} mots pictionary importés.`);
         }
 
         // 4. Seeding Geo Locations

@@ -493,8 +493,8 @@ function DrawHostView() {
 
     const CATEGORY_LABELS = {
         actions: '🏃 Actions', animals: '🐾 Animaux', celebrities: '⭐ Célébrités',
-        expressions: '😄 Expressions', jobs: '💼 Métiers', movies: '🎬 Films',
-        objects_easy: '📦 Objets Facile', objects_medium: '🧩 Objets Moyen',
+        disney: '🏰 Films Disney', expressions: '😄 Expressions', jobs: '💼 Métiers',
+        movies: '🎬 Films', objects_easy: '📦 Objets Facile', objects_medium: '🧩 Objets Moyen',
         places: '🌍 Lieux', sports: '⚽ Sports',
     };
 
