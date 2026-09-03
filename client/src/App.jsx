@@ -32,6 +32,16 @@ import FakeArtistSelectPage from './pages/fakeArtist/FakeArtistSelectPage';
 import FakeArtistHostView from './components/FakeArtist/FakeArtistHostView';
 import FakeArtistPlayerView from './components/FakeArtist/FakeArtistPlayerView';
 
+// Super LTN Party
+import PartySelectPage from './pages/party/PartySelectPage';
+import PartyHostView from './components/Party/PartyHostView';
+import PartyPlayerView from './components/Party/PartyPlayerView';
+
+// IO Arena
+import IoSelectPage from './pages/io/IoSelectPage';
+import IoHostView from './components/Io/IoHostView';
+import IoPlayerView from './components/Io/IoPlayerView';
+
 // Admin
 import AdminView from './components/Admin/AdminView';
 
@@ -104,6 +114,18 @@ function App() {
           <Route path="/fakeartist/host" element={<FakeArtistHostView />} />
           <Route path="/fakeartist/play" element={<FakeArtistPlayerView />} />
           <Route path="/fakeartist/play/:roomCode" element={<FakeArtistPlayerView />} />
+
+          {/* Super LTN Party */}
+          <Route path="/party" element={<PartySelectPage />} />
+          <Route path="/party/host" element={<PartyHostView />} />
+          <Route path="/party/play" element={<PartyPlayerView />} />
+          <Route path="/party/play/:roomCode" element={<PartyPlayerView />} />
+
+          {/* IO Arena */}
+          <Route path="/io" element={<IoSelectPage />} />
+          <Route path="/io/host" element={<IoHostView />} />
+          <Route path="/io/play" element={<IoPlayerView />} />
+          <Route path="/io/play/:roomCode" element={<IoPlayerView />} />
 
           {/* Admin */}
           <Route path="/admin" element={<AdminView />} />

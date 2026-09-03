@@ -1,5 +1,6 @@
 const drawWords = require('../drawWords');
 const geoLocations = require('../geoLocations');
+const gameStatus = require('../gameStatus');
 const authMiddleware = require('../middleware/authMiddleware');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
@@ -34,6 +35,32 @@ module.exports = {
                 return res.json({ success: true, token });
             } else {
                 return res.status(401).json({ error: 'Mot de passe incorrect' });
+            }
+        });
+
+        // ================================================
+        // STATUT DES JEUX (actif / maintenance / masqué)
+        // ================================================
+
+        // Route PUBLIQUE : la page d'accueil doit connaître les statuts sans
+        // être authentifiée. Elle n'expose qu'une liste d'états, rien de sensible.
+        app.get('/api/games/status', async (req, res) => {
+            try {
+                res.json(await gameStatus.getAll());
+            } catch (error) {
+                console.error('[ADMIN] Erreur lecture statut des jeux :', error);
+                res.status(500).json({ error: 'Lecture impossible' });
+            }
+        });
+
+        app.put('/api/admin/games/status', authMiddleware, async (req, res) => {
+            const { gameId, state } = req.body || {};
+            try {
+                const updated = await gameStatus.setOne(gameId, state);
+                console.log(`[ADMIN] Statut de ${gameId} → ${state}`);
+                res.json(updated);
+            } catch (error) {
+                res.status(400).json({ error: error.message });
             }
         });
 

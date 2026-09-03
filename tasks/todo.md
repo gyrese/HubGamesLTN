@@ -1,80 +1,134 @@
-# Draw Me — pot de peinture + types de crayon
+# IO_ARENA — socle temps réel
+
+> Le chantier précédent (Super LTN Party) reste en cours dans l'arbre de travail ;
+> ce document décrit le chantier courant. Catalogue d'origine :
+> [idees-jeux-io.md](idees-jeux-io.md).
 
 ## Objectif
-Donner au dessinateur un pot de peinture (remplissage de zone) et quatre types de
-crayon : Crayon (net, défaut), Pinceau (largeur variable), Néon (halo lumineux),
-Spray (aérographe).
 
-## Contrainte technique découverte
-Le rendu actuel repasse **le trait entier** à chaque nouveau point
-(`renderSmoothStroke` appelé dans `handleDrawMove`). Invisible avec un trait
-opaque, mais rédhibitoire pour le Néon : le halo s'accumule à chaque repassage,
-si bien que le dessinateur verrait un trait bien plus lumineux que l'hôte, qui le
-rejoue une seule fois depuis l'historique. Les écrans divergeraient.
+Doter le hub de sa **première boucle de simulation temps réel**, sous la forme
+d'un jeu `IO` à part entière, et prouver le socle avec un mode jouable de bout
+en bout (TERRITOIRE, façon Paper.io).
 
-D'où le passage à un pipeline à deux surfaces, condition préalable au Néon :
-- **base** (canvas hors écran) : les traits validés + les remplissages ;
-- **visible** : recomposé à chaque frame = `drawImage(base)` + les traits en cours.
+Jusqu'ici le dépôt n'avait aucune simulation : tous les `setInterval` du serveur
+étaient du nettoyage de salons, les jeux fonctionnaient au tour par tour, et Draw
+relayait des évènements clients sans rien calculer. Les 8 jeux .io du catalogue
+partageaient donc tous le même prérequis manquant.
 
-Le trait en cours est donc toujours rendu d'une seule passe sur une surface
-vierge : identique chez tout le monde, quelle que soit la brosse.
+## Décisions actées
+
+| Sujet | Choix |
+|---|---|
+| Transport | **Upgrade WebSocket pour tout le hub**, aligné sur LTNHoot, avec repli polling automatique |
+| Mode de démonstration | **TERRITOIRE** (Paper.io) — le plus lisible de loin |
+| Portée | Socle **+ un mode complet**, jouable de bout en bout |
+| Rôle du téléphone | **Manette seule** : il n'affiche jamais le jeu |
 
 ## Tâches
-- [x] `drawEngine.js` — catalogue des brosses, rendu par brosse, flood fill
-- [x] Pipeline base/visible + composition en rAF dans les deux vues
-- [x] `DrawPlayerView` — état `tool`, barre d'outils, émission des remplissages
-- [x] `DrawHostView` — rendu des brosses et des remplissages via le moteur
-- [x] `drawController` — relayer `brush` dans `draw-stroke-live`
-- [x] Vérification : build, déterminisme du spray, rejeu à la reconnexion
 
-## Décisions
-- **Le remplissage passe par `draw-stroke`**, en tant qu'action
-  `{ id, type: 'fill', color, point }`. Le serveur relaie et stocke sans rien
-  interpréter : l'annulation, l'effacement et le rejeu à la reconnexion
-  fonctionnent sans une ligne de serveur en plus.
-- **Spray déterministe** : le tirage est semé sur l'id du trait (mulberry32), donc
-  identique sur tous les écrans et stable au redimensionnement.
-- **La gomme n'écrase plus la couleur choisie** : c'est un outil à part entière,
-  plus un détournement de `selectedColor = '#ffffff'` + `brushSize = 30`.
+- [x] Aligner le transport client/serveur sur LTNHoot (upgrade WS + repli)
+- [x] Watchdog mobile de retour au premier plan (sonde `connection:ping`)
+- [x] Handlers communs `connection:ping` et `connection:syncTime`
+- [x] `server/io/tickEngine.js` — boucle à pas fixe, budget réseau, arrêt propre
+- [x] `server/io/modes/index.js` — registre, contrat d'un mode
+- [x] `server/io/modes/territoire.js` — conquête par diffusion sur grille
+- [x] `server/ioGameManager.js` — salons, reconnexion par pseudo, période de grâce
+- [x] `server/controllers/ioController.js` — machine à états, diffusion `volatile`
+- [x] Vues client : SelectPage, HostView (canvas + interpolation), PlayerView (joystick)
+- [x] Câblage : routes, HomePage, JoinPage, `/api/room/:code`
+- [x] Tests de bout en bout + non-régression des 6 jeux existants
+
+## Ce qui a été construit
+
+**Serveur** (1 280 lignes)
+
+| Fichier | Rôle |
+|---|---|
+| `server/io/tickEngine.js` | Boucle à pas fixe 20 Hz, diffusion 10 Hz, mesure du débit |
+| `server/io/modes/index.js` | Registre : ajouter un mode ne touche jamais la machine à états |
+| `server/io/modes/territoire.js` | Le gameplay : traînées, capture, collisions, réapparition |
+| `server/ioGameManager.js` | Salons, arrivée en pleine manche, reconnexion par pseudo |
+| `server/controllers/ioController.js` | `LOBBY → PLAYING → RESULT`, relais des intentions |
+
+**Client** (1 002 lignes) : `components/Io/{IoHostView,IoPlayerView,IoStyles.css}`,
+`pages/io/IoSelectPage.jsx`.
+
+## Les trois règles du socle
+
+1. **Le serveur est autoritaire.** Le téléphone n'envoie qu'un cap (`{ angle }`),
+   jamais une position — même logique anti-triche que GeoTrackr.
+2. **Les instantanés partent en `volatile`.** Un paquet de position perdu ne doit
+   jamais être rejoué : le suivant le remplace. C'est ce qui protège le wifi.
+3. **Le téléphone n'affiche pas le jeu.** Il est une manette ; les instantanés ne
+   vont qu'aux grands écrans, jamais aux joueurs.
 
 ## Revue
 
-### Ce qui a été fait
-- `client/src/components/Draw/drawEngine.js` (nouveau) — catalogue des brosses,
-  rendu par brosse, remplissage par diffusion, surface hors écran. Il dédouble
-  aussi `renderSmoothStroke`, qui était recopié à l'identique dans les deux vues.
-- Les deux vues passent au pipeline base/visible, recomposition en `requestAnimationFrame`.
-- Barre d'outils joueur : les quatre brosses, le pot, la gomme sur une rangée ;
-  tailles + annuler + effacer sur la suivante.
-- Serveur : une ligne, `brush` ajouté au relais de `draw-stroke-live`.
+### Ce qui a été mesuré, pas supposé
 
-### Vérifications
-- `vite build` passe. `eslint` : 5 erreurs, **toutes déjà présentes sur `HEAD`**
-  (`roundStartTime`, `playFailSound`, `playWinnerSound`, deux `catch {}`) ;
-  `drawEngine.js` n'en produit aucune.
-- 21 assertions sur le moteur avec un contexte canvas simulé : déterminisme du
-  spray (même graine, même tirage sur un canvas de taille différente), halo néon
-  en deux passes puis cœur clair, chaque brosse gère le tap à un seul point, le
-  remplissage ne franchit pas un trait, refuse un second coup de la même couleur
-  et un clic hors canvas, et un trait sans champ `brush` retombe sur le crayon.
-- 13 assertions de convergence rejouant le scénario réel : le dessinateur trace
-  point par point (12 recompositions), l'hôte reçoit trois paquets de fragments
-  puis le trait final. Les deux produisent une séquence de dessin **identique**,
-  pour les quatre brosses, et le rejeu est stable. C'est la propriété qui
-  justifiait la refonte du pipeline.
+| Indicateur | Seuil visé | Mesuré |
+|---|---|---|
+| Temps de simulation par tick (20 joueurs) | < 10 ms | **0,04 ms** (pire relevé : 6 ms) |
+| Débit vers l'écran (20 joueurs, pire cas) | tenable en salle | **19,5 Ko/s** |
+| Débit vers l'écran (8 joueurs, cas typique) | — | **8,1 Ko/s** |
+| Débit en conditions réelles (7 joueurs) | < 40 Ko/s | **7,7 Ko/s** |
 
-### Limites connues
-- **Échelle** : `size` est en pixels absolus dans tout le jeu (`ctx.lineWidth =
-  stroke.size`), le rendu n'est donc pas mis à l'échelle du canvas. Un trait de
-  12 px fait 12 px sur le mobile comme sur l'écran du bar, donc paraît
-  proportionnellement plus fin en grand. Comportement préexistant, non modifié :
-  le changer toucherait l'aspect de tous les traits.
-- **Pot sur une zone non close** : chaque écran recalcule le remplissage sur son
-  propre canvas. Un contour laissé ouvert d'un pixel peut fuir sur un écran et
-  pas sur l'autre. Fermer les formes reste la règle, comme dans tous les
-  pictionary en ligne.
-- **Liseré** : l'anticrénelage des traits laisse un fin contour non peint. La
-  tolérance de 60 le réduit sans le supprimer.
-- `CANVAS_HISTORY_MAX` écarte les actions les plus anciennes quand l'historique
-  déborde : si un remplissage disparaît ainsi, le rejeu après reconnexion diverge.
-  Défaut préexistant, désormais partagé par les remplissages.
+### Trois défauts trouvés par les tests, corrigés
+
+1. **Suicide sur sa propre traînée.** À 130 unités/s et 20 Hz, plusieurs pas
+   tiennent dans une même case : le joueur posait sa traînée puis se tuait dessus
+   au pas suivant. Corrigé par un test `lastCell` — rester sur la case qu'on
+   occupe déjà n'est jamais un évènement.
+2. **Hécatombe au lancement.** Les apparitions par anneaux de 3 cases plaçaient
+   cinq paires de joueurs à moins de 6 cases ; 18 joueurs sur 20 mouraient en six
+   secondes. Corrigé par une distance minimale relâchée par paliers (14 → 10 → 7)
+   plus une invulnérabilité de 1,5 s à l'apparition. **Résultat : 20/20 survivants.**
+3. **Reconnexion cassée.** `removePlayer` supprimait le joueur, donc il n'y avait
+   plus aucun pseudo à retrouver. Corrigé en le marquant absent (comme le
+   capitaine dans Party), avec purge différée entre deux manches et corps figé
+   pendant l'absence.
+
+### Optimisations réseau
+
+La traînée et la grille étaient renvoyées intégralement dix fois par seconde.
+Désormais : la grille ne part en entier qu'au premier instantané (puis par
+différences `[index, propriétaire]`), et les traînées ne transmettent que les
+cases ajoutées, un numéro de version indiquant au client quand repartir de zéro.
+Mesure : **41 → 19,5 Ko/s** dans le pire cas.
+
+> Une correction méthodologique mérite d'être notée : une première mesure
+> annonçait 64 Ko/s après cette optimisation. Le banc d'essai n'appelait
+> `snapshot` qu'un tick sur dix, laissant les différences s'accumuler — le test
+> était faux, pas le code. À la cadence réelle du moteur, le gain est bien réel.
+
+### Vérifications passées
+
+- **18 tests de bout en bout** contre le vrai serveur : création de salon, six
+  joueurs, manche complète, arrivée en pleine manche, reconnexion par pseudo,
+  classement trié, refus d'un joueur qui tente de piloter la manche.
+- **Non-régression des 6 jeux existants** : tous créent un salon, acceptent un
+  joueur, sont résolus par `/api/room/:code` — et **montent tous en WebSocket**.
+- **Repli polling** vérifié en forçant `transports: ['polling']` : le jeu reste
+  jouable, ce qui valide la garantie « aucune régression possible ».
+
+### Le comparatif Paper.io-2 (Unity)
+
+Le dépôt de référence transmis emploie un **maillage polygonal triangulé** et des
+`SphereCollider` posés le long de la traînée. Rien n'en a été repris : c'est du
+solo local sans serveur, la triangulation est intransposable à Node et
+insérialisable à 10 Hz, et le jeu **n'a pas de réapparition** (`Die()` → `GameOver`)
+— l'inverse exact de ce qu'exige un bar où l'on rejoint en cours. Seul détail
+retenu : la traînée semi-transparente, reprise pour la lisibilité de l'écran.
+
+## Reste à faire
+
+- [ ] **Test en salle** : 6 téléphones réels. Rien ne remplace cette étape.
+- [ ] Les 7 autres modes .io, un par un (~150 lignes chacun désormais)
+
+## Point de vigilance signalé (hors périmètre)
+
+`quizController.js:145` appelle `callback({ roomCode })` sans vérifier que le
+callback existe : un client qui émet `create-room` sans fonction de rappel fait
+**tomber le serveur entier** (`TypeError: callback is not a function`, constaté
+pendant les tests). Les autres contrôleurs utilisent un `safeCallback` qui s'en
+protège. À corriger dans un chantier dédié.

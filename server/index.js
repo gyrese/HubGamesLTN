@@ -36,6 +36,8 @@ const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
 const colorController = require('./controllers/colorController');
 const fakeArtistController = require('./controllers/fakeArtistController');
+const partyController = require('./controllers/partyController');
+const ioArenaController = require('./controllers/ioController');
 
 const rateLimit = require('express-rate-limit');
 
@@ -124,7 +126,19 @@ app.get('/api/room/:code', (req, res) => {
     if (fakeArtistGameManager.getRoom(roomCode)) {
         return res.json({ gameType: 'fakeartist' });
     }
-    
+
+    // Check Super LTN Party
+    const partyGameManager = require('./partyGameManager');
+    if (partyGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'party' });
+    }
+
+    // Check IO Arena
+    const ioGameManager = require('./ioGameManager');
+    if (ioGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'io' });
+    }
+
     res.status(404).json({ error: 'Salon non trouvé' });
 });
 
@@ -167,12 +181,19 @@ const io = new Server(server, {
         methods: ["GET", "POST"],
         credentials: true
     },
-    // STRATÉGIE POLLING-ONLY (Stabilité maximale - mobile)
-    transports: ["polling"],
-    allowUpgrades: false,
-    // Hardening pour réseaux instables (mobile)
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    // Polling d'abord, puis montée automatique en WebSocket si le réseau et le
+    // proxy le permettent. WebSocket est nettement plus stable que le long-polling
+    // sur mobile (pas une requête HTTP par message, pas de coupure de cycle de
+    // poll en veille radio) et c'est le prérequis des jeux temps réel (IO).
+    // Si l'upgrade échoue, le client RESTE en polling sans rupture : pas de
+    // régression possible par rapport au mode polling-only précédent.
+    transports: ["polling", "websocket"],
+    allowUpgrades: true,
+    // Hardening pour réseaux instables (mobile). Lien mort détecté en ≤20s
+    // (pingInterval + pingTimeout) au lieu de ~85s. Un faux positif ne coûte
+    // qu'un blip : la reconnexion se fait par pseudo avec resynchronisation.
+    pingTimeout: 10000,
+    pingInterval: 10000,
     connectTimeout: 45000,
     allowEIO3: false
 });
@@ -206,6 +227,24 @@ io.on('connection', (socket) => {
         console.error(`[IO_ERR] socketId=${socket.id}: ${err.message}`);
     });
 
+    // Sonde de vivacité du watchdog client (retour d'arrière-plan mobile) : on
+    // acquitte immédiatement pour prouver que le lien est réellement vivant.
+    socket.on('connection:ping', (ack) => {
+        if (typeof ack === 'function') ack();
+    });
+
+    // Synchronisation d'horloge (SNTP) : le client calcule son décalage avec le
+    // serveur pour interpoler correctement les états temps réel et aligner les
+    // comptes à rebours entre appareils.
+    socket.on('connection:syncTime', (data, ack) => {
+        if (typeof ack === 'function') {
+            ack({
+                clientTime: typeof data?.clientTime === 'number' ? data.clientTime : Date.now(),
+                serverTime: Date.now(),
+            });
+        }
+    });
+
     try {
         // Delegate execution to game controllers
         // Each controller will register its own event listeners on the socket
@@ -214,6 +253,8 @@ io.on('connection', (socket) => {
         drawController.handleConnection(io, socket);
         colorController.handleConnection(io, socket);
         fakeArtistController.handleConnection(io, socket);
+        partyController.handleConnection(io, socket);
+        ioArenaController.handleConnection(io, socket);
         console.log('[SERVER] All controllers initialized for socket:', socket.id);
     } catch (error) {
         console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);

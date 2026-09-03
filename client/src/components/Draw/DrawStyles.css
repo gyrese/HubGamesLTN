@@ -41,7 +41,10 @@ body.draw-neon {
     color: var(--dr-text);
     background: var(--dr-bg) !important;
     min-height: 100vh;
+    min-height: 100dvh;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* ── App background: deep space + aurora glows + fine grid ─────────── */
@@ -54,6 +57,7 @@ body.draw-neon {
         radial-gradient(120% 90% at 100% 100%, rgba(240, 57, 139, 0.14) 0%, transparent 55%),
         radial-gradient(90%  70% at 90% 5%,   rgba(34, 211, 238, 0.10) 0%, transparent 50%),
         var(--dr-bg);
+    box-sizing: border-box;
 }
 body.draw-neon { overflow-x: hidden; }
 .dr-app::before {
@@ -238,6 +242,39 @@ body.draw-neon .dr-icon-btn.active {
     box-shadow: var(--dr-glow-v);
 }
 
+body.draw-neon .dr-icon-btn-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--dr-line-2);
+    color: var(--dr-text);
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+}
+body.draw-neon .dr-icon-btn-sm:not(:disabled):hover { background: rgba(255,255,255,0.12); }
+body.draw-neon .dr-icon-btn-sm:active { transform: scale(0.92); }
+body.draw-neon .dr-icon-btn-sm:disabled { opacity: 0.3; cursor: not-allowed; }
+body.draw-neon .dr-icon-btn-sm.active {
+    background: var(--dr-grad);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: var(--dr-glow-v);
+}
+
+body.draw-neon .dr-color-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+body.draw-neon .dr-color-dot:active { transform: scale(0.9); }
+
 /* ── Pills / chips / tags ─────────────────────────────────────────── */
 body.draw-neon .dr-pill {
     display: inline-flex;
@@ -336,17 +373,22 @@ body.draw-neon .dr-timer-fill {
 .canvas-container-4-3 {
     position: relative;
     aspect-ratio: 4 / 3;
-    width: 100%;
+    max-width: 100%;
     max-height: 100%;
+    width: auto;
+    height: auto;
     margin: auto;
     background: #fff;
     border-radius: 16px;
     border: 1px solid rgba(255,255,255,0.14);
     box-shadow:
         0 0 0 1px rgba(139,92,246,0.25),
-        0 30px 70px -30px rgba(139,92,246,0.5),
-        0 0 90px -20px rgba(240,57,139,0.25);
+        0 20px 50px -25px rgba(139,92,246,0.5),
+        0 0 70px -20px rgba(240,57,139,0.25);
     overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
 }
 .draw-canvas {
     touch-action: none;

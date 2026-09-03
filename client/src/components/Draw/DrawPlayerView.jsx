@@ -627,7 +627,18 @@ function DrawPlayerView() {
         socket.emit('draw-skip-word', { roomCode }, (r) => {
             if (r.success) { 
                 setMyWord({ word: r.word, category: r.category, hint: r.hint }); 
-                clearCanvas(true); 
+                clearCanvas(true);
+                if (r.myScore !== undefined) {
+                    setMyScore(r.myScore);
+                    const stored = localStorage.getItem('draw-session');
+                    if (stored) {
+                        try {
+                            const session = JSON.parse(stored);
+                            session.myScore = r.myScore;
+                            localStorage.setItem('draw-session', JSON.stringify(session));
+                        } catch {}
+                    }
+                }
             }
         });
     };
@@ -666,13 +677,18 @@ function DrawPlayerView() {
     // ── JOIN ──────────────────────────────────────────────────────────
     if (!isJoined) {
         return (
-            <div className="dr-app h-svh flex flex-col overflow-hidden"
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app min-h-[100dvh] flex flex-col justify-between overflow-y-auto"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 16px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 16px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 16px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 16px)'
+                }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
 
-                <div className="flex-1 min-h-0 w-full max-w-sm mx-auto flex flex-col px-5 pt-3 pb-3 gap-3 dr-fade-up">
-                    {/* Logo (compact, une ligne) */}
-                    <div className="flex-shrink-0 flex items-center justify-center gap-3 pt-1">
+                <div className="w-full max-w-sm mx-auto flex flex-col gap-3.5 dr-fade-up my-auto py-2">
+                    {/* Logo */}
+                    <div className="flex-shrink-0 flex items-center justify-center gap-3">
                         <div className="dr-logo-mark w-11 h-11">
                             <span className="material-symbols-outlined text-2xl">stylus_note</span>
                         </div>
@@ -683,14 +699,14 @@ function DrawPlayerView() {
                     </div>
 
                     {error && (
-                        <div className="flex-shrink-0 dr-card-2 p-3 text-center text-sm font-semibold text-[color:var(--dr-red)] dr-pop"
+                        <div className="dr-card-2 p-3 text-center text-sm font-semibold text-[color:var(--dr-red)] dr-pop"
                             style={{ borderColor: 'rgba(251,85,112,0.4)', background: 'rgba(251,85,112,0.1)' }}>
                             {error}
                         </div>
                     )}
 
                     {/* Code + pseudo */}
-                    <div className="flex-shrink-0 dr-card p-4 flex flex-col gap-3">
+                    <div className="dr-card p-4 flex flex-col gap-3">
                         <div className="flex flex-col gap-1.5">
                             <label className="dr-eyebrow">Code du salon</label>
                             <input
@@ -717,15 +733,15 @@ function DrawPlayerView() {
                         </div>
                     </div>
 
-                    {/* Avatars — seule zone qui défile (interne), la page ne scrolle jamais */}
-                    <div className="flex-1 min-h-0 flex flex-col gap-1.5">
-                        <label className="dr-eyebrow flex-shrink-0 flex items-center justify-between">
+                    {/* Avatars */}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="dr-eyebrow flex items-center justify-between">
                             <span>Choisis ton avatar</span>
                             <span className="w-6 h-6 dr-ava dr-ava-ring">
                                 <img src={avatar} alt="" className="w-full h-full object-cover" />
                             </span>
                         </label>
-                        <div className="dr-scroll flex-1 min-h-0 overflow-y-auto grid grid-cols-5 gap-2 content-start p-0.5">
+                        <div className="dr-scroll max-h-40 overflow-y-auto grid grid-cols-5 gap-2 p-1.5 dr-card-2">
                             {ALL_AVATARS.slice(0, 30).map((url) => (
                                 <button
                                     key={url}
@@ -741,14 +757,16 @@ function DrawPlayerView() {
                         </div>
                     </div>
 
-                    {/* Actions (toujours visibles) */}
-                    <button onClick={joinRoom} className="flex-shrink-0 dr-btn dr-btn-primary w-full py-3 text-base">
-                        <span className="material-symbols-outlined text-lg">bolt</span>
-                        Rejoindre la partie
-                    </button>
-                    <button onClick={() => navigate('/draw')} className="flex-shrink-0 dr-btn dr-btn-ghost py-2 text-sm mx-auto">
-                        <span className="material-symbols-outlined text-base">arrow_back</span> Retour
-                    </button>
+                    {/* Actions */}
+                    <div className="flex flex-col gap-2 pt-1">
+                        <button onClick={joinRoom} className="dr-btn dr-btn-primary w-full py-3 text-base">
+                            <span className="material-symbols-outlined text-lg">bolt</span>
+                            Rejoindre la partie
+                        </button>
+                        <button onClick={() => navigate('/draw')} className="dr-btn dr-btn-ghost py-2 text-sm mx-auto">
+                            <span className="material-symbols-outlined text-base">arrow_back</span> Retour
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -757,21 +775,27 @@ function DrawPlayerView() {
     // ── LOBBY ─────────────────────────────────────────────────────────
     if (gameState === 'LOBBY') {
         return (
-            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-hidden">
+            <div className="dr-app min-h-[100dvh] flex items-center justify-center p-4 overflow-y-auto"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 20px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 20px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 16px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 16px)'
+                }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
-                <div className="flex flex-col items-center gap-6 max-w-xs w-full dr-fade-up">
-                    <div className="w-28 h-28 dr-ava dr-ava-ring">
+                <div className="flex flex-col items-center gap-5 max-w-xs w-full dr-fade-up my-auto">
+                    <div className="w-24 h-24 dr-ava dr-ava-ring">
                         <img src={avatar} alt="" className="w-full h-full object-cover" />
                     </div>
                     <div className="text-center">
-                        <h2 className="dr-h text-3xl">{playerName}</h2>
-                        <div className="dr-pill dr-pill-violet mt-3">
+                        <h2 className="dr-h text-2xl">{playerName}</h2>
+                        <div className="dr-pill dr-pill-violet mt-2">
                             <span className="material-symbols-outlined text-sm">tag</span>
                             <span className="dr-mono tracking-widest">{roomCode}</span>
                         </div>
                     </div>
-                    <div className="dr-card w-full p-7 flex flex-col items-center gap-3">
+                    <div className="dr-card w-full p-5 flex flex-col items-center gap-2.5">
                         <div className="flex gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--dr-violet)] animate-bounce" style={{ animationDelay: '0ms' }} />
                             <span className="w-2.5 h-2.5 rounded-full bg-[color:var(--dr-magenta)] animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -788,48 +812,55 @@ function DrawPlayerView() {
     // ── PLAYING — DESSINATEUR ─────────────────────────────────────────
     if (gameState === 'PLAYING' && isDrawer) {
         return (
-            <div className="dr-app h-svh flex flex-col overflow-hidden relative"
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden relative"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 6px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 6px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 8px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 8px)'
+                }}>
 
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
-                        <div key={countdownVal} className="dr-countdown text-[7rem] leading-none">{countdownVal}</div>
-                        <div className="dr-h text-lg mt-3 text-[color:var(--dr-muted)]">Prépare-toi à dessiner !</div>
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/90 backdrop-blur-md">
+                        <div key={countdownVal} className="dr-countdown text-[6rem] leading-none">{countdownVal}</div>
+                        <div className="dr-h text-base mt-2 text-[color:var(--dr-muted)]">Prépare-toi à dessiner !</div>
                     </div>
                 )}
 
-                {/* Header — timer */}
-                <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 border-b border-[color:var(--dr-line)]">
-                    <div className={`dr-mono font-bold text-2xl ${timerClass} text-[color:var(--dr-text)]`}>{timer}</div>
-                    <div className="flex-1 dr-timer-track">
-                        <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
+                {/* Top Bar: Timer & Word Banner Combined */}
+                <div className="flex items-center justify-between gap-2 px-1 py-1 flex-shrink-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className={`dr-mono font-bold text-lg leading-none ${timerClass} text-[color:var(--dr-text)]`}>{timer}s</div>
+                        <div className="flex-1 max-w-[80px] sm:max-w-[120px] dr-timer-track" style={{ height: '6px' }}>
+                            <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
+                        </div>
+                        <div className="dr-pill dr-pill-violet text-[10px] py-0.5 px-1.5"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
                     </div>
-                    <div className="dr-pill dr-pill-violet"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
+
+                    {myWord && (
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <div className="px-2.5 py-1 rounded-xl flex items-center gap-1.5 border"
+                                style={{ background: 'var(--dr-grad)', borderColor: 'rgba(255,255,255,0.25)', boxShadow: 'var(--dr-glow-v)' }}>
+                                <span className="dr-h text-sm sm:text-base text-white tracking-wide">{myWord.word}</span>
+                                {myWord.hint && (
+                                    <span className="text-[10px] text-white/90 font-medium hidden xs:inline">({myWord.hint})</span>
+                                )}
+                            </div>
+                            <button
+                                onClick={handleSkipWord}
+                                className="dr-btn dr-btn-ghost text-[10px] sm:text-xs py-1 px-2 flex items-center gap-1"
+                                style={{ background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)' }}
+                                title="Passer le mot (-40 pts)"
+                            >
+                                <span className="material-symbols-outlined text-sm">refresh</span>
+                                <span>-40 pts</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Word banner */}
-                {myWord && (
-                    <div className="dr-pop mx-3 mt-3 flex-shrink-0 flex items-center justify-between gap-3 rounded-2xl p-3.5"
-                        style={{ background: 'var(--dr-grad)', boxShadow: 'var(--dr-glow-v)' }}>
-                        <div className="min-w-0">
-                            <div className="dr-eyebrow text-white/85">À toi de dessiner</div>
-                            <div className="dr-h text-2xl text-white truncate">{myWord.word}</div>
-                            {myWord.hint && (
-                                <div className="text-[11px] text-white/85 font-medium flex items-center gap-1 mt-0.5">
-                                    <span className="material-symbols-outlined text-sm">lightbulb</span>{myWord.hint}
-                                </div>
-                            )}
-                        </div>
-                        <button onClick={handleSkipWord}
-                            className="dr-btn dr-btn-ghost flex-shrink-0 text-xs py-2 px-3"
-                            style={{ background: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.35)', color: '#fff' }}>
-                            <span className="material-symbols-outlined text-base">refresh</span> Passer
-                        </button>
-                    </div>
-                )}
-
-                {/* Canvas */}
-                <div className="flex-1 min-h-0 flex items-center justify-center p-3 relative">
+                {/* Canvas Area */}
+                <div className="flex-1 min-h-0 min-w-0 w-full flex items-center justify-center p-1 relative">
                     <div className="canvas-container-4-3">
                         <canvas
                             ref={canvasRef}
@@ -845,97 +876,119 @@ function DrawPlayerView() {
                     </div>
                 </div>
 
-                {/* Tools */}
-                <div className="flex-shrink-0 px-3 pb-3 flex flex-col gap-2.5">
-                    {/* Colors */}
-                    <div className="dr-card-2 p-2.5 grid grid-cols-9 gap-1.5">
-                        {COLORS.map(c => {
-                            const isSel = selectedColor === c.value && !isEraser;
-                            return (
+                {/* Compact Consolidated Toolbar */}
+                <div className="flex-shrink-0 px-0.5 pt-1 pb-1 flex flex-col gap-1.5">
+                    <div className="dr-card p-1.5 sm:p-2 flex flex-col gap-1.5">
+                        {/* Row 1: Colors */}
+                        <div className="flex items-center justify-between gap-1 px-1 overflow-x-auto">
+                            {COLORS.map(c => {
+                                const isSel = selectedColor === c.value && !isEraser;
+                                return (
+                                    <button
+                                        key={c.value}
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedColor(c.value);
+                                            setTool(t => (t === 'eraser' ? 'pen' : t));
+                                        }}
+                                        className="dr-color-dot"
+                                        style={{
+                                            backgroundColor: c.value,
+                                            transform: isSel ? 'scale(1.22)' : 'scale(1)',
+                                            border: c.value === '#ffffff' ? '1px solid #ccc' : '1px solid rgba(0,0,0,0.25)',
+                                            boxShadow: isSel ? '0 0 0 2px #fff, 0 0 10px rgba(255,255,255,0.8)' : undefined,
+                                        }}
+                                        aria-label={c.name}
+                                        title={c.name}
+                                    />
+                                );
+                            })}
+                        </div>
+
+                        {/* Row 2: Tools (Brushes, Fill, Eraser) + Sizes + Undo + Clear */}
+                        <div className="flex items-center justify-between gap-1 pt-1 border-t border-[color:var(--dr-line)]">
+                            {/* Brushes */}
+                            <div className="flex items-center gap-1">
+                                {BRUSHES.map(b => (
+                                    <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => setTool(b.id)}
+                                        className={`dr-icon-btn-sm ${tool === b.id && !isEraser ? 'active' : ''}`}
+                                        aria-label={b.label}
+                                        title={b.label}
+                                    >
+                                        <span className="material-symbols-outlined text-base">{b.icon}</span>
+                                    </button>
+                                ))}
                                 <button
-                                    key={c.value}
-                                    onClick={() => {
-                                        setSelectedColor(c.value);
-                                        // Choisir une couleur sort de la gomme (le pot, lui, s'en sert)
-                                        setTool(t => (t === 'eraser' ? 'pen' : t));
-                                    }}
-                                    className="aspect-square rounded-full transition-transform duration-100"
-                                    style={{
-                                        backgroundColor: c.value,
-                                        transform: isSel ? 'scale(1.18)' : undefined,
-                                        border: c.value === '#ffffff' ? '1px solid #ccc' : '1px solid rgba(0,0,0,0.2)',
-                                        boxShadow: isSel ? '0 0 0 2px #fff, 0 0 14px rgba(255,255,255,0.7)' : undefined,
-                                    }}
-                                    aria-label={c.name}
-                                    title={c.name}
-                                />
-                            );
-                        })}
-                    </div>
+                                    type="button"
+                                    onClick={() => setTool('fill')}
+                                    className={`dr-icon-btn-sm ${tool === 'fill' && !isEraser ? 'active' : ''}`}
+                                    aria-label="Pot de peinture"
+                                    title="Pot de peinture"
+                                >
+                                    <span className="material-symbols-outlined text-base">format_color_fill</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setTool('eraser')}
+                                    className={`dr-icon-btn-sm ${isEraser ? 'active' : ''}`}
+                                    aria-label="Gomme"
+                                    title="Gomme"
+                                >
+                                    <span className="material-symbols-outlined text-base">ink_eraser</span>
+                                </button>
+                            </div>
 
-                    {/* Outils : brosses, pot de peinture, gomme */}
-                    <div className="dr-card-2 p-2 flex items-center justify-center gap-2">
-                        {BRUSHES.map(b => (
-                            <button
-                                key={b.id}
-                                onClick={() => setTool(b.id)}
-                                className={`dr-icon-btn ${tool === b.id ? 'active' : ''}`}
-                                aria-label={b.label}
-                                title={b.label}
-                            >
-                                <span className="material-symbols-outlined text-lg">{b.icon}</span>
-                            </button>
-                        ))}
-                        <div className="w-px h-6 bg-[color:var(--dr-line-2)]" />
-                        <button
-                            onClick={() => setTool('fill')}
-                            className={`dr-icon-btn ${tool === 'fill' ? 'active' : ''}`}
-                            aria-label="Pot de peinture"
-                            title="Pot de peinture — remplit la zone touchée"
-                        >
-                            <span className="material-symbols-outlined text-lg">format_color_fill</span>
-                        </button>
-                        <button
-                            onClick={() => setTool('eraser')}
-                            className={`dr-icon-btn ${isEraser ? 'active' : ''}`}
-                            aria-label="Gomme"
-                            title="Gomme"
-                        >
-                            <span className="material-symbols-outlined text-lg">ink_eraser</span>
-                        </button>
-                    </div>
+                            {/* Separator */}
+                            <div className="w-px h-5 bg-[color:var(--dr-line-2)] flex-shrink-0" />
 
-                    {/* Tailles + actions */}
-                    <div className="dr-card-2 p-2 flex items-center justify-center gap-2">
-                        {BRUSH_SIZES.map(size => (
-                            <button
-                                key={size}
-                                onClick={() => setBrushSize(size)}
-                                disabled={tool === 'fill'}
-                                className={`dr-icon-btn ${brushSize === size ? 'active' : ''}`}
-                                aria-label={`Taille ${size}`}
-                            >
-                                <div className="rounded-full bg-current"
-                                    style={{ width: Math.min(size * 0.7, 20), height: Math.min(size * 0.7, 20) }} />
-                            </button>
-                        ))}
-                        <div className="w-px h-6 bg-[color:var(--dr-line-2)]" />
-                        <button
-                            onClick={handleUndo}
-                            disabled={strokesHistoryRef.current.length === 0}
-                            className="dr-icon-btn"
-                            aria-label="Annuler"
-                        >
-                            <span className="material-symbols-outlined text-lg">undo</span>
-                        </button>
-                        <button
-                            onClick={handleClearCanvas}
-                            className="dr-icon-btn"
-                            aria-label="Tout effacer"
-                            style={{ color: 'var(--dr-red)', borderColor: 'rgba(251,85,112,0.4)' }}
-                        >
-                            <span className="material-symbols-outlined text-lg">delete</span>
-                        </button>
+                            {/* Sizes */}
+                            <div className="flex items-center gap-1">
+                                {BRUSH_SIZES.map((size, idx) => (
+                                    <button
+                                        key={size}
+                                        type="button"
+                                        onClick={() => setBrushSize(size)}
+                                        disabled={tool === 'fill'}
+                                        className={`dr-icon-btn-sm ${brushSize === size ? 'active' : ''}`}
+                                        aria-label={`Taille ${size}`}
+                                        title={`Taille ${size}`}
+                                    >
+                                        <div className="rounded-full bg-current"
+                                            style={{ width: 4 + idx * 3.5, height: 4 + idx * 3.5 }} />
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Separator */}
+                            <div className="w-px h-5 bg-[color:var(--dr-line-2)] flex-shrink-0" />
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
+                                    onClick={handleUndo}
+                                    disabled={strokesHistoryRef.current.length === 0}
+                                    className="dr-icon-btn-sm"
+                                    aria-label="Annuler"
+                                    title="Annuler"
+                                >
+                                    <span className="material-symbols-outlined text-base">undo</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleClearCanvas}
+                                    className="dr-icon-btn-sm"
+                                    aria-label="Tout effacer"
+                                    title="Tout effacer"
+                                    style={{ color: 'var(--dr-red)', borderColor: 'rgba(251,85,112,0.4)' }}
+                                >
+                                    <span className="material-symbols-outlined text-base">delete</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -945,88 +998,99 @@ function DrawPlayerView() {
     // ── PLAYING — DEVINEUR ────────────────────────────────────────────
     if (gameState === 'PLAYING' && !isDrawer) {
         return (
-            <div className="dr-app h-svh flex flex-col overflow-hidden relative"
-                style={{ paddingTop: 'max(env(safe-area-inset-top), 10px)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            <div className="dr-app h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden relative"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 6px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 6px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 8px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 8px)'
+                }}>
 
                 {countdownVal > 0 && (
-                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-md">
-                        <div key={countdownVal} className="dr-countdown text-[7rem] leading-none">{countdownVal}</div>
-                        <div className="dr-h text-lg mt-3 text-[color:var(--dr-muted)]">Prépare-toi à deviner !</div>
+                    <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#08080F]/90 backdrop-blur-md">
+                        <div key={countdownVal} className="dr-countdown text-[6rem] leading-none">{countdownVal}</div>
+                        <div className="dr-h text-base mt-2 text-[color:var(--dr-muted)]">Prépare-toi à deviner !</div>
                     </div>
                 )}
 
-                {/* Header — timer + score */}
-                <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 border-b border-[color:var(--dr-line)]">
-                    <div className={`dr-mono font-bold text-xl ${timerClass} text-[color:var(--dr-text)]`}>{timer}</div>
-                    <div className="flex-1 dr-timer-track">
+                {/* Header — timer + score + round */}
+                <div className="flex items-center gap-2 px-1 py-1 flex-shrink-0 border-b border-[color:var(--dr-line)]">
+                    <div className={`dr-mono font-bold text-lg leading-none ${timerClass} text-[color:var(--dr-text)]`}>{timer}s</div>
+                    <div className="flex-1 dr-timer-track" style={{ height: '6px' }}>
                         <div className={`dr-timer-fill ${timerFill}`} style={{ width: `${timerPct}%` }} />
                     </div>
-                    <div className="dr-pill dr-pill-violet"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
-                    <div className="dr-mono font-bold text-sm text-[color:var(--dr-lime)]">{myScore}</div>
+                    <div className="dr-pill dr-pill-violet text-[10px] py-0.5 px-1.5"><span className="dr-mono">{currentRound}/{totalRounds}</span></div>
+                    <div className="dr-mono font-bold text-xs text-[color:var(--dr-lime)] px-1.5 py-0.5 rounded bg-[rgba(74,222,128,0.1)]">{myScore} pts</div>
                 </div>
 
                 {/* Drawer info + word blanks */}
-                <div className="flex flex-col items-center gap-2 px-4 py-3 flex-shrink-0 bg-[rgba(139,92,246,0.06)] border-b border-[color:var(--dr-line)]">
-                    <div className="text-xs text-[color:var(--dr-muted)] flex items-center gap-1.5">
+                <div className="flex items-center justify-between gap-2 px-1 py-1 flex-shrink-0 bg-[rgba(139,92,246,0.06)] border-b border-[color:var(--dr-line)]">
+                    <div className="text-xs text-[color:var(--dr-muted)] flex items-center gap-1 truncate">
                         <span className="material-symbols-outlined text-sm text-[color:var(--dr-violet-lt)]">stylus_note</span>
-                        <span className="dr-h text-sm text-[color:var(--dr-text)]">{drawerName}</span> dessine…
+                        <span className="dr-h text-xs text-[color:var(--dr-text)] truncate">{drawerName}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                        <span className="dr-pill dr-pill-cyan">{wordCategory}</span>
-                        {Array.from({ length: wordLength }).map((_, i) => (
-                            <div key={i} className="dr-blank" />
-                        ))}
-                        <span className="dr-mono text-[11px] text-[color:var(--dr-dim)]">{wordLength}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <span className="dr-pill dr-pill-cyan text-[9px] py-0.5 px-1.5">{wordCategory}</span>
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: wordLength }).map((_, i) => (
+                                <div key={i} className="dr-blank" style={{ width: '12px', height: '3px' }} />
+                            ))}
+                        </div>
+                        <span className="dr-mono text-[10px] text-[color:var(--dr-dim)]">({wordLength})</span>
                     </div>
                 </div>
 
-                {/* Canvas + réponse regroupés et centrés (évite le grand vide en portrait) */}
-                <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-3 py-3 relative">
-                    <div className={`canvas-container-4-3 draw-canvas-viewer w-full ${hasGuessed ? 'opacity-90' : ''}`}>
+                {/* Canvas Area */}
+                <div className="flex-1 min-h-0 min-w-0 w-full flex items-center justify-center p-1 relative">
+                    <div className={`canvas-container-4-3 draw-canvas-viewer ${hasGuessed ? 'opacity-90' : ''}`}>
                         <canvas ref={canvasRef} className="draw-canvas" />
                         {hasGuessed && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#08080F]/80 backdrop-blur-sm dr-pop">
-                                <span className="material-symbols-outlined text-6xl text-[color:var(--dr-lime)] mb-1" style={{ fontVariationSettings: "'FILL' 1", filter: 'drop-shadow(0 0 16px rgba(74,222,128,0.6))' }}>check_circle</span>
-                                <h3 className="dr-h text-3xl dr-glow-lime">Bravo !</h3>
-                                <div className="dr-pill dr-pill-lime mt-2 text-sm">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#08080F]/85 backdrop-blur-sm dr-pop">
+                                <span className="material-symbols-outlined text-5xl text-[color:var(--dr-lime)] mb-1" style={{ fontVariationSettings: "'FILL' 1", filter: 'drop-shadow(0 0 16px rgba(74,222,128,0.6))' }}>check_circle</span>
+                                <h3 className="dr-h text-2xl dr-glow-lime">Bravo !</h3>
+                                <div className="dr-pill dr-pill-lime mt-1.5 text-xs">
                                     +{guessResult?.points} pts · #{guessResult?.rank}
                                 </div>
                             </div>
                         )}
                     </div>
-
-                    {!hasGuessed && (
-                        <div className="w-full flex-shrink-0">
-                            {guessResult?.closeMatch && (
-                                <div className="text-center text-[11px] font-bold text-[color:var(--dr-amber)] mb-1.5 flex items-center justify-center gap-1 dr-slide-in">
-                                    <span className="material-symbols-outlined text-sm">local_fire_department</span> Très proche ! Vérifie l'orthographe
-                                </div>
-                            )}
-                            <div className={`flex gap-2 ${shakeGuess ? 'shake-input' : ''}`}>
-                                <input
-                                    ref={guessInputRef}
-                                    type="text"
-                                    className="dr-input flex-1 text-base"
-                                    placeholder="Tape ta réponse…"
-                                    value={guess}
-                                    onChange={(e) => setGuess(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
-                                    disabled={hasGuessed || countdownVal > 0}
-                                    autoComplete="off"
-                                    style={shakeGuess ? { borderColor: 'var(--dr-amber)' } : undefined}
-                                />
-                                <button
-                                    onClick={submitGuess}
-                                    disabled={hasGuessed || !guess.trim() || countdownVal > 0}
-                                    className="dr-btn dr-btn-primary px-5"
-                                    aria-label="Valider ma réponse"
-                                >
-                                    <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
+
+                {/* Bottom Input Area */}
+                {!hasGuessed && (
+                    <div className="w-full flex-shrink-0 px-1 pt-1 pb-1">
+                        {guessResult?.closeMatch && (
+                            <div className="text-center text-[11px] font-bold text-[color:var(--dr-amber)] mb-1 flex items-center justify-center gap-1 dr-slide-in">
+                                <span className="material-symbols-outlined text-xs">local_fire_department</span> Très proche ! Vérifie l'orthographe
+                            </div>
+                        )}
+                        <div className={`flex gap-1.5 ${shakeGuess ? 'shake-input' : ''}`}>
+                            <input
+                                ref={guessInputRef}
+                                type="text"
+                                className="dr-input flex-1 text-sm py-2.5"
+                                placeholder="Tape ta réponse…"
+                                value={guess}
+                                onChange={(e) => setGuess(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && submitGuess()}
+                                disabled={hasGuessed || countdownVal > 0}
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck="false"
+                                style={shakeGuess ? { borderColor: 'var(--dr-amber)' } : undefined}
+                            />
+                            <button
+                                onClick={submitGuess}
+                                disabled={hasGuessed || !guess.trim() || countdownVal > 0}
+                                className="dr-btn dr-btn-primary px-4 py-2"
+                                aria-label="Valider ma réponse"
+                            >
+                                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1034,16 +1098,22 @@ function DrawPlayerView() {
     // ── ROUND END ─────────────────────────────────────────────────────
     if (gameState === 'ROUND_END') {
         return (
-            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-hidden">
+            <div className="dr-app min-h-[100dvh] flex items-center justify-center p-4 overflow-y-auto"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 20px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 20px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 16px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 16px)'
+                }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" />
-                <div className="w-full max-w-xs flex flex-col items-center gap-5 dr-fade-up">
-                    <div className="dr-card dr-card-glow w-full p-6 text-center">
+                <div className="w-full max-w-xs flex flex-col items-center gap-4 dr-fade-up my-auto">
+                    <div className="dr-card dr-card-glow w-full p-5 text-center">
                         <div className="dr-eyebrow">Le mot était</div>
-                        <h2 className="dr-h text-4xl dr-grad-text mt-1.5">{revealedWord?.word}</h2>
+                        <h2 className="dr-h text-3xl dr-grad-text mt-1">{revealedWord?.word}</h2>
                     </div>
-                    <div className="dr-card w-full p-6 text-center">
+                    <div className="dr-card w-full p-5 text-center">
                         <div className="dr-eyebrow">Ton score</div>
-                        <div className="dr-mono text-6xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}</div>
+                        <div className="dr-mono text-5xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}</div>
                         <div className="text-xs text-[color:var(--dr-muted)] mt-1">points</div>
                     </div>
                     <p className="dr-eyebrow flex items-center gap-1.5 mt-1">
@@ -1063,35 +1133,40 @@ function DrawPlayerView() {
         const rankColor = myRank === 1 ? 'var(--dr-amber)' : myRank === 2 ? 'var(--dr-cyan)' : myRank === 3 ? 'var(--dr-magenta)' : 'var(--dr-violet)';
 
         return (
-            <div className="dr-app min-h-svh flex items-center justify-center p-6 overflow-y-auto overflow-x-hidden"
-                style={{ paddingTop: 'calc(env(safe-area-inset-top) + 20px)', paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)' }}>
+            <div className="dr-app min-h-[100dvh] flex items-center justify-center p-4 overflow-y-auto"
+                style={{
+                    paddingTop: 'max(env(safe-area-inset-top), 20px)',
+                    paddingBottom: 'max(env(safe-area-inset-bottom), 20px)',
+                    paddingLeft: 'max(env(safe-area-inset-left), 16px)',
+                    paddingRight: 'max(env(safe-area-inset-right), 16px)'
+                }}>
                 <span className="dr-orb dr-orb-v" /><span className="dr-orb dr-orb-m" /><span className="dr-orb dr-orb-c" />
 
-                <div className="w-full max-w-xs flex flex-col gap-4 dr-fade-up">
+                <div className="w-full max-w-xs flex flex-col gap-3.5 dr-fade-up my-auto py-2">
                     {/* My result */}
-                    <div className="dr-card dr-card-glow p-6 text-center dr-pop" style={{ borderColor: rankColor }}>
-                        <div className="text-5xl mb-1">{medals[myRank - 1] || '🎨'}</div>
+                    <div className="dr-card dr-card-glow p-5 text-center dr-pop" style={{ borderColor: rankColor }}>
+                        <div className="text-4xl mb-1">{medals[myRank - 1] || '🎨'}</div>
                         <h2 className="dr-h text-2xl" style={{ color: rankColor }}>
                             {myRank === 1 ? 'Victoire !' : `${myRank}ᵉ place`}
                         </h2>
-                        <div className="dr-mono text-4xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}<span className="text-lg text-[color:var(--dr-muted)] ml-1">pts</span></div>
+                        <div className="dr-mono text-3xl font-bold text-[color:var(--dr-text)] mt-1">{myScore}<span className="text-base text-[color:var(--dr-muted)] ml-1">pts</span></div>
                         {myRank !== 1 && (
-                            <div className="text-xs text-[color:var(--dr-muted)] mt-2">
+                            <div className="text-xs text-[color:var(--dr-muted)] mt-1.5">
                                 Vainqueur : <span className="dr-h text-xs dr-grad-text">{winner?.name}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Full ranking */}
-                    <div className="dr-card p-4">
-                        <div className="dr-eyebrow mb-3">Classement final</div>
-                        <div className="flex flex-col gap-1.5">
+                    <div className="dr-card p-3.5">
+                        <div className="dr-eyebrow mb-2.5">Classement final</div>
+                        <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto dr-scroll pr-1">
                             {finalResults.map((p, i) => {
                                 const me = p.id === socket.id;
                                 return (
-                                    <div key={p.id} className={`flex items-center gap-2.5 p-2 rounded-xl text-sm dr-slide-in ${me ? 'dr-card-2' : ''}`}
+                                    <div key={p.id} className={`flex items-center gap-2 p-2 rounded-xl text-sm dr-slide-in ${me ? 'dr-card-2' : ''}`}
                                         style={{ animationDelay: `${i * 40}ms`, ...(me ? { borderColor: 'rgba(139,92,246,0.5)', background: 'rgba(139,92,246,0.12)' } : {}) }}>
-                                        <span className="dr-mono w-7 text-center font-bold text-[color:var(--dr-muted)]">{medals[i] || `${i + 1}`}</span>
+                                        <span className="dr-mono w-6 text-center font-bold text-[color:var(--dr-muted)]">{medals[i] || `${i + 1}`}</span>
                                         <span className={`flex-1 truncate ${me ? 'dr-h text-sm' : 'font-medium text-[color:var(--dr-text)]'}`}>{p.name}</span>
                                         <span className="dr-mono font-bold text-[color:var(--dr-lime)]">{p.score}</span>
                                     </div>
@@ -1102,10 +1177,10 @@ function DrawPlayerView() {
 
                     {/* Awards */}
                     {awards.length > 0 && (
-                        <div className="grid grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-2 gap-2">
                             {awards.map((a, i) => (
-                                <div key={i} className="dr-card-2 p-3 text-center">
-                                    <div className="text-2xl mb-1">{a.icon}</div>
+                                <div key={i} className="dr-card-2 p-2.5 text-center">
+                                    <div className="text-xl mb-0.5">{a.icon}</div>
                                     <div className="dr-eyebrow text-[color:var(--dr-violet-lt)]">{a.title}</div>
                                     <div className="text-xs font-semibold text-[color:var(--dr-text)] truncate mt-0.5">{a.playerName}</div>
                                 </div>
@@ -1113,7 +1188,7 @@ function DrawPlayerView() {
                         </div>
                     )}
 
-                    <button onClick={() => navigate('/')} className="dr-btn dr-btn-primary w-full py-3.5">
+                    <button onClick={() => navigate('/')} className="dr-btn dr-btn-primary w-full py-3">
                         <span className="material-symbols-outlined text-lg">home</span> Retour au menu
                     </button>
                 </div>

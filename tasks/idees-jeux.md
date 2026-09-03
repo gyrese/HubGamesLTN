@@ -4,6 +4,19 @@
 > grand écran lisible de loin, joueurs qui arrivent/partent en cours de soirée,
 > manches de 3 à 8 minutes, règles compréhensibles sans explication, fidélisation
 > des habitués.
+>
+> **Périmètre.** Tout ce qui relève du **quiz** est hors de ce catalogue : c'est le
+> domaine de **LTNHoot** (`c:/ai/LTNhout`), qui gère déjà QCM, vrai/faux, réponse
+> libre, curseur, date, remise en ordre (`puzzle`), pointage sur image
+> (`drop_pin`), grille d'images, séquence d'images, média audio/vidéo, révélation
+> progressive (`pixelate`, grilles) et mort subite. Neuf idées ont été retirées à
+> ce titre — voir « Ce qui est couvert par LTNHoot » en fin de document.
+> Ne restent ici que les formats que LTNHoot **ne peut pas** produire : rôles
+> cachés, écriture entre joueurs, dessin, vote social, coopératif asymétrique.
+>
+> **Voir aussi** : [idees-jeux-io.md](idees-jeux-io.md) pour les mécaniques .io
+> (temps réel, le téléphone en simple joystick) et
+> [idees-fonctionnalites.md](idees-fonctionnalites.md) pour le socle de plateforme.
 
 ## Barème de coût
 
@@ -22,73 +35,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 
 # TIER S — rentabilité immédiate
 
-### 1. ZOOM_OUT — « c'est quoi ce pixel ? »
-- **Gameplay** : une image démarre zoomée à 4000 % et dézoome lentement. Les joueurs
-  buzzent dès qu'ils reconnaissent (affiche de film, screenshot de jeu, personnage
-  d'anime). Points dégressifs : 1000 pts à 2 s, 200 pts à 20 s. Une mauvaise réponse
-  = verrouillé jusqu'à la fin de la manche.
-- **Écran** : l'image plein cadre qui dézoome + jauge de points qui fond.
-  **Téléphone** : un gros bouton BUZZ, puis champ texte ou 4 choix.
-- **Style** : « scanner d'analyse » — réticule, vignettage, scanlines, cyan sur noir.
-- **Réutilise** : pipeline d'upload d'images de CouleurMoi (Multer + admin), fuzzy
-  matching de Draw, scoring dégressif du Quiz.
-- **Coût** : **S**. Variante gratuite : pixelisation qui se résorbe au lieu du zoom.
-
-### 2. BLIND_TEST — génériques, OST et répliques
-- **Gameplay** : extrait audio de 15 s (générique de série, thème de jeu vidéo,
-  réplique culte). Premier qui buzze bloque la salle et a 5 s pour répondre.
-  Manches thématiques : « OST Nintendo », « génériques des années 90 », « Ghibli ».
-- **Écran** : spectre audio réactif + pochette floutée qui se révèle à la réponse.
-  **Téléphone** : buzzer plein écran avec retour haptique.
-- **Style** : platine vinyle / VU-mètre analogique, ambre chaud sur noir.
-- **Réutilise** : `utils/audio.js` et `soundManager.js`, structure du quizManager,
-  admin d'upload existant (ajouter le type `audio/mpeg` à Multer).
-- **Coût** : **S+**. Le vrai travail est éditorial : constituer la banque d'extraits.
-
-### 3. PLUS_OU_MOINS — duel de stats pop-culture
-- **Gameplay** : deux œuvres face à face. « Quel film a fait le plus d'entrées ? »
-  « Quel jeu s'est le plus vendu ? » « Quel anime a le plus d'épisodes ? ».
-  Tout le monde répond en simultané en 5 s, série de bonnes réponses = multiplicateur.
-- **Écran** : split-screen d'affiches, révélation des chiffres qui défilent en compteur.
-  **Téléphone** : deux moitiés d'écran, gauche / droite.
-- **Style** : affrontement type jeu de combat — VS central, flash à la révélation.
-- **Réutilise** : boucle du quiz, contenu = simple JSON `{ a, b, valeurA, valeurB, unité }`.
-- **Coût** : **S**. Idéal en jeu de transition entre deux gros formats.
-
-### 4. LE JUSTE CHIFFRE — le curseur
-- **Gameplay** : question numérique (« combien de morts dans la saison 1 de GoT ? »,
-  « année de sortie de Half-Life ? », « durée de Titanic en minutes ? »). Chacun place
-  un curseur, score = proximité, exactement comme la distance dans GeoTrackr.
-- **Écran** : ligne graduée où les avatars des joueurs se posent en temps réel, puis
-  la vraie valeur tombe et les écarts s'affichent.
-  **Téléphone** : gros slider + saisie fine au clavier.
-- **Style** : thermomètre rétro-industriel, aiguille, graduations gravées.
-- **Réutilise** : le scoring par proximité de `geoGameManager`, tel quel.
-- **Coût** : **S**. Contenu quasi gratuit à écrire.
-
-### 5. SURVIVOR — vrai/faux à élimination
-- **Gameplay** : tout le bar joue debout. Une affirmation, 5 s, vrai ou faux. Les
-  perdants sont éliminés et le compteur de survivants chute à l'écran. Dernier debout
-  = tournée symbolique. Une partie dure 4 minutes, on peut la relancer dix fois.
-- **Écran** : compteur géant de survivants + mur d'avatars qui s'éteignent un par un.
-  **Téléphone** : deux boutons plein écran, vert / rouge.
-- **Style** : néon rouge d'alerte, sirène douce, compte à rebours agressif.
-- **Réutilise** : quizManager avec un mode `elimination`.
-- **Coût** : **S**. Le meilleur format « drop-in » du catalogue : on rejoint la manche suivante.
-
-### 6. EMOJI_MOVIE — traduis-moi ça
-- **Gameplay** : une suite d'emojis décrit un film, une série, un jeu ou un anime.
-  Réponse libre au clavier, fuzzy matching, points dégressifs. Un indice (première
-  lettre, puis année) tombe toutes les 15 s.
-- **Écran** : les emojis en très grand, qui pulsent. Les bonnes réponses arrivent en
-  cascade avec le pseudo.
-  **Téléphone** : champ texte + envoi.
-- **Style** : bulle de messagerie géante, fond dégradé, typographie ronde.
-- **Réutilise** : l'algorithme de similarité de `drawGameManager`, l'admin mots de Draw
-  (import/export déjà en place).
-- **Coût** : **S**. Zéro asset : le contenu est du texte.
-
-### 7. UNDERCOVER — le Fake Artist sans crayon
+### 1. UNDERCOVER — le Fake Artist sans crayon
 - **Gameplay** : tout le monde reçoit le même mot secret… sauf un joueur qui en reçoit
   un proche (« Batman » vs « Iron Man »). Chacun décrit son mot à voix haute en un seul
   mot, à tour de rôle, puis vote. L'imposteur gagne s'il survit ou s'il devine le mot.
@@ -99,21 +46,11 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
   en retirant le canvas. C'est la reprise la plus directe du dépôt.
 - **Coût** : **S**. Excellent rapport rire/lignes de code.
 
-### 8. QUI A DIT ÇA ? — répliques cultes
-- **Gameplay** : une réplique s'affiche en sous-titre, 4 films/séries proposés.
-  Variante corsée : deviner le personnage, pas l'œuvre.
-- **Écran** : letterbox 2.39:1, la réplique en sous-titre blanc sur bandes noires,
-  grain de pellicule.
-  **Téléphone** : 4 boutons colorés (déjà codés dans le Quiz).
-- **Style** : projection cinéma — c'est littéralement l'identité du bar.
-- **Réutilise** : moteur Quiz intégral, uniquement un thème CSS et un pack de contenu.
-- **Coût** : **S−**. Presque un « skin » de NEURAL_QUIZ, mais l'effet en salle est fort.
-
 ---
 
 # TIER M — mécaniques neuves, grosses soirées
 
-### 9. LE MENSONGE — le Fibbage maison ⭐
+### 2. LE MENSONGE — le Fibbage maison ⭐
 - **Gameplay** : une question à réponse improbable (« Au Japon, il est interdit de… »).
   Phase 1 : chacun écrit une **fausse** réponse crédible. Phase 2 : toutes les fausses
   + la vraie sont mélangées et affichées, tout le monde vote. 500 pts si tu trouves la
@@ -128,39 +65,18 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Pourquoi en premier** : c'est le format qui génère le plus de rires par minute en bar,
   et il tourne indéfiniment avec du contenu écrit à la volée.
 
-### 10. PUNCHLINE — duels d'humour
+### 3. PUNCHLINE — duels d'humour
 - **Gameplay** : chaque joueur reçoit 2 prompts (« la pire réplique de drague d'un Jedi »).
   Chaque prompt oppose 2 joueurs, le reste du bar vote. 3 manches, la dernière compte double.
 - **Écran** : le duel côte à côte, barre de vote qui se remplit en direct, gagnant en confettis.
   **Téléphone** : saisie libre puis vote.
 - **Style** : scène de stand-up — rideau rouge, projecteur, micro.
-- **Réutilise** : même socle que LE MENSONGE (soumission → vote) : si tu fais le 9,
-  le 10 coûte moitié prix.
+- **Réutilise** : même socle que LE MENSONGE (soumission → vote) : si tu fais le n°2,
+  celui-ci coûte moitié prix.
 - **Coût** : **M** seul, **S+** si construit après LE MENSONGE.
 - **Prévoir** : bouton hôte « censurer cette réponse » — indispensable en bar.
 
-### 11. TOP 8 — « une famille en or » geek
-- **Gameplay** : « Citez un personnage de Star Wars », 8 cases cachées classées par
-  popularité. Les joueurs proposent en continu, chaque bonne réponse retourne une case
-  et rapporte selon son rang. Chrono commun de 90 s, jeu coopératif ou par équipes.
-- **Écran** : le tableau des 8 cases qui se retournent avec un son satisfaisant.
-  **Téléphone** : champ texte, envoi rapide en rafale.
-- **Style** : plateau télé années 80 — ampoules, chrome, bleu électrique.
-- **Réutilise** : fuzzy matching de Draw (déjà éprouvé), admin de contenu.
-- **Coût** : **M**. Le contenu est facile à produire (listes de 8).
-
-### 12. CHRONOLOGIE — remets ça dans l'ordre
-- **Gameplay** : 5 cartes (sorties de films, consoles, événements historiques, épisodes)
-  à ordonner par glisser-déposer sur le téléphone. Score = nombre de paires dans le bon
-  ordre, pas tout-ou-rien. Bonus rapidité.
-- **Écran** : les 5 cartes qui se réordonnent en direct, puis la vraie frise se déplie.
-  **Téléphone** : liste réordonnable au doigt (touch drag).
-- **Style** : frise muséale — parchemin sombre, sérif, dorure.
-- **Réutilise** : rien de spécifique, mais le drag mobile est un composant réutilisable
-  ensuite pour d'autres jeux.
-- **Coût** : **M**. Le drag tactile fiable est le seul vrai point dur.
-
-### 13. TÉLÉPHONE ARABE ILLUSTRÉ — le Gartic Phone maison ⭐
+### 4. TÉLÉPHONE ARABE ILLUSTRÉ — le Gartic Phone maison ⭐
 - **Gameplay** : chacun écrit une phrase. Elle passe au voisin qui la dessine. Le dessin
   passe au suivant qui écrit ce qu'il voit. Et ainsi de suite. À la fin, **restitution de
   chaque album sur le grand écran**, étape par étape.
@@ -176,7 +92,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Pourquoi** : c'est le jeu qui produit le meilleur souvenir de soirée. Le reveal final
   est imbattable sur grand écran.
 
-### 14. DÉCRIS-MOI — Time's Up numérique
+### 5. DÉCRIS-MOI — Time's Up numérique
 - **Gameplay** : par équipes. Un joueur voit un mot sur son téléphone et le fait deviner
   **à voix haute** au bar. Les autres buzzent. 45 s par manche, 3 manches avec des
   contraintes croissantes : description libre → un seul mot → mime.
@@ -186,7 +102,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Réutilise** : banque de mots de Draw, système d'équipes à créer (réutilisable ailleurs).
 - **Coût** : **M**. Le jeu le plus « physique » du catalogue, parfait pour ambiancer.
 
-### 15. ARÈNE — tournoi 1v1 à élimination
+### 6. ARÈNE — tournoi 1v1 à élimination
 - **Gameplay** : bracket affiché sur grand écran. Duels de 20 s tirés au sort parmi des
   micro-épreuves : buzzer de réaction, séquence de couleurs à mémoriser, tap le plus
   rapide, question éclair, « trouve l'intrus ». Le vainqueur monte dans l'arbre.
@@ -197,7 +113,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Coût** : **M** pour le socle + bracket, puis **S−** par micro-épreuve ajoutée.
   C'est un jeu qui grossit tout seul.
 
-### 16. QUI EST-CE ? DU BAR — le jeu sur les gens présents
+### 7. QUI EST-CE ? DU BAR — le jeu sur les gens présents
 - **Gameplay** : « Qui, dans cette salle, est le plus susceptible de survivre à une
   apocalypse zombie ? » Chacun vote pour un joueur présent. La révélation affiche le
   podium des votes. Aucun bon ou mauvais choix — pure ambiance. Optionnel : deviner qui
@@ -212,7 +128,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 
 # TIER L — événements de soirée
 
-### 17. LES TOILES NOIRES : NUIT — loup-garou assisté
+### 8. LES TOILES NOIRES : NUIT — loup-garou assisté
 - **Gameplay** : le serveur est le maître du jeu. Distribution des rôles sur les
   téléphones (Loup, Voyante, Sorcière, Chasseur, Cupidon…), phases nuit/jour
   chronométrées, narration audio et ambiance sur le grand écran, votes anonymes,
@@ -225,7 +141,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
   morts qui doivent rester spectateurs. Mais c'est *le* jeu qui remplit un bar un soir de
   semaine et qui devient un rendez-vous mensuel.
 
-### 18. BRAQUAGE — coopératif asymétrique
+### 9. BRAQUAGE — coopératif asymétrique
 - **Gameplay** : le grand écran affiche la salle des coffres et une alarme qui monte.
   Chaque téléphone reçoit **un panneau de contrôle différent** (leviers, codes, câbles)
   et **des instructions destinées à quelqu'un d'autre**. Il faut crier les bonnes infos
@@ -236,7 +152,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Coût** : **L**. Génération procédurale des puzzles + synchronisation serrée.
   Effet garanti : c'est du bruit, du stress et du rire collectif.
 
-### 19. ENQUÊTE — escape game de comptoir (30 min)
+### 10. ENQUÊTE — escape game de comptoir (30 min)
 - **Gameplay** : une affaire à résoudre par tables. Chaque table reçoit des indices
   différents sur ses téléphones et doit échanger avec les autres tables. Le grand écran
   tient le compte à rebours, l'ambiance sonore et le tableau d'enquête.
@@ -246,7 +162,7 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 - **Coût** : **L** pour le moteur, **XL** avec la production de contenu (chaque enquête
   est un scénario à écrire). Modèle : un moteur + un scénario par trimestre.
 
-### 20. SOIRÉE PLATEAU — le Mario Party du bar
+### 11. SOIRÉE PLATEAU — le Mario Party du bar
 - **Gameplay** : un plateau affiché sur le grand écran, les avatars avancent selon les
   résultats des mini-jeux, cases bonus/malus, 45 minutes de partie. Le liant entre tous
   les jeux courts du Tier S.
@@ -290,12 +206,37 @@ Unité de référence = un jeu complet existant (ex. Fake Artist) :
 
 | Priorité | Item | Pourquoi |
 |----------|------|----------|
-| 1 | **ZOOM_OUT** (S) | Une soirée de dev, jouable dès le lendemain, réutilise l'upload d'images |
+| 1 | **UNDERCOVER** (S) | Une soirée de dev : 80 % de `fakeArtistGameManager` est réutilisé tel quel |
 | 2 | **LE MENSONGE** (M) | Le meilleur ratio rires/effort, contenu infini écrit à la volée |
 | 3 | **MODE VEILLE** (S) | L'écran recrute des joueurs tout seul pendant les creux |
 | 4 | **LA LIGUE** (M) | Transforme les soirs isolés en habitude |
 | 5 | **TÉLÉPHONE ARABE ILLUSTRÉ** (M+) | Le souvenir de soirée le plus marquant |
-| 6 | **BLIND_TEST** (S+) | À lancer tôt car la banque d'extraits se constitue dans la durée |
+| 6 | **QUI EST-CE ? DU BAR** (M−) | Zéro contenu à produire, redoutable sur les habitués |
 
-Puis, au fil des semaines, ajouter les jeux du Tier S un par un (chacun tient dans une
-soirée) et garder **LES TOILES NOIRES : NUIT** comme gros lancement d'événement.
+Puis **PUNCHLINE** (moitié prix après LE MENSONGE) et **ARÈNE**, qui grossit tout seul
+d'une micro-épreuve à la fois. **LES TOILES NOIRES : NUIT** reste le gros lancement
+d'événement.
+
+---
+
+# Ce qui est couvert par LTNHoot (retiré de ce catalogue)
+
+Ces neuf formats ne justifient pas un jeu dédié dans le hub : ils se produisent
+en créant un quiz dans LTNHoot, sans une ligne de code.
+
+| Idée retirée | Comment la faire dans LTNHoot |
+|---|---|
+| ZOOM_OUT | `revelationEnabled` + `revelationStyle: "pixelate"` sur une question `mcq` ou `open` |
+| BLIND_TEST | `media.type: "audio"` (ou champ `audio`) + `suddenDeath` pour l'effet buzzer |
+| PLUS_OU_MOINS | `mcq` à 2 réponses, l'affiche de chaque œuvre en `elements` de slide |
+| LE JUSTE CHIFFRE | `slider` (`correctValue`, `min`, `max`, `tolerance`) — et `date` pour les années |
+| SURVIVOR | `true_false` + `time` court. **Manque** : l'élimination progressive |
+| EMOJI_MOVIE | `open` avec `correctAnswers[]` (plusieurs orthographes acceptées) |
+| QUI A DIT ÇA ? | `mcq` + habillage letterbox ; c'était déjà décrit comme un simple skin |
+| TOP 8 | `open`. **Manque** : les 8 cases classées et la saisie en rafale |
+| CHRONOLOGIE | `puzzle` (`items[]` à remettre dans l'ordre) — exactement la mécanique décrite |
+
+**Deux exceptions à garder en tête.** *SURVIVOR* et *TOP 8* ne sont couverts qu'à
+moitié : la boucle d'élimination et le tableau à 8 cases n'existent pas dans
+LTNHoot. Si ces deux formats comptent, l'investissement juste est de les ajouter
+**comme un mode de LTNHoot**, pas de recréer un moteur de quiz dans le hub.

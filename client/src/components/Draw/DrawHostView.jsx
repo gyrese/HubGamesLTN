@@ -321,7 +321,20 @@ function DrawHostView() {
             triggerPodiumConfetti();
         };
 
-        const handleWordSkipped = (data) => { setWordCategory(data.wordCategory); setWordLength(data.wordLength); clearCanvas(true); };
+        const handleWordSkipped = (data) => {
+            setWordCategory(data.wordCategory);
+            setWordLength(data.wordLength);
+            clearCanvas(true);
+            if (data.players) setPlayers(data.players);
+            if (data.drawerName) {
+                setGuessFeed(prev => [{
+                    type: 'skip',
+                    playerName: data.drawerName,
+                    penalty: data.penalty || 40,
+                    id: Date.now()
+                }, ...prev]);
+            }
+        };
         const handleGameRestarted = () => { setGameState('LOBBY'); setCurrentRound(0); setGuessedPlayers(new Set()); setGuessFeed([]); };
 
         socket.on('draw-player-joined', handlePlayerJoined);
@@ -840,13 +853,17 @@ function DrawHostView() {
                                                 ? { background: 'rgba(74,222,128,0.12)', borderColor: 'rgba(74,222,128,0.4)', color: 'var(--dr-lime)' }
                                                 : g.type === 'close'
                                                     ? { background: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.4)', color: 'var(--dr-amber)' }
-                                                    : { background: 'rgba(255,255,255,0.03)', borderColor: 'var(--dr-line)', color: 'var(--dr-muted)' }
+                                                    : g.type === 'skip'
+                                                        ? { background: 'rgba(251,85,112,0.12)', borderColor: 'rgba(251,85,112,0.4)', color: 'var(--dr-red)' }
+                                                        : { background: 'rgba(255,255,255,0.03)', borderColor: 'var(--dr-line)', color: 'var(--dr-muted)' }
                                         }>
                                         {g.type === 'correct'
                                             ? <span className="font-semibold">✅ {g.playerName} a trouvé ! (+{g.points})</span>
                                             : g.type === 'close'
                                                 ? <span className="font-semibold">🔥 {g.playerName} s'approche…</span>
-                                                : <><span className="font-semibold text-[color:var(--dr-text)]">{g.playerName}</span> : {g.guess}</>
+                                                : g.type === 'skip'
+                                                    ? <span className="font-semibold">⏭️ {g.playerName} a passé le mot (-{g.penalty} pts)</span>
+                                                    : <><span className="font-semibold text-[color:var(--dr-text)]">{g.playerName}</span> : {g.guess}</>
                                         }
                                     </div>
                                 ))}

@@ -75,6 +75,12 @@ function JoinPage() {
             case 'fakeartist':
                 navigate(`/fakeartist/play/${code}`);
                 break;
+            case 'party':
+                navigate(`/party/play/${code}`);
+                break;
+            case 'io':
+                navigate(`/io/play/${code}`);
+                break;
             case 'remote':
                 navigate(`/geo/remote/${code}`);
                 break;

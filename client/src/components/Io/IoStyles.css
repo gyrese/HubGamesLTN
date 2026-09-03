@@ -1,0 +1,573 @@
+/* ═══════════════════════════════════════════════════════════════
+   IO_ARENA — thème « arcade sombre »
+   ───────────────────────────────────────────────────────────────
+   Le grand écran affiche une carte de territoires en aplats de
+   couleur : le fond doit donc disparaître pour que la couleur des
+   joueurs porte toute l'information. D'où le noir profond, la
+   grille discrète, et l'absence totale de décor.
+
+   Préfixe `.ioa-` (io- seul serait trop générique), thème activé
+   par `body.io-theme`, comme partout ailleurs dans le hub.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Orbitron (titres) et JetBrains Mono (chiffres) sont déjà chargés par
+   `index.html` — inutile d'ajouter une requête de police pour ce jeu. */
+body.io-theme {
+    background: #05070d;
+    color: #e6edf7;
+    font-family: 'JetBrains Mono', 'Segoe UI', system-ui, monospace;
+    overscroll-behavior: none;
+}
+
+.ioa-root {
+    --ioa-bg: #05070d;
+    --ioa-panel: rgba(14, 20, 34, 0.82);
+    --ioa-border: rgba(120, 200, 255, 0.22);
+    --ioa-accent: #22d3ee;
+    --ioa-accent-warm: #f59e0b;
+    --ioa-ink: #e6edf7;
+    --ioa-muted: #8ea3bf;
+
+    position: relative;
+    min-height: 100dvh;
+    background:
+        radial-gradient(1200px 700px at 50% -10%, rgba(34, 211, 238, 0.10), transparent 70%),
+        var(--ioa-bg);
+    color: var(--ioa-ink);
+    overflow: hidden;
+}
+
+/* Grille de fond : donne l'échelle du terrain sans jamais concurrencer
+   les territoires. Volontairement à peine visible. */
+.ioa-root::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(120, 200, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(120, 200, 255, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* ── Panneaux ─────────────────────────────────────────────────── */
+
+.ioa-panel {
+    /* Le texte secondaire s'inverse automatiquement dans un panneau :
+       une seule variable à redéfinir, tous les styles en ligne suivent. */
+    --ioa-muted: #93a6c0;
+    background: var(--ioa-panel);
+    border: 1px solid var(--ioa-border);
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+}
+
+.ioa-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: linear-gradient(120deg, #22d3ee, #a78bfa 60%, #f59e0b);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.ioa-eyebrow {
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--ioa-muted);
+}
+
+/* ── Boutons ──────────────────────────────────────────────────── */
+
+.ioa-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 48px;              /* cible tactile confortable */
+    padding: 0.75rem 1.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--ioa-border);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--ioa-ink);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ioa-btn:active { transform: scale(0.97); }
+
+.ioa-btn-primary {
+    background: linear-gradient(120deg, #22d3ee, #0891b2);
+    border-color: transparent;
+    color: #04202a;
+    box-shadow: 0 8px 26px rgba(34, 211, 238, 0.32);
+}
+
+.ioa-btn-warm {
+    background: linear-gradient(120deg, #fbbf24, #f59e0b);
+    border-color: transparent;
+    color: #2a1a02;
+    box-shadow: 0 8px 26px rgba(245, 158, 11, 0.3);
+}
+
+.ioa-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.ioa-input {
+    width: 100%;
+    padding: 0.9rem 1.1rem;
+    border-radius: 14px;
+    border: 1px solid var(--ioa-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--ioa-ink);
+    font-size: 1.05rem;
+    outline: none;
+}
+
+.ioa-input:focus {
+    border-color: var(--ioa-accent);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+}
+
+/* ── Écran hôte ───────────────────────────────────────────────── */
+
+/* `min-height: 0` est indispensable : sans lui, un enfant flex refuse de
+   rétrécir sous sa taille naturelle et le terrain déborde hors de l'écran. */
+.ioa-stage {
+    position: relative;
+    width: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    overflow: hidden;
+}
+
+/* Conteneur du rendu WebGL : PixiJS y insère son propre canvas. */
+.ioa-pixi-stage {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    line-height: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--ioa-border);
+    box-shadow: 0 24px 90px rgba(0, 0, 0, 0.75), 0 0 60px rgba(34, 211, 238, 0.05);
+}
+
+.ioa-pixi-stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.ioa-canvas {
+    display: block;
+    background: transparent;
+}
+
+.ioa-canvas-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.ioa-chip-svg {
+    flex-shrink: 0;
+    filter: drop-shadow(0 0 4px currentColor);
+}
+
+.ioa-scoreboard {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    min-width: 230px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ioa-score-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 1.05rem;
+    /* Le classement se réordonne en direct : on glisse au lieu de sauter. */
+    transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ioa-chip {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    border: 2px solid rgba(0, 0, 0, 0.55);
+    flex-shrink: 0;
+}
+
+.ioa-timer {
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 26px;
+    /* Chasse fixe obligatoire : sans elle, la largeur change à chaque seconde
+       et le compteur tremble — insupportable sur un écran vu de loin. */
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+}
+
+/* Dernières secondes : le temps devient une alerte. */
+.ioa-timer-urgent {
+    color: #FF2158;
+    border-color: rgba(255, 33, 88, 0.5);
+    animation: ioa-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ioa-pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50%      { transform: translateX(-50%) scale(1.07); }
+}
+
+.ioa-qr-frame {
+    background: #fff;
+    padding: 10px;
+    border-radius: 12px;
+    line-height: 0;
+}
+
+/* Bandeau d'évènements : qui vient d'éliminer qui. */
+.ioa-feed {
+    position: absolute;
+    left: 18px;
+    bottom: 18px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.ioa-feed-item {
+    padding: 7px 13px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--ioa-border);
+    font-size: 0.9rem;
+    animation: ioa-fade-in 0.22s ease;
+}
+
+@keyframes ioa-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Manette (téléphone) ──────────────────────────────────────── */
+
+.ioa-pad {
+    position: relative;
+    width: min(78vw, 340px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 2px solid var(--ioa-border);
+    background:
+        radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.12), transparent 62%),
+        rgba(255, 255, 255, 0.03);
+    touch-action: none;          /* indispensable : sinon le doigt fait défiler la page */
+    user-select: none;
+}
+
+.ioa-pad-stick {
+    position: absolute;
+    width: 78px;
+    height: 78px;
+    margin: -39px 0 0 -39px;
+    border-radius: 50%;
+    background: linear-gradient(140deg, #22d3ee, #0891b2);
+    box-shadow: 0 10px 28px rgba(34, 211, 238, 0.45);
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+}
+
+.ioa-pad-hint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    color: var(--ioa-muted);
+    font-size: 0.95rem;
+    pointer-events: none;
+}
+
+/* État du joueur sur son téléphone : gros, lisible d'un coup d'œil,
+   puisqu'il ne regarde pas son écran pendant qu'il joue. */
+.ioa-player-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    width: min(78vw, 340px);
+}
+
+/* ── Sélecteur de taille de terrain ──────────────────────────────────────── */
+
+.ioa-size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.ioa-size-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--ioa-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--ioa-ink);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.ioa-size-btn strong {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.92rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.ioa-size-btn small {
+    color: var(--ioa-muted);
+    font-size: 0.74rem;
+    line-height: 1.3;
+}
+
+.ioa-size-active {
+    border-color: var(--ioa-accent);
+    background: rgba(34, 211, 238, 0.13);
+    box-shadow: 0 0 0 1px var(--ioa-accent) inset;
+}
+
+/* ── Vue de jeu sur téléphone ─────────────────────────────────────────────
+   Plein écran : la carte occupe tout, le HUD se pose dessus. Le joueur regarde
+   son propre écran pendant la manche, plus le grand écran. */
+
+.ioa-play-root {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    touch-action: none;          /* sans ça, le doigt fait défiler la page */
+    user-select: none;
+}
+
+.ioa-play-stage {
+    position: absolute;
+    inset: 0;
+}
+
+.ioa-play-stage canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.ioa-play-hud {
+    position: absolute;
+    top: env(safe-area-inset-top, 12px);
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 10px 16px;
+    pointer-events: none;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.ioa-play-hud-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Chrono : chasse fixe, sinon la largeur saute à chaque seconde. */
+.ioa-play-timer {
+    font-size: 1.25rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ioa-ink);
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+}
+
+.ioa-play-timer-urgent {
+    color: #FF2158;
+    animation: ioa-blink 1s ease-in-out infinite;
+}
+
+@keyframes ioa-blink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.45; }
+}
+
+/* Classement des trois premiers, en haut à gauche sous le pseudo. */
+.ioa-play-top {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 12px) + 62px);
+    left: 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+}
+
+.ioa-play-top li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: rgba(5, 8, 16, 0.6);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.ioa-play-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ioa-play-top-name {
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ioa-play-top-score {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.8;
+}
+
+/* Mini-carte : tout le terrain en miniature, avec la position de chacun. */
+.ioa-play-minimap {
+    position: absolute;
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 12px) + 12px);
+    border-radius: 10px;
+    background: rgba(5, 8, 16, 0.68);
+    border: 1px solid var(--ioa-border);
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.ioa-play-blip {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    margin: -2.5px 0 0 -2.5px;
+    border-radius: 50%;
+}
+
+.ioa-play-blip-me {
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.ioa-play-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--ioa-ink);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+.ioa-play-score {
+    font-size: 1.4rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--ioa-accent);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+}
+
+/* Le stick apparaît sous le pouce, là où il s'est posé. */
+.ioa-play-stick {
+    position: fixed;
+    width: 58px;
+    height: 58px;
+    margin: -29px 0 0 -29px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.5), rgba(34, 211, 238, 0.42));
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    pointer-events: none;
+    z-index: 5;
+}
+
+.ioa-play-dead {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: rgba(5, 8, 16, 0.72);
+    pointer-events: none;
+}
+
+.ioa-play-dead span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #FF2158;
+}
+
+.ioa-play-dead small {
+    color: var(--ioa-muted);
+    font-size: 0.85rem;
+}
+
+.ioa-dead-veil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(5, 7, 13, 0.78);
+    font-size: 3.4rem;
+    font-weight: 800;
+    color: #ef4444;
+    font-variant-numeric: tabular-nums;
+}

@@ -497,39 +497,35 @@ module.exports = {
 
         // Skip word (drawer can't draw it)
         socket.on('draw-skip-word', async ({ roomCode }, callback) => {
+            const result = await drawGameManager.skipWord(roomCode, socket.id);
+            if (!result || result.error) {
+                callback({ error: result?.error || 'Erreur lors du changement de mot' });
+                return;
+            }
+
+            const newWord = result.word;
             const room = drawGameManager.getRoom(roomCode);
-            if (!room) {
-                callback({ error: 'Room not found' });
-                return;
-            }
-
-            // Only current drawer can skip
-            if (drawGameManager.getCurrentDrawerId(roomCode) !== socket.id) {
-                callback({ error: 'Not the drawer' });
-                return;
-            }
-
-            // Get new word
-            const { getRandomWord } = require('../drawWords');
-            const newWord = await getRandomWord(room.settings.categories);
-            room.currentWord = newWord;
-            room.canvasHistory = [];
+            const drawerName = room?.players.get(socket.id)?.name || '';
 
             callback({
                 success: true,
-                word: newWord.word,
-                category: newWord.category,
-                hint: newWord.hint
+                word: newWord ? newWord.word : '',
+                category: newWord ? newWord.category : '',
+                hint: newWord ? newWord.hint : '',
+                myScore: result.drawerScore
             });
 
-            // Notify others that canvas was cleared (new word)
+            // Notify others that canvas was cleared and word was skipped
             io.to(`draw-${roomCode}`).emit('draw-word-skipped', {
-                wordCategory: newWord.category,
-                wordLength: newWord.word.length
+                wordCategory: newWord ? newWord.category : '',
+                wordLength: newWord && newWord.word ? newWord.word.length : 0,
+                players: result.players,
+                drawerName: drawerName,
+                penalty: 40
             });
             io.to(`draw-${roomCode}`).emit('draw-clear');
 
-            console.log(`[DRAW] Word skipped in room ${roomCode}. New word: ${newWord.word}`);
+            console.log(`[DRAW] Word skipped in room ${roomCode} by ${drawerName} (-40 pts). New word: ${newWord ? newWord.word : ''}`);
         });
 
         socket.on('disconnect', () => {

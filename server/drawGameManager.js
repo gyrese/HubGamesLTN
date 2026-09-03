@@ -369,6 +369,36 @@ class DrawGameManager {
         room.canvasHistory = [];
     }
 
+    async skipWord(roomCode, playerId) {
+        const room = this.rooms.get(roomCode);
+        if (!room) return { error: 'Salon introuvable' };
+        if (room.gameState !== 'PLAYING') return { error: 'Partie non en cours' };
+        if (this.getCurrentDrawerId(roomCode) !== playerId) {
+            return { error: 'Ce n\'est pas votre tour de dessiner' };
+        }
+
+        const drawer = room.players.get(playerId);
+        if (drawer) {
+            drawer.score = Math.max(0, drawer.score - 40);
+            if (room.drawerScoreThisRound !== undefined) {
+                room.drawerScoreThisRound = Math.max(0, room.drawerScoreThisRound - 40);
+            }
+        }
+
+        if (!room.usedWords) room.usedWords = new Set();
+        const newWord = await getRandomWord(room.settings.categories, Array.from(room.usedWords));
+        room.currentWord = newWord;
+        if (newWord) room.usedWords.add(newWord.word);
+        room.canvasHistory = [];
+
+        return {
+            success: true,
+            word: newWord,
+            drawerScore: drawer ? drawer.score : 0,
+            players: this.getPlayersInRoom(roomCode)
+        };
+    }
+
     endRound(roomCode) {
         const room = this.rooms.get(roomCode);
         if (!room) return { error: 'Salon introuvable' };

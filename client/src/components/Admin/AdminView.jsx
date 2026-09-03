@@ -11,12 +11,14 @@ import {
     Edit2, 
     Trash2, 
     HelpCircle,
-    ListFilter
+    ListFilter,
+    LayoutGrid
 } from 'lucide-react';
 import QuizEditor from './QuizEditor';
 import DrawAdmin from './DrawAdmin';
 import GeoAdmin from './GeoAdmin';
 import ColorAdmin from './ColorAdmin';
+import GamesAdmin from './GamesAdmin';
 import Login from './Login';
 
 const isHttps = window.location.protocol === 'https:';
@@ -95,6 +97,10 @@ function AdminView() {
 
         if (activeTab === 'color') {
             return <ColorAdmin />;
+        }
+
+        if (activeTab === 'games') {
+            return <GamesAdmin token={token} apiUrl={API_URL} />;
         }
 
         // Quizzes Tab
@@ -178,6 +184,7 @@ function AdminView() {
             case 'geo': return 'border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.08)]';
             case 'draw': return 'border-pink-500/30 shadow-[0_0_20px_rgba(236,72,153,0.08)]';
             case 'color': return 'border-amber-500/30 shadow-[0_0_20px_rgba(245,158,11,0.08)]';
+            case 'games': return 'border-violet-500/30 shadow-[0_0_20px_rgba(139,92,246,0.08)]';
             default: return 'border-slate-800/80';
         }
     };
@@ -221,7 +228,7 @@ function AdminView() {
                 </div>
 
                 {/* Navigation Tabs */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
                     <button
                         className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
                             activeTab === 'quizzes'
@@ -268,6 +275,18 @@ function AdminView() {
                     >
                         <Palette className="w-5 h-5" />
                         Couleur Moi
+                    </button>
+
+                    <button
+                        className={`flex items-center justify-center gap-3 px-5 py-4 rounded-2xl border transition-all duration-300 font-display text-sm tracking-wider uppercase font-extrabold active:scale-[0.98] ${
+                            activeTab === 'games'
+                                ? 'bg-violet-500/10 border-violet-500 text-violet-400 shadow-[0_0_15px_rgba(139,92,246,0.15)]'
+                                : 'bg-slate-900/30 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                        onClick={() => { setActiveTab('games'); setEditingQuiz(null); }}
+                    >
+                        <LayoutGrid className="w-5 h-5" />
+                        Jeux du hub
                     </button>
                 </div>
 

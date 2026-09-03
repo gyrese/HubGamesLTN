@@ -28,24 +28,26 @@
 }
 
 html {
-  height: 100%;
-  overflow: hidden;
-  touch-action: pan-x pan-y; /* pas de zoom global */
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-x pan-y;
+  scroll-behavior: smooth;
 }
 
 body {
-  height: 100%;
-  overflow: hidden;
-  background-color: var(--bs-body-bg);
-  background-image:
-    radial-gradient(circle at 50% 0%, rgba(0, 255, 65, 0.15) 0%, transparent 50%),
-    linear-gradient(0deg, rgba(0, 0, 0, 1) 0%, rgba(10, 10, 10, 1) 100%);
-  font-family: 'Montserrat', sans-serif;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #07080d;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  color: #e2e8f0;
 }
 
 #root {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 h1,
@@ -62,8 +64,28 @@ h6,
   text-transform: uppercase;
   letter-spacing: 2px;
 }
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #07080d;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 245, 212, 0.4);
+}
 
-/* ... existing scrollbar code ... */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
 
 /* Glitch Effect Class */
 .glitch-text {
