@@ -63,16 +63,21 @@ body.io-theme {
     backdrop-filter: blur(10px);
 }
 
+/* Un aplat clair et une lueur, pas un dégradé trichrome : le camaïeu
+   cyan-violet-orange sur un titre est la signature visuelle qu'on repère
+   immédiatement comme générique. L'accent porte sur un seul mot. */
 .ioa-title {
     font-family: 'Orbitron', sans-serif;
     font-size: clamp(1.8rem, 5vw, 3rem);
     font-weight: 900;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    background: linear-gradient(120deg, #22d3ee, #a78bfa 60%, #f59e0b);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #eaf6ff;
+    text-shadow: 0 0 28px rgba(34, 211, 238, 0.4), 0 3px 0 rgba(0, 0, 0, 0.55);
+}
+
+.ioa-title-accent {
+    color: var(--ioa-accent);
 }
 
 .ioa-eyebrow {
@@ -570,4 +575,122 @@ body.io-theme {
     font-weight: 800;
     color: #ef4444;
     font-variant-numeric: tabular-nums;
+}
+
+
+/* ── Lobby : la salle voit les joueurs arriver ────────────────────────────
+   Un compteur « 3 joueur(s) » ne prouve à personne que son téléphone est
+   connecté. Son pseudo affiché avec sa couleur et sa forme, si. */
+
+.ioa-lobby {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    pointer-events: none;
+}
+
+.ioa-lobby-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 132px));
+    gap: 14px;
+    justify-content: center;
+    max-width: 900px;
+}
+
+.ioa-lobby-seat,
+.ioa-lobby-player {
+    aspect-ratio: 1;
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.ioa-lobby-seat {
+    border: 1.5px dashed rgba(120, 200, 255, 0.16);
+    color: rgba(142, 163, 191, 0.5);
+}
+
+.ioa-lobby-player {
+    padding: 12px;
+    background: rgba(12, 17, 29, 0.88);
+    border: 1.5px solid var(--seat-color);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--seat-color) 22%, transparent),
+                0 10px 28px rgba(0, 0, 0, 0.45);
+    /* Rebond léger à l'arrivée : c'est le moment où le joueur se cherche des
+       yeux sur l'écran, il doit être impossible à manquer. */
+    animation: ioa-seat-fill 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes ioa-seat-fill {
+    0%   { opacity: 0; transform: scale(0.72) translateY(12px); }
+    60%  { transform: scale(1.06); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ioa-lobby-name {
+    font-family: 'Outfit', 'Segoe UI', sans-serif;
+    font-weight: 700;
+    font-size: 0.92rem;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Respect des préférences système : certains ne supportent pas le mouvement. */
+@media (prefers-reduced-motion: reduce) {
+    .ioa-lobby-player,
+    .ioa-timer-urgent,
+    .ioa-feed-item {
+        animation: none !important;
+    }
+}
+
+/* ── Décompte de départ ───────────────────────────────────────────────────
+   Le moment de bascule entre l'attente et le jeu. Chaque chiffre entre net et
+   sort en s'effaçant : c'est ce qui prépare la salle au départ. */
+
+.ioa-countdown {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    background: radial-gradient(circle at 50% 50%, rgba(5, 7, 13, 0.35), rgba(5, 7, 13, 0.9));
+    pointer-events: none;
+}
+
+.ioa-countdown-value {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: clamp(7rem, 20vw, 15rem);
+    line-height: 1;
+    color: var(--ioa-ink);
+    text-shadow: 0 0 70px rgba(34, 211, 238, 0.5);
+    animation: ioa-countdown-beat 800ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ioa-countdown-value.is-go {
+    color: var(--ioa-accent-warm);
+    text-shadow: 0 0 90px rgba(245, 158, 11, 0.65);
+}
+
+@keyframes ioa-countdown-beat {
+    0%   { opacity: 0; transform: scale(1.7); filter: blur(10px); }
+    30%  { opacity: 1; transform: scale(1);   filter: blur(0); }
+    75%  { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.88); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ioa-countdown-value { animation: none; }
 }

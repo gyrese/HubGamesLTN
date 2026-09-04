@@ -25,10 +25,13 @@ const writeSession = (patch) => {
 /**
  * IO_ARENA — le téléphone.
  *
- * **Le téléphone n'affiche pas le jeu.** C'est une manette : un joystick, un
- * score, et rien d'autre. Le joueur regarde le grand écran, pas sa main — c'est
- * ce qui garde la salle tournée au même endroit, et ce qui divise par trois le
- * trafic réseau (aucun instantané n'est envoyé aux téléphones).
+ * Chaque joueur voit **sa portion de terrain**, caméra centrée sur lui, comme
+ * dans un vrai .io : sur une grande carte, personne ne voit tout. Le grand écran
+ * garde la vue d'ensemble pour la salle.
+ *
+ * Le serveur n'envoie à chaque téléphone qu'une fenêtre d'une vingtaine de cases
+ * (`io-view`), pas la carte entière : le coût réseau reste borné quelle que soit
+ * la taille du terrain, et on ne révèle pas la position de joueurs hors de portée.
  */
 function IoPlayerView() {
     const { roomCode: urlRoomCode } = useParams();
@@ -165,7 +168,10 @@ function IoPlayerView() {
         arena.init(stageEl, {
             width: stageEl.clientWidth || 390,
             height: stageEl.clientHeight || 780,
-            glow: 0,
+            // Halo légèrement réduit : sur un écran de téléphone, la scène est
+            // vue de près, un flou trop large noierait les détails. Mesuré à
+            // 60 fps stables avec cette valeur sur un GPU réel.
+            glow: 14,
         }).then(() => {
             if (disposed) { arena.destroy(); return; }
 

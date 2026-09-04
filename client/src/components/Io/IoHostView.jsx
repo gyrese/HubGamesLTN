@@ -72,6 +72,10 @@ function IoHostView() {
     const [feed, setFeed] = useState([]);
     const [scores, setScores] = useState([]);
     const [remaining, setRemaining] = useState(null);
+    // Décompte avant la manche : 3, 2, 1, GO. Sans lui, le jeu bascule du lobby
+    // au terrain sans prévenir — personne n'a le temps de poser le pouce.
+    const [countdown, setCountdown] = useState(null);
+    const [starting, setStarting] = useState(false);
 
     // Données de rendu : dans des refs, car elles changent 10 à 60 fois par
     // seconde et ne doivent jamais provoquer de re-rendu React.
@@ -393,9 +397,28 @@ function IoHostView() {
         [roomCode],
     );
 
-    const start = () => socket.emit('io-start-round', { roomCode }, (res) => {
-        if (res?.error) setError(res.error);
-    });
+    const start = () => {
+        if (starting || countdown !== null) return;
+        setStarting(true);
+        // Le décompte tourne côté écran pendant que le serveur prépare la
+        // manche : les joueurs voient venir le départ au lieu de le subir.
+        const sequence = ['3', '2', '1', 'GO'];
+        let step = 0;
+        setCountdown(sequence[0]);
+        const timer = setInterval(() => {
+            step += 1;
+            if (step < sequence.length) {
+                setCountdown(sequence[step]);
+                return;
+            }
+            clearInterval(timer);
+            setCountdown(null);
+            socket.emit('io-start-round', { roomCode }, (res) => {
+                setStarting(false);
+                if (res?.error) setError(res.error);
+            });
+        }, 800);
+    };
     const stop = () => socket.emit('io-stop-round', { roomCode }, () => {});
 
     if (error) {
@@ -458,6 +481,49 @@ function IoHostView() {
                 {/* PixiJS s'attache ici et gère lui-même son canvas WebGL. */}
                 <div className="ioa-pixi-stage" ref={setStageEl} />
 
+                {/* Décompte : chaque chiffre remonte son propre élément (via `key`)
+                    pour que l'animation se rejoue à chaque pas. */}
+                {countdown !== null && (
+                    <div className="ioa-countdown">
+                        <span
+                            key={countdown}
+                            className={`ioa-countdown-value${countdown === 'GO' ? ' is-go' : ''}`}
+                        >
+                            {countdown}
+                        </span>
+                    </div>
+                )}
+
+                {/* Lobby : la salle doit VOIR les joueurs arriver. Un compteur
+                    « 3 joueur(s) » ne prouve à personne que son téléphone est
+                    bien connecté ; son pseudo affiché avec sa couleur, si. */}
+                {state.state === 'LOBBY' && countdown === null && (
+                    <div className="ioa-lobby">
+                        <p className="ioa-eyebrow">
+                            {state.players.length === 0
+                                ? 'En attente des joueurs'
+                                : `${state.players.length} joueur${state.players.length > 1 ? 's' : ''} en place`}
+                        </p>
+                        <div className="ioa-lobby-grid">
+                            {state.players.map((p) => (
+                                <div
+                                    key={p.id}
+                                    className="ioa-lobby-player"
+                                    style={{ '--seat-color': p.color || '#22D3EE' }}
+                                >
+                                    <ShapeChip shape={p.shape} color={p.color || '#22D3EE'} size={30} />
+                                    <span className="ioa-lobby-name">{p.name}</span>
+                                </div>
+                            ))}
+                            {Array.from({ length: Math.max(0, 6 - state.players.length) }).map((_, i) => (
+                                <div key={`libre-${i}`} className="ioa-lobby-seat">
+                                    <Users className="w-5 h-5" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {playing && seconds !== null && (
                     <div className={`ioa-timer ioa-panel${seconds <= 10 ? ' ioa-timer-urgent' : ''}`}>
                         {String(Math.floor(seconds / 60)).padStart(2, '0')}
@@ -511,9 +577,11 @@ function IoHostView() {
                     <button
                         className="ioa-btn ioa-btn-primary"
                         onClick={start}
-                        disabled={state.players.length < (state.mode?.minPlayers || 1)}
+                        disabled={starting || state.players.length < (state.mode?.minPlayers || 1)}
                     >
-                        <Play className="w-5 h-5" /> Lancer la manche
+                        {starting
+                            ? <><Loader2 className="w-5 h-5 animate-spin" /> Lancement…</>
+                            : <><Play className="w-5 h-5" /> Lancer la manche</>}
                     </button>
                 )}
             </footer>

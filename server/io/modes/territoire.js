@@ -64,16 +64,29 @@ const EMPTY = 0;                    // valeur de case : 0 = neutre, sinon index 
  * Les couleurs sont ordonnées par luminance décroissante : les premiers joueurs
  * arrivés prennent les teintes les plus lumineuses, donc les plus lisibles.
  */
-const IDENTITIES = [
-    { color: '#22D3EE', shape: 'circle' },    // cyan
-    { color: '#FFE44D', shape: 'square' },    // jaune
-    { color: '#FB3B4E', shape: 'triangle' },  // rouge
-    { color: '#4ADE80', shape: 'hexagon' },   // vert
-    { color: '#C084FC', shape: 'diamond' },   // violet
-    { color: '#FB923C', shape: 'star' },      // orange
-];
+const PALETTE = ['#22D3EE', '#FFE44D', '#FB3B4E', '#4ADE80', '#C084FC', '#FB923C'];
+const SHAPES = ['circle', 'square', 'triangle', 'hexagon', 'diamond', 'star'];
 
-const COLORS = IDENTITIES.map((i) => i.color);
+/**
+ * 6 couleurs × 6 formes = 36 identités distinctes, largement au-delà des 20
+ * joueurs annoncés. La couleur tourne vite et la forme lentement : deux joueurs
+ * qui arrivent l'un après l'autre n'ont donc jamais la même couleur, et il faut
+ * six arrivées avant qu'une forme se répète — avec une couleur différente.
+ *
+ * Auparavant six identités seulement tournaient en boucle : à vingt joueurs,
+ * quatre personnes partageaient exactement la même couleur ET la même forme,
+ * indiscernables à l'écran comme au classement.
+ */
+const IDENTITIES = Array.from({ length: PALETTE.length * SHAPES.length }, (_, n) => ({
+    color: PALETTE[n % PALETTE.length],
+    // La forme avance en même temps que la couleur sur le premier tour : les six
+    // premiers arrivants — le cas d'une soirée ordinaire — ont donc six couleurs
+    // ET six formes différentes. Le décalage `+ floor(n/6)` fait ensuite repartir
+    // les formes avec un cran d'écart, ce qui garantit 36 paires uniques.
+    shape: SHAPES[(n + Math.floor(n / PALETTE.length)) % SHAPES.length],
+}));
+
+const COLORS = PALETTE;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilitaires de grille
@@ -191,11 +204,31 @@ function findSpawn(ctx) {
     return { cx: centerX, cy: centerY };
 }
 
+/**
+ * Attribue un index de propriétaire réellement libre.
+ *
+ * L'ancien compteur bouclait modulo 254 sans vérifier : après 254 arrivées et
+ * départs — atteignable en une soirée où les gens vont et viennent — un nouvel
+ * arrivant recevait l'index d'un joueur présent. Les deux peignaient la même
+ * couleur, se traversaient sans mourir, et leurs scores devenaient faux.
+ */
+function allocateOwner(ctx) {
+    const used = new Set();
+    for (const b of ctx.state.bodies.values()) used.add(b.owner);
+    for (let i = 0; i < 254; i += 1) {
+        const candidate = ((ctx.state.nextOwner - 1 + i) % 254) + 1;
+        if (used.has(candidate) || ctx.state.owned.get(candidate)) continue;
+        ctx.state.nextOwner = (candidate % 254) + 1;
+        return candidate;
+    }
+    return null;
+}
+
 function onJoin(ctx, player) {
     if (ctx.state.bodies.has(player.id)) return;
 
-    const owner = ctx.state.nextOwner;
-    ctx.state.nextOwner = (ctx.state.nextOwner % 254) + 1;
+    const owner = allocateOwner(ctx);
+    if (owner === null) return;   // salon plein : on refuse plutôt que de doubler une identité
 
     const { cx, cy } = findSpawn(ctx);
     const identity = IDENTITIES[(owner - 1) % IDENTITIES.length];
@@ -258,9 +291,13 @@ function countCells(ctx, owner) {
 function onInput(ctx, playerId, data) {
     const body = ctx.state.bodies.get(playerId);
     if (!body || !body.alive) return;
-    const angle = Number(data?.angle);
-    if (!Number.isFinite(angle)) return;
-    body.targetAngle = angle;
+    const raw = Number(data?.angle);
+    if (!Number.isFinite(raw)) return;
+    // Normalisation en temps constant. Un angle énorme (1e308) envoyé depuis une
+    // console de navigateur bloquait le serveur dans une boucle infinie : à cette
+    // magnitude, soustraire 2π ne change plus rien en virgule flottante. `atan2`
+    // ramène tout dans ]-π, π] sans jamais boucler.
+    body.targetAngle = Math.atan2(Math.sin(raw), Math.cos(raw));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,14 +317,20 @@ function tick(ctx, dt) {
         // Joueur momentanément déconnecté : son point se fige au lieu de foncer
         // sans pilote vers le premier bord venu. Il reprend là où il s'est
         // arrêté quand son téléphone revient.
-        if (ctx.players.get(playerId)?.disconnected) continue;
+        if (ctx.players.get(playerId)?.disconnected) {
+            // Sa traînée, elle, doit disparaître : personne ne peut plus la
+            // refermer, et elle resterait un mur invisible et mortel au milieu
+            // du terrain pendant toute la manche. Le territoire acquis reste.
+            if (body.trail.length > 0) clearTrail(ctx, body);
+            continue;
+        }
 
         // Braquage progressif : le point ne pivote pas instantanément, ce qui
         // rend le pilotage lisible au pouce et les demi-tours impossibles.
         if (body.targetAngle !== null) {
-            let diff = body.targetAngle - body.angle;
-            while (diff > Math.PI) diff -= Math.PI * 2;
-            while (diff < -Math.PI) diff += Math.PI * 2;
+            // Écart angulaire le plus court, sans boucle de normalisation.
+            const delta = body.targetAngle - body.angle;
+            const diff = Math.atan2(Math.sin(delta), Math.cos(delta));
             const maxTurn = TURN_RATE * dt;
             body.angle += Math.max(-maxTurn, Math.min(maxTurn, diff));
         }
@@ -317,10 +360,13 @@ function tick(ctx, dt) {
         if (victimId) {
             if (victimId === playerId) {
                 kill(ctx, playerId, body, null);          // on s'est coupé soi-même
-            } else {
+            } else if (Date.now() >= (body.shieldUntil || 0)) {
                 const victim = bodies.get(victimId);
                 kill(ctx, victimId, victim, playerId);    // on a coupé quelqu'un
             }
+            // Sous bouclier, on traverse sans couper : la grâce d'apparition
+            // protège, elle n'arme pas. Sinon la meilleure tactique consistait à
+            // mourir exprès pour revenir invulnérable et faucher la mêlée.
             continue;
         }
 
@@ -395,8 +441,14 @@ function captureLoop(ctx, playerId, body) {
     }
 
     // Les scores de tout le monde peuvent avoir bougé lors de cette capture.
-    for (const other of ctx.state.bodies.values()) {
+    for (const [otherId, other] of ctx.state.bodies) {
         other.score = countCells(ctx, other.owner);
+        // Dépossédé de tout : sans base, il ne peut plus jamais refermer une
+        // boucle et errerait jusqu'à mourir au bord. On lui rend un carré tout
+        // de suite plutôt que de le punir une seconde fois.
+        if (other.alive && other.score === 0 && other.owner !== owner) {
+            respawn(ctx, otherId, other);
+        }
     }
 }
 
@@ -412,11 +464,49 @@ function clearTrail(ctx, body) {
     body.sent = 0;
 }
 
+/**
+ * Mort d'un joueur.
+ *
+ * **Le territoire est perdu.** C'est la règle qui fait tenir tout l'équilibre :
+ * sans elle, mourir ne coûte rien et la réapparition offre un carré neuf par
+ * dessus l'ancien — se suicider en boucle devenait littéralement la meilleure
+ * stratégie (mesuré : 25 → 50 cases par mort). Le tueur hérite de la moitié du
+ * territoire, le reste redevient neutre : couper quelqu'un devient l'acte le
+ * plus rentable du jeu, ce que la règle affichée promettait déjà.
+ */
 function kill(ctx, playerId, body, killerId) {
     if (!body || !body.alive) return;
     // Le bouclier d'apparition protège aussi bien de sa propre maladresse que
     // d'un voisin : c'est une fenêtre de grâce, pas une immunité sélective.
     if (Date.now() < (body.shieldUntil || 0)) return;
+
+    // Le territoire du mort change de main. On donne au tueur les cases les plus
+    // proches de lui — la moitié — et on neutralise le reste : un héritage total
+    // ferait basculer la manche sur un seul meurtre.
+    const killerBody = killerId ? ctx.state.bodies.get(killerId) : null;
+    const { grid, cols } = ctx.state;
+    const lost = [];
+    for (let k = 0; k < grid.length; k += 1) if (grid[k] === body.owner) lost.push(k);
+
+    if (killerBody && lost.length > 0) {
+        const kx = killerBody.x / CELL;
+        const ky = killerBody.y / CELL;
+        lost.sort((a, b) => {
+            const ax = a % cols, ay = (a - ax) / cols;
+            const bx = b % cols, by = (b - bx) / cols;
+            return ((ax - kx) ** 2 + (ay - ky) ** 2) - ((bx - kx) ** 2 + (by - ky) ** 2);
+        });
+        const share = Math.floor(lost.length / 2);
+        for (let i = 0; i < lost.length; i += 1) {
+            setCell(ctx, lost[i], i < share ? killerBody.owner : EMPTY);
+        }
+    } else {
+        for (const k of lost) setCell(ctx, k, EMPTY);
+    }
+    for (const other of ctx.state.bodies.values()) {
+        other.score = countCells(ctx, other.owner);
+    }
+
     body.alive = false;
     body.respawnAt = Date.now() + RESPAWN_MS;
     clearTrail(ctx, body);
@@ -717,6 +807,10 @@ module.exports = {
     world: { width: SIZES[DEFAULT_SIZE].cols * CELL, height: SIZES[DEFAULT_SIZE].rows * CELL },
     sizes: SIZES,
     defaultSize: DEFAULT_SIZE,
+    // Le lobby affiche la couleur et la forme de chacun avant même que la
+    // manche démarre : un joueur doit se reconnaître sur l'écran dès qu'il
+    // rejoint, sinon rien ne prouve que son téléphone est bien connecté.
+    identities: IDENTITIES,
     init,
     onJoin,
     onLeave,

@@ -36,7 +36,7 @@ function IoSelectPage() {
             <main className="w-full max-w-2xl flex flex-col gap-6">
                 <div className="text-center">
                     <p className="ioa-eyebrow">Temps réel · le téléphone est une manette</p>
-                    <h1 className="ioa-title">IO Arena</h1>
+                    <h1 className="ioa-title">IO <span className="ioa-title-accent">Arena</span></h1>
                     <p style={{ color: 'var(--ioa-muted)', marginTop: 8 }}>
                         Tout le monde joue en même temps sur le grand écran. On rejoint en
                         cours de partie, on repart quand on veut.

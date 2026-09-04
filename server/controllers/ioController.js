@@ -29,6 +29,7 @@ const RESULT_MS = 15_000;
 const PLAYER_GRACE_MS = 120_000;
 
 const hostDisconnectTimers = new Map();   // roomCode → Timeout
+const inputStamps = new Map();            // socketId → dernier envoi accepté
 
 function roomChannel(roomCode) {
     return `io-${roomCode}`;
@@ -200,6 +201,14 @@ function handleConnection(io, socket) {
     // téléphone. Il n'accuse jamais réception (pas de callback) et ne déclenche
     // aucune diffusion : il se contente de déposer un cap dans la simulation.
     socket.on('io-input', ({ roomCode, angle }) => {
+        // Limite de fréquence côté serveur : le client s'auto-limite déjà, mais
+        // un client modifié n'a rien à respecter. 25 Hz laisse passer le jeu
+        // normal (15 Hz) et coupe le martèlement.
+        const now = Date.now();
+        const last = inputStamps.get(socket.id) || 0;
+        if (now - last < 40) return;
+        inputStamps.set(socket.id, now);
+
         const room = ioGameManager.getRoom(roomCode);
         if (!room || room.state !== 'PLAYING' || !room.modeCtx) return;
         const mode = modes.get(room.settings.modeId);
@@ -257,6 +266,7 @@ function handleConnection(io, socket) {
 
     // ── Départ ────────────────────────────────────────────────────────────────
     socket.on('disconnect', () => {
+        inputStamps.delete(socket.id);
         const result = ioGameManager.removePlayer(socket.id);
         if (!result) return;
 

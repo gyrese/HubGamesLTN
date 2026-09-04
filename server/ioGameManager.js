@@ -135,10 +135,23 @@ class IoGameManager {
             return { room, player, reconnected: true };
         }
 
+        // L'identité (couleur + forme) est figée dès l'arrivée, pas au coup
+        // d'envoi : le joueur doit se reconnaître sur l'écran du lobby, sinon
+        // rien ne lui prouve que son téléphone est bien connecté.
+        const mode = modes.get(room.settings.modeId);
+        const identities = mode?.identities || [];
+        const taken = new Set([...room.players.values()].map((p) => p.slot));
+        let slot = 0;
+        while (taken.has(slot) && slot < identities.length) slot += 1;
+        const identity = identities[slot % (identities.length || 1)] || {};
+
         const player = {
             id: playerId,
             name,
             avatar: avatar || null,
+            slot,
+            color: identity.color || null,
+            shape: identity.shape || null,
             disconnected: false,
             joinedAt: Date.now(),
         };
@@ -148,7 +161,6 @@ class IoGameManager {
         // Arrivée en pleine manche : le mode fait apparaître le joueur tout de
         // suite. C'est le principe du jeu, pas un cas particulier.
         if (room.state === 'PLAYING' && room.engine) {
-            const mode = modes.get(room.settings.modeId);
             if (mode?.onJoin) mode.onJoin(room.modeCtx, player);
         }
 
@@ -212,6 +224,8 @@ class IoGameManager {
                 id: p.id,
                 name: p.name,
                 avatar: p.avatar,
+                color: p.color,
+                shape: p.shape,
                 disconnected: p.disconnected,
             })),
             // Le monde réel vient du contexte de la manche en cours : il dépend
