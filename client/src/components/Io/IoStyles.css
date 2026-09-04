@@ -439,7 +439,9 @@ body.io-theme {
 /* Classement des trois premiers, en haut à gauche sous le pseudo. */
 .ioa-play-top {
     position: absolute;
-    top: calc(env(safe-area-inset-top, 12px) + 62px);
+    /* Sous le bloc pseudo + score, qui fait environ 92 px de haut : sans cette
+       marge, le classement recouvrait l'unité « cases ». */
+    top: calc(env(safe-area-inset-top, 12px) + 96px);
     left: 16px;
     margin: 0;
     padding: 0;
@@ -693,4 +695,27 @@ body.io-theme {
 
 @media (prefers-reduced-motion: reduce) {
     .ioa-countdown-value { animation: none; }
+}
+
+/* Le score du joueur : gros chiffre, unité discrète. C'est l'info qu'on
+   consulte d'un coup d'œil sans quitter la carte des yeux. */
+.ioa-play-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.7rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--ioa-accent);
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+}
+
+.ioa-play-unit {
+    display: block;
+    margin-top: 1px;
+    font-family: 'Archivo', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ioa-muted);
 }

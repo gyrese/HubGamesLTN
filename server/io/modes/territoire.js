@@ -629,8 +629,12 @@ function snapshot(ctx) {
 // Un téléphone est plus haut que large : la fenêtre suit cette forme, sinon la
 // caméra doit sur-zoomer pour remplir l'écran et le joueur ne voit presque rien
 // devant lui.
-const VIEW_HALF_W = 9;    // demi-largeur de la fenêtre, en cases → 19 de large
-const VIEW_HALF_H = 16;   // demi-hauteur → 33 de haut
+// Une fenêtre trop serrée donne l'impression de jouer le nez collé à l'écran :
+// on ne voit plus assez loin pour anticiper un virage ou repérer un adversaire.
+// 31 × 55 cases laissent une vraie profondeur de champ tout en gardant le format
+// portrait d'un téléphone.
+const VIEW_HALF_W = 15;   // demi-largeur de la fenêtre, en cases → 31 de large
+const VIEW_HALF_H = 27;   // demi-hauteur → 55 de haut
 
 /** Retrouve l'identifiant de joueur derrière un numéro de propriétaire. */
 function idByOwner(ctx, owner) {
@@ -679,10 +683,14 @@ function viewFor(ctx, playerId, frame) {
         const py = p.y / CELL;
         if (px < x0 - 2 || px > x0 + w + 2 || py < y0 - 2 || py > y0 + h + 2) continue;
 
-        // La traînée du joueur, ramenée aux coordonnées de la fenêtre. Seules
-        // les cases visibles sont transmises, et on plafonne la longueur : au
-        // delà d'une centaine de cases, la queue sort de l'écran de toute façon,
-        // et l'envoyer coûterait du réseau pour rien.
+        // La traînée en coordonnées **absolues** du terrain, jamais relatives à
+        // la fenêtre. Une traînée exprimée dans le repère de la fenêtre change
+        // de valeurs dès que la caméra glisse : le client la relissait alors à
+        // chaque image, et la courbe ondulait sous les yeux du joueur.
+        //
+        // On garde les cases un peu au-delà du cadre (marge de 2) pour que le
+        // trait entre et sorte proprement de l'écran, et on plafonne la longueur
+        // : au-delà d'une centaine de cases, la queue est hors champ.
         const body2 = ctx.state.bodies.get(idByOwner(ctx, p.i));
         const trail = [];
         if (body2) {
@@ -692,8 +700,8 @@ function viewFor(ctx, playerId, frame) {
             for (const key of source) {
                 const tx = key % cols;
                 const ty = (key - tx) / cols;
-                if (tx < x0 || tx >= x0 + w || ty < y0 || ty >= y0 + h) continue;
-                trail.push((ty - y0) * w + (tx - x0));
+                if (tx < x0 - 2 || tx >= x0 + w + 2 || ty < y0 - 2 || ty >= y0 + h + 2) continue;
+                trail.push(key);
             }
         }
 
@@ -736,6 +744,8 @@ function viewFor(ctx, playerId, frame) {
 
     return {
         x0, y0, w, h, cell: CELL,
+        cols,                        // largeur du terrain : repère des traînées
+        rows,                        // hauteur : sert à tracer la bordure mortelle
         cells,                       // encodé par plages
         players: visible,
         me: body.owner,

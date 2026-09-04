@@ -121,17 +121,38 @@ export class IoArena {
     }
 
     /** Définit les dimensions du terrain et redessine la grille de fond. */
-    setWorld(cols, rows, cell) {
+    /**
+     * @param {number} [worldCols] dimensions réelles du terrain, quand la scène
+     *   n'en affiche qu'une fenêtre (téléphone). La bordure mortelle doit se
+     *   tracer sur les vraies limites, pas sur celles du cadrage.
+     */
+    setWorld(cols, rows, cell, worldCols, worldRows, originX = 0, originY = 0) {
         if (!this.ready) return;
-        if (this.cols === cols && this.rows === rows) return;
+        const wc = worldCols || cols;
+        const wr = worldRows || rows;
+        if (this.cols === cols && this.rows === rows && this.cell === cell
+            && this.worldCols === wc && this.worldRows === wr
+            && this.originX === originX && this.originY === originY) return;
         this.cols = cols;
         this.rows = rows;
         this.cell = cell;
+        this.worldCols = wc;
+        this.worldRows = wr;
+        this.originX = originX;
+        this.originY = originY;
         this.drawGrid();
     }
 
+    /**
+     * Grille de fond et **bordure du terrain**.
+     *
+     * Les bords sont mortels : les laisser invisibles condamnait le joueur à
+     * mourir sans comprendre pourquoi, surtout sur téléphone où l'on ne voit
+     * qu'une portion de la carte. Ils sont désormais tracés en rouge, avec un
+     * halo qui les signale bien avant qu'on les touche.
+     */
     drawGrid() {
-        this.gridLayer.removeChildren();
+        for (const child of this.gridLayer.removeChildren()) child.destroy(true);
         const g = new Graphics();
         const w = this.cols * this.cell;
         const h = this.rows * this.cell;
@@ -147,6 +168,30 @@ export class IoArena {
                 .stroke({ width: major ? 1.5 : 1, color: major ? THEME.gridMajor : THEME.gridMinor, alpha: major ? 0.22 : 0.1 });
         }
         this.gridLayer.addChild(g);
+
+        // La limite du terrain, en rouge : c'est une zone mortelle, elle doit se
+        // voir arriver. Un liseré large et translucide fait office d'avertissement
+        // progressif, le trait net marque la frontière exacte.
+        const edge = new Graphics();
+        // Coordonnées du terrain réel, ramenées dans le repère de la scène.
+        const ex = -this.originX * this.cell;
+        const ey = -this.originY * this.cell;
+        const ew = (this.worldCols || this.cols) * this.cell;
+        const eh = (this.worldRows || this.rows) * this.cell;
+
+        // Le hors-jeu est assombri et hachuré de rouge : un simple trait de
+        // bordure laissait un grand vide noir indistinct du terrain, alors que
+        // le franchir est mortel. Le contraste doit dire « on ne va pas là ».
+        const far = Math.max(ew, eh) * 2;
+        edge.rect(ex - far, ey - far, ew + far * 2, far)                    // au-dessus
+            .rect(ex - far, ey + eh, ew + far * 2, far)                     // en dessous
+            .rect(ex - far, ey, far, eh)                                    // à gauche
+            .rect(ex + ew, ey, far, eh)                                     // à droite
+            .fill({ color: THEME.danger, alpha: 0.07 });
+
+        edge.rect(ex, ey, ew, eh).stroke({ width: this.cell * 1.6, color: THEME.danger, alpha: 0.16 });
+        edge.rect(ex, ey, ew, eh).stroke({ width: Math.max(2, this.cell * 0.2), color: THEME.danger, alpha: 0.85 });
+        this.gridLayer.addChild(edge);
     }
 
     /**
@@ -233,7 +278,13 @@ export class IoArena {
      * C'est ce qui remplace l'aspect en escalier — le trait a des jointures et
      * des extrémités arrondies, et se courbe naturellement dans les virages.
      */
-    updateTrail(owner, cells, version, color) {
+    /**
+     * @param {number} [strideCols] largeur de grille dans laquelle les indices de
+     *   `cells` sont exprimés. Sur le téléphone, la scène affiche une fenêtre
+     *   mais les traînées arrivent en coordonnées **monde** : sans cette
+     *   distinction, elles se décaleraient à chaque glissement de caméra.
+     */
+    updateTrail(owner, cells, version, color, strideCols, offsetX = 0, offsetY = 0) {
         if (!this.ready) return;
         let entry = this.trails.get(owner);
         if (!entry) {
@@ -255,10 +306,14 @@ export class IoArena {
 
         const c = hexToNum(color);
         const half = this.cell / 2;
+        const stride = strideCols || this.cols;
         const pts = cells.map((key) => {
-            const x = key % this.cols;
-            const y = (key - x) / this.cols;
-            return { x: x * this.cell + half, y: y * this.cell + half };
+            const x = key % stride;
+            const y = (key - x) / stride;
+            return {
+                x: (x - offsetX) * this.cell + half,
+                y: (y - offsetY) * this.cell + half,
+            };
         });
 
         // Le halo part sur le calque flouté, le trait net reste au-dessus :

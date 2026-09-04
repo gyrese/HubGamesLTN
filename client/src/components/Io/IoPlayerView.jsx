@@ -108,11 +108,30 @@ function IoPlayerView() {
         const onView = (view) => {
             prevViewRef.current = viewRef.current;
             view.at = performance.now();
+
+            // Les traînées se décodent ici, une fois par paquet (10 Hz), et non
+            // à chaque image (60 Hz) : c'est du travail identique répété six fois
+            // pour rien. Elles arrivent en coordonnées monde, donc stables quel
+            // que soit le cadrage — c'est ce qui empêche la courbe d'onduler.
+            for (const pl of view.players) {
+                if (!pl.t) { pl.cells = null; continue; }
+                const parts = pl.t.split('.');
+                const cells = new Array(parts.length);
+                cells[0] = Number(parts[0]);
+                for (let k = 1; k < parts.length; k += 1) cells[k] = cells[k - 1] + Number(parts[k]);
+                pl.cells = cells;
+            }
+            // Index par identifiant : évite un `.find()` par joueur et par image.
+            view.byId = new Map(view.players.map((pl) => [pl.i, pl]));
             // Empreinte de la grille : sert à ne la redessiner que si elle a
             // vraiment changé, plutôt qu'à chaque image.
             view.raw = `${view.x0},${view.y0},${view.cells.length},${view.cells.slice(0, 40)}`;
             viewRef.current = view;
-            if (view.total) setPercent(Math.round((view.score / view.total) * 1000) / 10);
+            // Le pourcentage du terrain reste sous 1 % pendant toute la
+            // première moitié de la manche : il ne bouge jamais à l'œil et
+            // n'encourage personne. Le nombre de cases, lui, progresse
+            // visiblement à chaque capture.
+            setPercent(view.score || 0);
             setDead(!view.alive);
             // Classement et mini-carte n'arrivent que deux fois par seconde :
             // entre deux envois, on garde ce qu'on avait plutôt que de faire
@@ -179,7 +198,9 @@ function IoPlayerView() {
                 const view = viewRef.current;
                 if (!view) return;
 
-                arena.setWorld(view.w, view.h, view.cell);
+                // La scène affiche une fenêtre, mais la bordure mortelle doit
+                // se tracer sur les limites réelles du terrain.
+                arena.setWorld(view.w, view.h, view.cell, view.cols, view.rows, view.x0, view.y0);
 
                 if (view.raw !== lastRawRef.current) {
                     lastRawRef.current = view.raw;
@@ -192,7 +213,7 @@ function IoPlayerView() {
                         if (value !== 0) grid.fill(value, at, at + len);
                         at += len;
                     }
-                    const colorOf = (o) => (view.players.find((q) => q.i === o)?.c) || '#3b82f6';
+                    const colorOf = (o) => view.byId.get(o)?.c || '#3b82f6';
                     arena.updateTerritories(grid, colorOf);
                 }
 
@@ -207,7 +228,7 @@ function IoPlayerView() {
                     seen.add(p.i);
                     let wx = p.x;
                     let wy = p.y;
-                    const before = prev?.players?.find((q) => q.i === p.i);
+                    const before = prev?.byId?.get(p.i);
                     if (before) {
                         const span = view.at - prev.at;
                         // On **extrapole** au lieu de s'arrêter au dernier
@@ -237,16 +258,13 @@ function IoPlayerView() {
                         isMe: Boolean(p.me),
                     });
 
-                    // La traînée : elle dit où l'on est passé et ce qui tue. Sans
-                    // elle, on joue à l'aveugle sur son propre tracé. Elle arrive
-                    // en écarts successifs, on la déroule.
-                    if (p.t) {
-                        const parts = p.t.split('.');
-                        const cells = [Number(parts[0])];
-                        for (let k = 1; k < parts.length; k += 1) {
-                            cells.push(cells[k - 1] + Number(parts[k]));
-                        }
-                        arena.updateTrail(p.i, cells, `${view.x0},${view.y0},${p.t.length}`, p.c);
+                    // La traînée : elle dit où l'on est passé et ce qui tue.
+                    // La version est la chaîne brute — elle identifie le CONTENU,
+                    // jamais le cadrage : inclure x0/y0 forçait un relissage à
+                    // chaque pas de caméra, et Douglas-Peucker ne rendant pas la
+                    // même courbe selon le point d'arrivée, le tracé ondulait.
+                    if (p.cells) {
+                        arena.updateTrail(p.i, p.cells, p.t, p.c, view.cols, view.x0, view.y0);
                     } else {
                         arena.removeTrail(p.i);
                     }
@@ -391,7 +409,8 @@ function IoPlayerView() {
                 <div className="ioa-play-hud">
                     <div className="ioa-play-hud-left">
                         <span className="ioa-play-name">{name}</span>
-                        <span className="ioa-play-score">{percent}%</span>
+                        <span className="ioa-play-score">{percent}</span>
+                        <span className="ioa-play-unit">cases</span>
                     </div>
 
                     {hud.seconds != null && (
