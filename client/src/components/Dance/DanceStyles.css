@@ -1,0 +1,441 @@
+/* ═══════════════════════════════════════════════════════════════
+   DANCE_DANCE — thème « cabine d'arcade »
+   ───────────────────────────────────────────────────────────────
+   Un jeu de rythme se lit en périphérie : le joueur fixe la ligne
+   de frappe et devine le reste. Tout le style découle de là —
+   couloirs très contrastés, flèches lumineuses, fond quasi noir
+   qui ne dispute rien à la lecture.
+
+   Chaque colonne a sa couleur (magenta, cyan, vert, orange), la
+   même sur le grand écran et sur le téléphone : c'est ce qui
+   permet de relier d'un coup d'œil ce qu'on voit et ce qu'on tape.
+
+   Préfixe `.dd-`, thème activé par `body.dance-theme`, comme
+   partout ailleurs dans le hub.
+   ═══════════════════════════════════════════════════════════════ */
+
+body.dance-theme {
+    background: #05060e;
+    color: #eef2ff;
+    font-family: 'JetBrains Mono', 'Segoe UI', system-ui, monospace;
+    overscroll-behavior: none;
+    /* Le joueur tape vite et fort : sans cela, le navigateur mobile
+       interprète les appuis répétés comme un zoom ou une sélection. */
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.dd-root {
+    --dd-bg: #05060e;
+    --dd-panel: rgba(16, 18, 38, 0.85);
+    --dd-border: rgba(140, 130, 255, 0.24);
+    --dd-accent: #d946ef;
+    --dd-ink: #eef2ff;
+    --dd-muted: #96a0c8;
+
+    /* Couleurs de colonnes — reprises à l'identique dans le JS. */
+    --dd-col-0: #f43f5e;
+    --dd-col-1: #22d3ee;
+    --dd-col-2: #a3e635;
+    --dd-col-3: #fb923c;
+
+    position: relative;
+    min-height: 100dvh;
+    background:
+        radial-gradient(1100px 600px at 50% -15%, rgba(217, 70, 239, 0.12), transparent 70%),
+        var(--dd-bg);
+    color: var(--dd-ink);
+    overflow: hidden;
+}
+
+/* Sol en perspective : suggère la piste de danse sans occuper l'œil. */
+.dd-root::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(140, 130, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(140, 130, 255, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+}
+
+.dd-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--dd-muted);
+}
+
+.dd-title {
+    font-family: 'Orbitron', 'JetBrains Mono', system-ui, sans-serif;
+    font-size: clamp(30px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    margin: 4px 0 0;
+    text-shadow: 0 0 28px rgba(217, 70, 239, 0.5);
+}
+
+.dd-title-accent { color: var(--dd-accent); }
+
+.dd-panel {
+    background: var(--dd-panel);
+    border: 1px solid var(--dd-border);
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+}
+
+/* ── Couloirs de jeu (grand écran et téléphone) ──────────────── */
+
+.dd-field {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    height: 100%;
+    overflow: hidden;
+}
+
+.dd-lane {
+    position: relative;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.015), rgba(255, 255, 255, 0.05));
+    border-left: 1px solid rgba(255, 255, 255, 0.05);
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+/* Cible : la ligne que la flèche doit atteindre. Toujours visible, même
+   vide — c'est le repère spatial du joueur. */
+.dd-target {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(48px, 11vw, 84px);
+    height: clamp(48px, 11vw, 84px);
+    border-radius: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(24px, 5vw, 38px);
+    color: rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.03);
+    transition: transform 90ms ease, box-shadow 90ms ease, border-color 90ms ease;
+}
+
+/* Retour d'appui : la cible s'allume dans la couleur de sa colonne. */
+.dd-target.dd-pressed {
+    transform: translate(-50%, -50%) scale(1.12);
+    border-color: currentColor;
+    box-shadow: 0 0 24px currentColor, inset 0 0 18px rgba(255, 255, 255, 0.16);
+    color: #fff;
+}
+
+/* Flèche qui descend. La position est posée en JS (`top`), pas en
+   animation CSS : elle doit suivre l'horloge audio au millimètre, et une
+   transition l'en écarterait. */
+.dd-note {
+    position: absolute;
+    left: 50%;
+    width: clamp(44px, 10vw, 78px);
+    height: clamp(44px, 10vw, 78px);
+    margin-left: calc(clamp(44px, 10vw, 78px) / -2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 4.6vw, 36px);
+    font-weight: 700;
+    color: #05060e;
+    will-change: top;
+}
+
+.dd-note-0 { background: var(--dd-col-0); box-shadow: 0 0 20px rgba(244, 63, 94, 0.55); }
+.dd-note-1 { background: var(--dd-col-1); box-shadow: 0 0 20px rgba(34, 211, 238, 0.55); }
+.dd-note-2 { background: var(--dd-col-2); box-shadow: 0 0 20px rgba(163, 230, 53, 0.55); }
+.dd-note-3 { background: var(--dd-col-3); box-shadow: 0 0 20px rgba(251, 146, 60, 0.55); }
+
+/* ── Retour de jugement ──────────────────────────────────────── */
+
+.dd-verdict {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    transform: translateX(-50%);
+    font-family: 'Orbitron', system-ui, sans-serif;
+    font-size: clamp(26px, 6vw, 46px);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    pointer-events: none;
+    animation: dd-verdict-pop 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes dd-verdict-pop {
+    0%   { opacity: 0; transform: translateX(-50%) scale(0.7); }
+    25%  { opacity: 1; transform: translateX(-50%) scale(1.08); }
+    70%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) scale(1) translateY(-18px); }
+}
+
+.dd-combo {
+    position: absolute;
+    left: 50%;
+    top: 22%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+}
+
+.dd-combo-value {
+    font-family: 'Orbitron', system-ui, sans-serif;
+    font-size: clamp(34px, 8vw, 64px);
+    font-weight: 800;
+    line-height: 1;
+    text-shadow: 0 0 24px rgba(217, 70, 239, 0.6);
+}
+
+.dd-combo-label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--dd-muted);
+}
+
+/* ── Zones tactiles du téléphone ─────────────────────────────── */
+
+/* Deux rangées de deux : les pouces atteignent les quatre zones sans
+   déplacer les mains. Chaque zone fait au moins 44 px de côté, seuil
+   au-dessous duquel un appui devient imprécis. */
+.dd-pad {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 10px;
+    padding: 10px;
+    height: 100%;
+}
+
+.dd-pad-btn {
+    position: relative;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(38px, 12vw, 64px);
+    color: rgba(255, 255, 255, 0.5);
+    min-width: 44px;
+    min-height: 44px;
+    transition: transform 60ms ease, background 60ms ease, box-shadow 60ms ease;
+}
+
+.dd-pad-btn:active,
+.dd-pad-btn.dd-pad-active {
+    transform: scale(0.96);
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 0 30px currentColor, inset 0 0 24px rgba(255, 255, 255, 0.12);
+}
+
+.dd-pad-0 { color: var(--dd-col-0); }
+.dd-pad-1 { color: var(--dd-col-1); }
+.dd-pad-2 { color: var(--dd-col-2); }
+.dd-pad-3 { color: var(--dd-col-3); }
+
+/* ── Compte à rebours ────────────────────────────────────────── */
+
+.dd-countdown {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 6, 14, 0.72);
+    backdrop-filter: blur(8px);
+    z-index: 20;
+}
+
+.dd-countdown-value {
+    font-family: 'Orbitron', system-ui, sans-serif;
+    font-size: clamp(80px, 22vw, 200px);
+    font-weight: 900;
+    color: var(--dd-accent);
+    text-shadow: 0 0 60px rgba(217, 70, 239, 0.7);
+    animation: dd-count-pulse 1s ease-in-out infinite;
+}
+
+@keyframes dd-count-pulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.08); opacity: 0.85; }
+}
+
+/* ── Tableau des scores (grand écran) ────────────────────────── */
+
+.dd-scoreboard {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+}
+
+.dd-score-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid transparent;
+    /* Le classement bouge en direct : sans transition, les lignes
+       sautent et deviennent illisibles. */
+    transition: background 200ms ease, border-color 200ms ease;
+}
+
+.dd-score-row.dd-leader {
+    background: rgba(217, 70, 239, 0.14);
+    border-color: rgba(217, 70, 239, 0.4);
+}
+
+.dd-score-rank {
+    font-family: 'Orbitron', system-ui, sans-serif;
+    font-weight: 700;
+    color: var(--dd-muted);
+    text-align: center;
+}
+
+.dd-score-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dd-score-value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+.dd-score-combo {
+    font-size: 11px;
+    color: var(--dd-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Cartes morceau / difficulté ─────────────────────────────── */
+
+.dd-song-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.dd-song-card {
+    text-align: left;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid var(--dd-border);
+    background: rgba(255, 255, 255, 0.03);
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.dd-song-card:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.06); }
+
+.dd-song-card.dd-selected {
+    border-color: var(--dd-accent);
+    box-shadow: 0 0 0 1px var(--dd-accent), 0 0 24px rgba(217, 70, 239, 0.28);
+}
+
+.dd-song-title { font-weight: 700; margin-bottom: 2px; }
+.dd-song-meta { font-size: 12px; color: var(--dd-muted); }
+
+.dd-diff-row { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.dd-diff-btn {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--dd-border);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 13px;
+    font-weight: 600;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+    min-height: 44px;
+}
+
+.dd-diff-btn.dd-diff-active {
+    color: #05060e;
+    background: currentColor;
+    box-shadow: 0 0 20px currentColor;
+}
+
+.dd-diff-btn.dd-diff-active span { color: #05060e; }
+
+/* ── Boutons ─────────────────────────────────────────────────── */
+
+.dd-btn {
+    padding: 12px 22px;
+    border-radius: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    background: var(--dd-accent);
+    color: #0a0616;
+    min-height: 44px;
+    transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.dd-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px rgba(217, 70, 239, 0.42);
+}
+
+.dd-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.dd-btn-ghost {
+    background: transparent;
+    color: var(--dd-ink);
+    border: 1px solid var(--dd-border);
+}
+
+.dd-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+
+/* ── Résultats ───────────────────────────────────────────────── */
+
+.dd-rank {
+    font-family: 'Orbitron', system-ui, sans-serif;
+    font-size: clamp(44px, 10vw, 92px);
+    font-weight: 900;
+    line-height: 1;
+}
+
+.dd-rank-SSS, .dd-rank-SS, .dd-rank-S { color: #fbbf24; text-shadow: 0 0 34px rgba(251, 191, 36, 0.6); }
+.dd-rank-A { color: #a3e635; }
+.dd-rank-B { color: #22d3ee; }
+.dd-rank-C { color: #94a3b8; }
+.dd-rank-D { color: #f87171; }
+
+.dd-judge-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 13px;
+}
+
+/* Le grand écran est regardé de loin : au-delà d'un mètre, les petits
+   textes disparaissent, donc on remonte l'échelle. */
+@media (min-width: 1280px) {
+    .dd-score-row { padding: 10px 16px; font-size: 17px; }
+    .dd-song-meta { font-size: 13px; }
+}
+
+/* Certains joueurs sont sensibles au défilement rapide ; on ne peut pas
+   supprimer le mouvement des flèches (c'est le jeu), mais tout le reste
+   peut se calmer. */
+@media (prefers-reduced-motion: reduce) {
+    .dd-verdict, .dd-countdown-value { animation-duration: 1ms; }
+    .dd-song-card, .dd-btn { transition: none; }
+}

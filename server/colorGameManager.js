@@ -3,6 +3,7 @@
  */
 
 const crypto = require('crypto');
+const RoomBase = require('./core/RoomBase');
 const colorCharacters = require('./colorCharacters');
 
 // ──────────────────────────────────────────────────────────────
@@ -87,118 +88,55 @@ function deltaE2000(lab1, lab2) {
     );
 }
 
-class ColorGameManager {
+class ColorGameManager extends RoomBase {
     constructor() {
-        this.rooms = new Map(); // Map<roomCode, ColorRoom>
-        
-        // Periodic cleanup of dead rooms (every 5 mins)
-        setInterval(() => this.cleanupRooms(), 5 * 60 * 1000);
-    }
-
-    cleanupRooms() {
-        const now = Date.now();
-        const GAME_END_TTL = 30 * 60 * 1000; // 30 min after GAME_END
-        const STALE_TTL = 60 * 60 * 1000;    // 1h without activity
-
-        for (const [code, room] of this.rooms) {
-            const gameEndRef = room.gameEndTime || room.roundStartTime;
-            if (room.gameState === 'GAME_END' && gameEndRef && (now - gameEndRef) > GAME_END_TTL) {
-                console.log(`[COLOR] Cleanup: room ${code} (GAME_END for ${Math.round((now - gameEndRef) / 60000)} min)`);
-                this.deleteRoom(code);
-                continue;
-            }
-            const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
-            if (activePlayers.length === 0 && room.players.size > 0 && room.roundStartTime && (now - room.roundStartTime) > STALE_TTL) {
-                console.log(`[COLOR] Cleanup: room ${code} (no active players for ${Math.round((now - room.roundStartTime) / 60000)} min)`);
-                this.deleteRoom(code);
-            }
-        }
-    }
-
-    generateRoomCode() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-    }
-
-    createRoom(hostId, settings = {}) {
-        const roomCode = this.generateRoomCode();
-        const defaultSettings = {
-            roundsCount: 5,        // Number of rounds
-            timePerRound: 60,      // Seconds per round
-        };
-
-        this.rooms.set(roomCode, {
-            code: roomCode,
-            remoteToken: crypto.randomBytes(16).toString('hex'),
-            hostId: hostId,
-            players: new Map(),    // Map<socketId, PlayerData>
-            gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END
-            currentRound: 0,
-            totalRounds: settings.roundsCount || defaultSettings.roundsCount,
-            timePerRound: settings.timePerRound || defaultSettings.timePerRound,
-            characters: [],        // Selected characters for this game
-            currentCharacter: null, // Current character metadata
-            roundStartTime: null,
-            settings: { ...defaultSettings, ...settings }
+        super({
+            logTag: 'COLOR',
+            codeFormat: 'alpha6',
+            cleanupIntervalMs: 5 * 60 * 1000,
+            endStates: ['GAME_END'],
+            endedTtlMs: 30 * 60 * 1000,  // 30 min après GAME_END
+            staleTtlMs: 60 * 60 * 1000   // 1 h sans activité
         });
-
-        return roomCode;
     }
 
-    getRoom(roomCode) {
-        return this.rooms.get(roomCode);
+    defaultSettings() {
+        return {
+            roundsCount: 5,        // Nombre de manches
+            timePerRound: 60,      // Secondes par manche
+        };
     }
 
-    joinRoom(roomCode, playerId, playerName, avatar) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
+    createRoomState(settings = {}) {
+        const d = this.defaultSettings();
+        return {
+            remoteToken: crypto.randomBytes(16).toString('hex'),
+            // LOBBY, PLAYING, ROUND_END, GAME_END
+            currentRound: 0,
+            totalRounds: settings.roundsCount || d.roundsCount,
+            timePerRound: settings.timePerRound || d.timePerRound,
+            characters: [],         // Personnages tirés pour cette partie
+            currentCharacter: null, // Métadonnées du personnage courant
+            roundStartTime: null,
+        };
+    }
 
-        // Check for reconnection
-        let existingPlayerId = null;
-        for (const [id, p] of room.players) {
-            if (p.name.toLowerCase() === playerName.toLowerCase()) {
-                existingPlayerId = id;
-                break;
-            }
-        }
+    /** CouleurMoi accepte les arrivants en cours de partie. */
+    canJoinMidGame() {
+        return true;
+    }
 
-        if (existingPlayerId) {
-            const playerData = room.players.get(existingPlayerId);
-            room.players.delete(existingPlayerId);
-
-            playerData.id = playerId;
-            playerData.disconnected = false;
-            if (avatar) playerData.avatar = avatar;
-
-            room.players.set(playerId, playerData);
-
-            console.log(`[COLOR] Player ${playerName} reconnected to room ${roomCode}`);
-
-            return {
-                success: true,
-                room,
-                reconnected: true,
-                gameState: room.gameState,
-                currentRound: room.currentRound,
-                totalRounds: room.totalRounds,
-                character: room.currentCharacter,
-                roundStartTime: room.roundStartTime,
-                timePerRound: room.timePerRound,
-                myScore: playerData.totalScore
-            };
-        }
-
+    createPlayer(playerId, playerName, avatar, room) {
+        // Les manches déjà jouées sont comptées à zéro pour l'arrivant, afin que
+        // les tableaux de scores restent alignés d'un joueur à l'autre.
         const isLateJoin = room.gameState !== 'LOBBY';
-        const missedRounds = isLateJoin ? room.currentRound - 1 : 0;
+        const missedRounds = isLateJoin ? Math.max(0, room.currentRound - 1) : 0;
 
-        room.players.set(playerId, {
+        return {
             id: playerId,
             name: playerName,
             avatar: avatar || null,
+            disconnected: false,
             totalScore: 0,
             roundScores: Array(missedRounds).fill(0),
             roundGuesses: Array(missedRounds).fill(null),
@@ -208,22 +146,32 @@ class ColorGameManager {
             roundHints: Array(missedRounds).fill(false),
             hintUsedThisRound: false,
             lateJoin: isLateJoin,
-            joinedAtRound: isLateJoin ? room.currentRound : 0
-        });
+            joinedAtRound: isLateJoin ? room.currentRound : 0,
+            missedRounds
+        };
+    }
 
-        console.log(`[COLOR] Player ${playerName} joined room ${roomCode}${isLateJoin ? ` (late join at round ${room.currentRound})` : ''}`);
-
+    describeRejoin(room, player) {
         return {
-            success: true,
-            room,
-            lateJoin: isLateJoin,
             gameState: room.gameState,
             currentRound: room.currentRound,
             totalRounds: room.totalRounds,
             character: room.currentCharacter,
             roundStartTime: room.roundStartTime,
             timePerRound: room.timePerRound,
-            missedRounds
+            myScore: player.totalScore
+        };
+    }
+
+    describeJoin(room, player) {
+        return {
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
+            character: room.currentCharacter,
+            roundStartTime: room.roundStartTime,
+            timePerRound: room.timePerRound,
+            missedRounds: player.missedRounds
         };
     }
 
@@ -495,55 +443,23 @@ class ColorGameManager {
         return { success: true, room };
     }
 
-    kickPlayer(roomCode, playerId) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-
-        if (room.players.has(playerId)) {
-            room.players.delete(playerId);
-            return { success: true };
-        }
-        return { error: 'Joueur introuvable' };
-    }
-
-    deleteRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (room) {
-            if (room.roundTimer) {
-                clearTimeout(room.roundTimer);
-                room.roundTimer = null;
-            }
-            this.rooms.delete(roomCode);
-            console.log(`[COLOR] Room ${roomCode} deleted`);
+    /** Le minuteur de manche ne doit pas survivre au salon. */
+    onRoomDisposed(room) {
+        if (room.roundTimer) {
+            clearTimeout(room.roundTimer);
+            room.roundTimer = null;
         }
     }
 
-    removePlayer(playerId) {
-        for (const [code, room] of this.rooms) {
-            if (room.hostId === playerId) {
-                room.hostDisconnected = true;
-                return { roomCode: code, room, isHost: true };
-            }
-
-            if (room.players.has(playerId)) {
-                if (room.gameState !== 'LOBBY') {
-                    const player = room.players.get(playerId);
-                    player.disconnected = true;
-                    return { roomCode: code, room, isHost: false, type: 'disconnected', player };
-                }
-
-                room.players.delete(playerId);
-                return { roomCode: code, room, isHost: false, type: 'left' };
-            }
-        }
-        return null;
+    /**
+     * CouleurMoi expose l'objet joueur complet : le contrôleur et les vues
+     * s'appuient sur les tableaux de manches (roundScores, roundGuesses…).
+     */
+    describePlayer(p) {
+        return p;
     }
 
-    getPlayersInRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return [];
-        return Array.from(room.players.values());
-    }
+    // kickPlayer, deleteRoom et removePlayer viennent de RoomBase.
 
     allPlayersGuessed(roomCode) {
         const room = this.rooms.get(roomCode);

@@ -12,46 +12,49 @@
  */
 
 const modes = require('./io/modes');
+const RoomBase = require('./core/RoomBase');
 
 const DEFAULT_SETTINGS = {
     modeId: 'territoire',
     sizeId: 'moyen',      // taille du terrain, choisie à l'ouverture du salon
 };
 
-class IoGameManager {
+class IoGameManager extends RoomBase {
     constructor() {
-        this.rooms = new Map(); // Map<roomCode, IoRoom>
-        setInterval(() => this.cleanupRooms(), 10 * 60 * 1000);
-        console.log('[IO_ARENA] Game manager initialized');
+        super({
+            logTag: 'IO_ARENA',
+            codeFormat: 'num4',
+            stateField: 'state',     // IO nomme son état `state`
+            endStates: ['RESULT'],
+            endedTtlMs: 30 * 60 * 1000,
+            staleTtlMs: 2 * 60 * 60 * 1000
+        });
     }
 
+    /**
+     * L'arène expire sur l'inactivité seule : des manettes peuvent rester
+     * connectées sans qu'aucune manche ne tourne.
+     */
     cleanupRooms() {
         const now = Date.now();
-        const ENDED_TTL = 30 * 60 * 1000;
-        const STALE_TTL = 2 * 60 * 60 * 1000;
         for (const [code, room] of this.rooms) {
-            const ref = room.lastActivity || 0;
-            if (room.state === 'RESULT' && (now - ref) > ENDED_TTL) {
+            const ref = room.lastActivity || room.createdAt || 0;
+            if (room.state === 'RESULT' && (now - ref) > this.endedTtlMs) {
                 this.deleteRoom(code);
                 continue;
             }
-            if ((now - ref) > STALE_TTL) this.deleteRoom(code);
+            if ((now - ref) > this.staleTtlMs) this.deleteRoom(code);
         }
     }
 
-    generateRoomCode() {
-        let code;
-        do {
-            code = Math.floor(1000 + Math.random() * 9000).toString();
-        } while (this.rooms.has(code));
-        return code;
+    defaultSettings() {
+        return { ...DEFAULT_SETTINGS };
     }
 
+    /** L'hôte pilote l'interface, le serveur reste maître des bornes. */
     createRoom(hostId, settings = {}) {
-        const roomCode = this.generateRoomCode();
         const merged = { ...DEFAULT_SETTINGS, ...settings };
 
-        // L'hôte pilote l'interface, le serveur reste maître des bornes.
         if (!modes.get(merged.modeId)) merged.modeId = modes.fallback().id;
 
         const mode = modes.get(merged.modeId);
@@ -59,36 +62,26 @@ class IoGameManager {
             merged.sizeId = mode.defaultSize || DEFAULT_SETTINGS.sizeId;
         }
 
-        this.rooms.set(roomCode, {
-            code: roomCode,
-            hostId,
-            hostDisconnected: false,
-            players: new Map(),      // Map<socketId, PlayerData>
-            state: 'LOBBY',          // LOBBY | PLAYING | RESULT
-            settings: merged,
+        const roomCode = super.createRoom(hostId, merged);
+        this.log(`Room ${roomCode} mode=${merged.modeId}`);
+        return roomCode;
+    }
+
+    createRoomState() {
+        return {
+            // LOBBY | PLAYING | RESULT
             engine: null,            // TickEngine de la manche en cours
             modeCtx: null,           // contexte passé au mode
             results: null,
             startedAt: null,
             timers: [],
-            lastActivity: Date.now(),
-        });
-
-        console.log(`[IO_ARENA] Room created: ${roomCode} (mode=${merged.modeId})`);
-        return roomCode;
+        };
     }
 
-    getRoom(roomCode) {
-        return this.rooms.get(roomCode);
-    }
-
-    deleteRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (room) {
-            this.clearTimers(room);
-            if (room.engine) room.engine.stop();
-        }
-        if (this.rooms.delete(roomCode)) console.log(`[IO_ARENA] Room ${roomCode} deleted`);
+    /** La boucle de simulation doit s'arrêter avec le salon. */
+    onRoomDisposed(room) {
+        this.clearTimers(room);
+        if (room.engine) room.engine.stop();
     }
 
     clearTimers(room) {
@@ -97,47 +90,23 @@ class IoGameManager {
     }
 
     /**
-     * Arrivée d'un téléphone. La reconnexion se fait **par pseudo**, comme
-     * partout ailleurs dans le hub : le joueur retrouve sa place, sa couleur et
-     * son territoire, même après un changement de socket.
+     * L'arène accueille en pleine manche : le mode fait apparaître l'arrivant
+     * immédiatement. C'est le principe du jeu, pas un cas particulier.
      */
-    joinRoom(roomCode, playerId, playerName, avatar) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-        room.lastActivity = Date.now();
+    canJoinMidGame() {
+        return true;
+    }
 
-        const name = (playerName || '').trim().slice(0, 20);
-        if (!name) return { error: 'Pseudo invalide' };
+    sanitizeName(playerName) {
+        return super.sanitizeName(playerName, 20);
+    }
 
-        for (const [id, player] of room.players) {
-            if (player.name.toLowerCase() !== name.toLowerCase()) continue;
-
-            // Reconnexion : le socket change, la place reste.
-            room.players.delete(id);
-            player.id = playerId;
-            player.disconnected = false;
-            if (avatar) player.avatar = avatar;
-            room.players.set(playerId, player);
-
-            // Le corps simulé est indexé par identifiant de joueur : il doit
-            // suivre le nouveau socket, sinon le joueur pilote un fantôme.
-            if (room.modeCtx?.state?.bodies?.has(id)) {
-                const body = room.modeCtx.state.bodies.get(id);
-                room.modeCtx.state.bodies.delete(id);
-                room.modeCtx.state.bodies.set(playerId, body);
-                // Les traînées référencent le propriétaire par identifiant.
-                for (const [key, owner] of room.modeCtx.state.trailOwners) {
-                    if (owner === id) room.modeCtx.state.trailOwners.set(key, playerId);
-                }
-            }
-            if (room.modeCtx) room.modeCtx.players = room.players;
-
-            return { room, player, reconnected: true };
-        }
-
-        // L'identité (couleur + forme) est figée dès l'arrivée, pas au coup
-        // d'envoi : le joueur doit se reconnaître sur l'écran du lobby, sinon
-        // rien ne lui prouve que son téléphone est bien connecté.
+    /**
+     * L'identité (couleur + forme) est figée dès l'arrivée, pas au coup
+     * d'envoi : le joueur doit se reconnaître sur l'écran du lobby, sinon
+     * rien ne lui prouve que son téléphone est bien connecté.
+     */
+    createPlayer(playerId, playerName, avatar, room) {
         const mode = modes.get(room.settings.modeId);
         const identities = mode?.identities || [];
         const taken = new Set([...room.players.values()].map((p) => p.slot));
@@ -145,9 +114,9 @@ class IoGameManager {
         while (taken.has(slot) && slot < identities.length) slot += 1;
         const identity = identities[slot % (identities.length || 1)] || {};
 
-        const player = {
+        return {
             id: playerId,
-            name,
+            name: playerName,
             avatar: avatar || null,
             slot,
             color: identity.color || null,
@@ -155,17 +124,45 @@ class IoGameManager {
             disconnected: false,
             joinedAt: Date.now(),
         };
-        room.players.set(playerId, player);
+    }
+
+    /**
+     * Le corps simulé est indexé par identifiant de joueur : il doit suivre le
+     * nouveau socket, sinon le joueur pilote un fantôme.
+     */
+    onPlayerRejoin(room, oldId, newId) {
+        if (room.modeCtx?.state?.bodies?.has(oldId)) {
+            const body = room.modeCtx.state.bodies.get(oldId);
+            room.modeCtx.state.bodies.delete(oldId);
+            room.modeCtx.state.bodies.set(newId, body);
+            // Les traînées référencent le propriétaire par identifiant.
+            for (const [key, owner] of room.modeCtx.state.trailOwners) {
+                if (owner === oldId) room.modeCtx.state.trailOwners.set(key, newId);
+            }
+        }
+        if (room.modeCtx) room.modeCtx.players = room.players;
+    }
+
+    /**
+     * Le contrôleur IO lit `{ room, player, reconnected }`. C'est aussi ici que
+     * le mode fait apparaître un arrivant dans une manche déjà lancée.
+     */
+    joinRoom(roomCode, playerId, playerName, avatar) {
+        const result = super.joinRoom(roomCode, playerId, playerName, avatar);
+        if (result.error) return result;
+
+        const room = result.room;
         if (room.modeCtx) room.modeCtx.players = room.players;
 
-        // Arrivée en pleine manche : le mode fait apparaître le joueur tout de
-        // suite. C'est le principe du jeu, pas un cas particulier.
-        if (room.state === 'PLAYING' && room.engine) {
-            if (mode?.onJoin) mode.onJoin(room.modeCtx, player);
+        if (!result.reconnected && room.state === 'PLAYING' && room.engine) {
+            const mode = modes.get(room.settings.modeId);
+            if (mode?.onJoin) mode.onJoin(room.modeCtx, result.player);
         }
-
-        return { room, player, reconnected: false };
+        return result;
     }
+
+    describeRejoin() { return {}; }
+    describeJoin() { return {}; }
 
     /**
      * Déconnexion. Le joueur n'est **pas** supprimé : il est marqué absent et

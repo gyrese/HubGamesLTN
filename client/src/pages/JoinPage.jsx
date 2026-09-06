@@ -78,6 +78,9 @@ function JoinPage() {
             case 'party':
                 navigate(`/party/play/${code}`);
                 break;
+            case 'dance':
+                navigate(`/dance/play/${code}`);
+                break;
             case 'io':
                 navigate(`/io/play/${code}`);
                 break;

@@ -1,73 +1,85 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import '../../components/FakeArtist/FakeArtistStyles.css';
 
 function FakeArtistSelectPage() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        document.body.classList.add('comic-theme');
-        return () => document.body.classList.remove('comic-theme');
+        document.body.classList.add('fa-noir');
+        return () => document.body.classList.remove('fa-noir');
     }, []);
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-6 text-on-background font-body-md relative select-none overflow-hidden">
+        <div className="fa-app min-h-screen flex items-center justify-center p-6 select-none overflow-hidden">
+            {/* Halos d'ambiance */}
+            <div className="fa-orb fa-orb-a" style={{ width: 420, height: 420, top: '-10%', left: '-8%' }} />
+            <div className="fa-orb fa-orb-r" style={{ width: 380, height: 380, bottom: '-12%', right: '-6%' }} />
 
-            {/* Mots d'action flottants style BD */}
-            <div className="absolute top-10 left-6 bg-[#FF3B30] text-white font-black text-2xl uppercase italic px-4 py-2 border-[3px] border-on-background shadow-[4px_4px_0_#1a1a1a] -rotate-12 select-none z-0">
-                IMPOSTEUR ?
-            </div>
-            <div className="absolute top-16 right-6 bg-[#FFD60A] text-on-background font-black text-2xl uppercase italic px-4 py-2 border-[3px] border-on-background shadow-[4px_4px_0_#1a1a1a] rotate-8 select-none z-0">
-                TRAIT UNIQUE !
-            </div>
-            <div className="absolute bottom-28 right-8 bg-[#0055FF] text-white font-black text-xl uppercase italic px-3 py-2 border-[3px] border-on-background shadow-[3px_3px_0_#1a1a1a] rotate-3 select-none z-0">
-                DÉMASQUÉ !
-            </div>
-            <div className="absolute bottom-40 left-6 bg-[#FFD60A] text-on-background font-black text-lg uppercase italic px-3 py-1.5 border-[3px] border-on-background shadow-[3px_3px_0_#1a1a1a] -rotate-6 select-none z-0">
-                INTRIGUE...
-            </div>
+            <main className="w-full max-w-[460px] relative z-10">
+                {/* Titre */}
+                <div className="text-center mb-9">
+                    <div className="fa-label mb-4">Dossier n° 07 · Bureau des faussaires</div>
 
-            <main className="w-full max-w-[440px] relative z-10 text-center">
-                {/* Logo */}
-                <div className="mb-8">
-                    <div className="inline-flex items-center justify-center w-28 h-28 rounded-none bg-[#FFD60A] border-[4px] border-on-background mb-5 shadow-[6px_6px_0_#1a1a1a] rotate-3">
-                        <span className="text-6xl -rotate-3">🕵️‍♂️🎨</span>
-                    </div>
-                    <h1 className="text-5xl font-black text-on-background tracking-tighter uppercase italic -rotate-1 mb-2"
-                        style={{ textShadow: '4px 4px 0 #FF3B30, 6px 6px 0 #1a1a1a' }}>
-                        Fake Artist
+                    <h1 className="fa-h text-[3.25rem] leading-none mb-4">
+                        <span className="fa-title-glow">Fake</span>{' '}
+                        <span className="text-[var(--fa-text)]">Artist</span>
                     </h1>
-                    <p className="text-sm font-black text-on-background/70 uppercase tracking-wider">
-                        Un seul dessin · Un imposteur · Saurez-vous le trouver ?
+
+                    <p className="text-[0.9375rem] fa-text-muted leading-relaxed max-w-[340px] mx-auto">
+                        Un dessin, un trait chacun.
+                        <br />
+                        L'un de vous ignore ce qu'il dessine.
                     </p>
                 </div>
 
-                {/* Carte principale */}
-                <div className="bg-white border-[4px] border-on-background p-6 shadow-[6px_6px_0_#1a1a1a] flex flex-col gap-4">
+                {/* Actions */}
+                <div className="fa-card p-6 fa-stagger flex flex-col gap-3">
                     <button
                         onClick={() => navigate('/fakeartist/host')}
-                        className="w-full bg-[#FF3B30] text-white py-4 border-[3px] border-on-background font-black text-sm uppercase tracking-wide shadow-[4px_4px_0_#1a1a1a] hover:shadow-[6px_6px_0_#1a1a1a] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                        className="fa-btn fa-btn-primary fa-btn-lg w-full"
                     >
-                        <span className="material-symbols-outlined text-[20px]">tv</span>
-                        Créer une partie (Hôte)
+                        <span className="material-symbols-outlined text-[20px]">cast</span>
+                        Ouvrir une table
                     </button>
+
                     <button
                         onClick={() => navigate('/fakeartist/play')}
-                        className="w-full bg-[#0055FF] text-white py-4 border-[3px] border-on-background font-black text-sm uppercase tracking-wide shadow-[4px_4px_0_#1a1a1a] hover:shadow-[6px_6px_0_#1a1a1a] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2 active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+                        className="fa-btn fa-btn-lg w-full"
                     >
-                        <span className="material-symbols-outlined text-[20px]">person</span>
-                        Rejoindre une partie
+                        <span className="material-symbols-outlined text-[20px]">smartphone</span>
+                        Rejoindre avec un code
                     </button>
+
+                    <div className="flex items-center gap-3 pt-2">
+                        <div className="h-px flex-1 bg-[var(--fa-line)]" />
+                        <span className="fa-label !text-[0.625rem]">3 à 12 joueurs</span>
+                        <div className="h-px flex-1 bg-[var(--fa-line)]" />
+                    </div>
+
+                    {/* Règle en trois temps */}
+                    <div className="grid grid-cols-3 gap-2.5 text-center">
+                        {[
+                            { n: '01', t: 'Dessinez', d: 'Un seul trait, chacun son tour' },
+                            { n: '02', t: 'Débattez', d: 'Qui hésite ? Qui copie ?' },
+                            { n: '03', t: 'Votez', d: 'Démasquez le faussaire' }
+                        ].map(step => (
+                            <div key={step.n} className="fa-card-inset p-3">
+                                <div className="fa-mono text-[0.6875rem] fa-text-amber mb-1.5">{step.n}</div>
+                                <div className="text-[0.8125rem] font-bold mb-1">{step.t}</div>
+                                <div className="text-[0.6875rem] fa-text-dim leading-snug">{step.d}</div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                <div className="mt-8">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="text-xs font-black text-on-background/60 uppercase tracking-widest hover:text-on-background transition-colors flex items-center justify-center gap-1 mx-auto"
-                    >
-                        <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-                        Retour au menu principal
-                    </button>
-                </div>
+                <button
+                    onClick={() => navigate('/')}
+                    className="fa-btn fa-btn-ghost fa-btn-sm mx-auto mt-7 flex"
+                >
+                    <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                    Retour au hub
+                </button>
             </main>
         </div>
     );

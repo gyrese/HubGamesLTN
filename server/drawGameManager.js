@@ -3,149 +3,73 @@
  * Gère les salons de jeu Pictionary avec dessin en temps réel
  */
 
+const RoomBase = require('./core/RoomBase');
 const { getRandomWord, getCategories } = require('./drawWords');
 
 const CANVAS_HISTORY_MAX = 500; // B8 — limite mémoire
 
-class DrawGameManager {
+class DrawGameManager extends RoomBase {
     constructor() {
-        this.rooms = new Map(); // Map<roomCode, DrawRoom>
-        // B5 — nettoyage périodique des rooms mortes (toutes les 10 min)
-        setInterval(() => this.cleanupRooms(), 10 * 60 * 1000);
-        console.log('[DRAW] Draw Up game manager initialized');
+        super({
+            logTag: 'DRAW',
+            codeFormat: 'alpha6',
+            endStates: ['GAME_END'],
+            endedTtlMs: 30 * 60 * 1000,  // 30 min après GAME_END
+            staleTtlMs: 90 * 60 * 1000   // 1h30 sans activité
+        });
     }
 
+    /**
+     * Draw Up mesure l'inactivité sur le début de manche, pas sur la dernière
+     * action : un salon dont plus personne ne dessine doit partir même si des
+     * évènements réseau continuent d'arriver.
+     */
     cleanupRooms() {
         const now = Date.now();
-        const GAME_END_TTL = 30 * 60 * 1000; // 30 min après GAME_END
-        const STALE_TTL    = 90 * 60 * 1000; // 1h30 sans activité
         for (const [code, room] of this.rooms) {
-            if (room.gameState === 'GAME_END' && room.gameEndTime && (now - room.gameEndTime) > GAME_END_TTL) {
-                this.rooms.delete(code);
-                console.log(`[DRAW] Cleanup: room ${code} supprimée (GAME_END)`);
+            if (room.gameState === 'GAME_END' && room.gameEndTime && (now - room.gameEndTime) > this.endedTtlMs) {
+                this.deleteRoom(code);
                 continue;
             }
             const ref = room.roundStartTime || 0;
-            const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
-            if (activePlayers.length === 0 && (now - ref) > STALE_TTL) {
-                this.rooms.delete(code);
-                console.log(`[DRAW] Cleanup: room ${code} supprimée (stale)`);
+            if (this.activePlayers(room).length === 0 && (now - ref) > this.staleTtlMs) {
+                this.deleteRoom(code);
             }
         }
     }
 
-    deleteRoom(roomCode) {
-        this.rooms.delete(roomCode);
-        console.log(`[DRAW] Room ${roomCode} deleted`);
-    }
-
-    generateRoomCode() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-    }
-
-    createRoom(hostId, settings = {}) {
-        const roomCode = this.generateRoomCode();
-        const defaultSettings = {
+    defaultSettings() {
+        return {
             roundsPerPlayer: 2,    // Nombre de fois que chaque joueur dessine
             timePerRound: 90,      // Secondes par manche
             categories: ['all'],   // Catégories de mots
             pointsForGuessing: 100,// Points pour deviner
             pointsForDrawer: 50,   // Points bonus pour le dessinateur si quelqu'un trouve
         };
+    }
 
-        this.rooms.set(roomCode, {
-            code: roomCode,
-            hostId: hostId,
-            players: new Map(),    // Map<socketId, PlayerData>
-            gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END
+    createRoomState(settings = {}) {
+        return {
+            // LOBBY, PLAYING, ROUND_END, GAME_END
             currentRound: 0,
             currentDrawerIndex: 0,
-            currentDrawerId: null, // Stable drawer ID for the active round
+            currentDrawerId: null, // Dessinateur de la manche en cours
             currentWord: null,     // { word, category, hint }
-            drawOrder: [],         // Array of player IDs in draw order
-            drawQueue: [],         // Pre-calculated queue of drawers for rounds
-            totalRounds: 0,        // Will be calculated when game starts
-            timePerRound: settings.timePerRound || defaultSettings.timePerRound,
+            drawOrder: [],         // Identifiants dans l'ordre de passage
+            drawQueue: [],         // File pré-calculée des dessinateurs
+            totalRounds: 0,        // Calculé au démarrage de la partie
+            timePerRound: settings.timePerRound || this.defaultSettings().timePerRound,
             roundStartTime: null,
-            canvasHistory: [],     // Store drawing strokes for new joiners
-            guessedThisRound: new Set(), // Players who guessed correctly this round
+            canvasHistory: [],     // Tracés conservés pour les arrivants
+            guessedThisRound: new Set(), // Joueurs ayant trouvé cette manche
             usedWords: new Set(),  // Anti-doublon des mots joués dans la partie
             drawerScoreThisRound: 0,
-            settings: { ...defaultSettings, ...settings },
-            remoteIds: []          // Remote control socket IDs
-        });
-
-        console.log(`[DRAW] Room created: ${roomCode}`);
-        return roomCode;
+            remoteIds: []          // Sockets de télécommande
+        };
     }
 
-    getRoom(roomCode) {
-        return this.rooms.get(roomCode);
-    }
-
-    joinRoom(roomCode, playerId, playerName, avatar) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-
-        // Check for reconnection (same name)
-        let existingPlayerId = null;
-        for (const [id, p] of room.players) {
-            if (p.name.toLowerCase() === playerName.toLowerCase()) {
-                existingPlayerId = id;
-                break;
-            }
-        }
-
-        if (existingPlayerId) {
-            // RECONNECTION
-            const playerData = room.players.get(existingPlayerId);
-            room.players.delete(existingPlayerId);
-
-            playerData.id = playerId;
-            playerData.disconnected = false;
-            if (avatar) playerData.avatar = avatar;
-
-            room.players.set(playerId, playerData);
-
-            // Update drawOrder and drawQueue if player was in it
-            const drawOrderIndex = room.drawOrder.indexOf(existingPlayerId);
-            if (drawOrderIndex !== -1) {
-                room.drawOrder[drawOrderIndex] = playerId;
-            }
-            if (room.drawQueue) {
-                room.drawQueue = room.drawQueue.map(id => id === existingPlayerId ? playerId : id);
-            }
-
-            console.log(`[DRAW] Player ${playerName} reconnected to room ${roomCode}`);
-
-            return {
-                success: true,
-                room,
-                reconnected: true,
-                gameState: room.gameState,
-                currentRound: room.currentRound,
-                totalRounds: room.totalRounds,
-                currentWord: room.currentWord,
-                currentDrawerId: this.getCurrentDrawerId(roomCode),
-                currentDrawerName: room.players.get(this.getCurrentDrawerId(roomCode))?.name || '',
-                isDrawer: this.getCurrentDrawerId(roomCode) === playerId,
-                roundStartTime: room.roundStartTime,
-                timePerRound: room.timePerRound,
-                canvasHistory: room.canvasHistory,
-                myScore: playerData.score,
-                hasGuessed: room.guessedThisRound.has(playerId)
-            };
-        }
-
-        // NEW PLAYER
-        const isLateJoin = room.gameState !== 'LOBBY';
-
-        room.players.set(playerId, {
+    createPlayer(playerId, playerName, avatar, room) {
+        const player = {
             id: playerId,
             name: playerName,
             avatar: avatar || null,
@@ -154,25 +78,67 @@ class DrawGameManager {
             timesDrawn: 0,
             correctGuesses: 0,
             disconnected: false
-        });
+        };
 
-        // Don't add late joiners to draw order mid-game
-        if (!isLateJoin) {
+        // Un arrivant en cours de partie n'entre pas dans l'ordre de passage :
+        // il attendra la manche suivante pour dessiner.
+        if (room.gameState === 'LOBBY') {
             room.drawOrder.push(playerId);
         }
+        return player;
+    }
 
-        console.log(`[DRAW] Player ${playerName} joined room ${roomCode}${isLateJoin ? ' (late join)' : ''}`);
+    /** Draw Up laisse entrer en cours de partie, en spectateur-devineur. */
+    canJoinMidGame() {
+        return true;
+    }
 
+    /** Le joueur revient : son tour de dessin doit le suivre. */
+    onPlayerRejoin(room, oldId, newId) {
+        const drawOrderIndex = room.drawOrder.indexOf(oldId);
+        if (drawOrderIndex !== -1) {
+            room.drawOrder[drawOrderIndex] = newId;
+        }
+        if (room.drawQueue) {
+            room.drawQueue = room.drawQueue.map(id => id === oldId ? newId : id);
+        }
+        if (room.guessedThisRound?.has(oldId)) {
+            room.guessedThisRound.delete(oldId);
+            room.guessedThisRound.add(newId);
+        }
+    }
+
+    describeRejoin(room, player) {
+        const drawerId = this.getCurrentDrawerId(room.code);
         return {
-            success: true,
-            room,
-            lateJoin: isLateJoin,
             gameState: room.gameState,
             currentRound: room.currentRound,
             totalRounds: room.totalRounds,
-            currentWord: isLateJoin ? { category: room.currentWord?.category, wordLength: room.currentWord?.word.length } : null,
-            currentDrawerId: this.getCurrentDrawerId(roomCode),
-            currentDrawerName: room.players.get(this.getCurrentDrawerId(roomCode))?.name || '',
+            currentWord: room.currentWord,
+            currentDrawerId: drawerId,
+            currentDrawerName: room.players.get(drawerId)?.name || '',
+            isDrawer: drawerId === player.id,
+            roundStartTime: room.roundStartTime,
+            timePerRound: room.timePerRound,
+            canvasHistory: room.canvasHistory,
+            myScore: player.score,
+            hasGuessed: room.guessedThisRound.has(player.id)
+        };
+    }
+
+    describeJoin(room) {
+        const isLateJoin = room.gameState !== 'LOBBY';
+        const drawerId = this.getCurrentDrawerId(room.code);
+        return {
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
+            // L'arrivant ne reçoit que la longueur du mot, jamais le mot lui-même
+            currentWord: isLateJoin
+                ? { category: room.currentWord?.category, wordLength: room.currentWord?.word.length }
+                : null,
+            currentDrawerId: drawerId,
+            currentDrawerName: room.players.get(drawerId)?.name || '',
             roundStartTime: room.roundStartTime,
             timePerRound: room.timePerRound,
             canvasHistory: room.canvasHistory
@@ -603,12 +569,12 @@ class DrawGameManager {
         return null;
     }
 
-    getPlayersInRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return [];
-        return Array.from(room.players.values());
+    /** Draw Up expose l'objet joueur complet (statistiques de manche incluses). */
+    describePlayer(p) {
+        return p;
     }
 
+    /** Variante non destructive : Draw Up mélange des tableaux qu'il réutilise. */
     shuffleArray(array) {
         const arr = [...array];
         for (let i = arr.length - 1; i > 0; i--) {

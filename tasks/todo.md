@@ -1,134 +1,137 @@
-# IO_ARENA — socle temps réel
-
-> Le chantier précédent (Super LTN Party) reste en cours dans l'arbre de travail ;
-> ce document décrit le chantier courant. Catalogue d'origine :
-> [idees-jeux-io.md](idees-jeux-io.md).
+# Plan — Dance Dance (jeu de rythme multi)
 
 ## Objectif
+Ajouter un 8e jeu au hub : un jeu de rythme type StepMania/DDR où les joueurs
+tapent des flèches en rythme sur leur téléphone, l'action se déroulant sur le
+grand écran. Inspiration : stepfever (web) et Etterna (jugement/scoring).
 
-Doter le hub de sa **première boucle de simulation temps réel**, sous la forme
-d'un jeu `IO` à part entière, et prouver le socle avec un mode jouable de bout
-en bout (TERRITOIRE, façon Paper.io).
+## Décisions de conception (validées avec l'utilisateur)
 
-Jusqu'ici le dépôt n'avait aucune simulation : tous les `setInterval` du serveur
-étaient du nettoyage de salons, les jeux fonctionnaient au tour par tour, et Draw
-relayait des évènements clients sans rien calculer. Les 8 jeux .io du catalogue
-partageaient donc tous le même prérequis manquant.
+### 1. Jugement client, validation serveur
+Un jeu de rythme exige une fenêtre PERFECT à ±20 ms. La latence WiFi (30-80 ms,
+variable) rend le jugement serveur strict injouable et injuste : le joueur avec
+la meilleure connexion gagnerait. Donc :
+- la chart est envoyée au téléphone AVANT le départ (préchargement) ;
+- le téléphone juge localement, réaction instantanée ;
+- le téléphone envoie `{ noteId, offset }` ; le serveur VALIDE (plausibilité)
+  et fait autorité sur le classement.
+Anti-triche par plausibilité, dans l'esprit du serveur autoritaire de .IO :
+note existante, non rejouée, offset dans la fenêtre, cadence humaine.
 
-## Décisions actées
+### 2. Musique libre + chart auto-générée
+Aucun fichier .sm/audio StepMania n'est redistribuable. L'admin téléverse un
+MP3 ; le serveur détecte le tempo et génère la chorégraphie selon la
+difficulté. Légal, extensible, autonome.
 
-| Sujet | Choix |
-|---|---|
-| Transport | **Upgrade WebSocket pour tout le hub**, aligné sur LTNHoot, avec repli polling automatique |
-| Mode de démonstration | **TERRITOIRE** (Paper.io) — le plus lisible de loin |
-| Portée | Socle **+ un mode complet**, jouable de bout en bout |
-| Rôle du téléphone | **Manette seule** : il n'affiche jamais le jeu |
+### 3. Contrôles : 4 zones tactiles fixes
+Croix directionnelle plein écran (←↓↑→). Un swipe demande ~150 ms de
+reconnaissance : incompatible avec les passages rapides.
+
+### 4. Synchronisation temporelle
+Réutiliser `connection:syncTime` (déjà dans index.js) : chaque téléphone
+calcule son décalage avec le serveur. Le départ est annoncé à un timestamp
+serveur absolu, donc tous les appareils démarrent la même chanson au même
+instant, malgré des latences différentes.
 
 ## Tâches
 
-- [x] Aligner le transport client/serveur sur LTNHoot (upgrade WS + repli)
-- [x] Watchdog mobile de retour au premier plan (sonde `connection:ping`)
-- [x] Handlers communs `connection:ping` et `connection:syncTime`
-- [x] `server/io/tickEngine.js` — boucle à pas fixe, budget réseau, arrêt propre
-- [x] `server/io/modes/index.js` — registre, contrat d'un mode
-- [x] `server/io/modes/territoire.js` — conquête par diffusion sur grille
-- [x] `server/ioGameManager.js` — salons, reconnexion par pseudo, période de grâce
-- [x] `server/controllers/ioController.js` — machine à états, diffusion `volatile`
-- [x] Vues client : SelectPage, HostView (canvas + interpolation), PlayerView (joystick)
-- [x] Câblage : routes, HomePage, JoinPage, `/api/room/:code`
-- [x] Tests de bout en bout + non-régression des 6 jeux existants
+### Serveur
+- [x] `server/dance/chart.js` — génération de chorégraphie depuis un BPM +
+      difficulté (patterns : croches, doubles, escaliers, jumps)
+- [x] ~~`server/dance/audioAnalysis.js`~~ → analyse dans le navigateur (Web Audio API), aucune dépendance serveur — détection de tempo (énergie/onsets) sur
+      le MP3 téléversé
+- [x] `server/dance/judge.js` — fenêtres de jugement + scoring type Etterna
+      (PERFECT/GREAT/GOOD/MISS, combo, multiplicateur)
+- [x] `server/dance/songs.js` — catalogue des morceaux (persistance JSON)
+- [x] `server/danceGameManager.js` — salon, hérite de `RoomBase`
+- [x] `server/controllers/danceController.js` — machine à états
+      LOBBY → COUNTDOWN → PLAYING → RESULT, validation anti-triche
+- [x] Câblage : `index.js` (controller + /api/room/:code), `hubSession.js`
+      (catalogue soirée), route d'upload admin
 
-## Ce qui a été construit
+### Client
+- [x] `client/src/pages/dance/DanceSelectPage.jsx` — choix morceau/difficulté
+- [x] `client/src/components/Dance/DanceHostView.jsx` — grand écran :
+      couloirs de flèches, scores live, combos
+- [x] `client/src/components/Dance/DancePlayerView.jsx` — 4 zones tactiles +
+      jugement local + feedback
+- [x] `client/src/components/Dance/danceEngine.js` — horloge audio, jugement
+      local, boucle de rendu
+- [x] `client/src/components/Dance/DanceStyles.css` — thème néon arcade
+- [x] Câblage : `App.jsx` (routes), `HomePage.jsx` (carte du jeu)
 
-**Serveur** (1 280 lignes)
-
-| Fichier | Rôle |
-|---|---|
-| `server/io/tickEngine.js` | Boucle à pas fixe 20 Hz, diffusion 10 Hz, mesure du débit |
-| `server/io/modes/index.js` | Registre : ajouter un mode ne touche jamais la machine à états |
-| `server/io/modes/territoire.js` | Le gameplay : traînées, capture, collisions, réapparition |
-| `server/ioGameManager.js` | Salons, arrivée en pleine manche, reconnexion par pseudo |
-| `server/controllers/ioController.js` | `LOBBY → PLAYING → RESULT`, relais des intentions |
-
-**Client** (1 002 lignes) : `components/Io/{IoHostView,IoPlayerView,IoStyles.css}`,
-`pages/io/IoSelectPage.jsx`.
-
-## Les trois règles du socle
-
-1. **Le serveur est autoritaire.** Le téléphone n'envoie qu'un cap (`{ angle }`),
-   jamais une position — même logique anti-triche que GeoTrackr.
-2. **Les instantanés partent en `volatile`.** Un paquet de position perdu ne doit
-   jamais être rejoué : le suivant le remplace. C'est ce qui protège le wifi.
-3. **Le téléphone n'affiche pas le jeu.** Il est une manette ; les instantanés ne
-   vont qu'aux grands écrans, jamais aux joueurs.
+### Vérification
+- [x] Test de la génération de chart (densité cohérente par difficulté)
+- [x] Test du jugement (fenêtres, combos, scoring)
+- [x] Test de la validation anti-triche (rejeu, offsets impossibles)
 
 ## Revue
 
-### Ce qui a été mesuré, pas supposé
+### Ce qui a été livré
+Huitième jeu du hub, complet et branché partout : accueil, routage par code,
+catalogue de soirée (PASSEPORT), administration.
 
-| Indicateur | Seuil visé | Mesuré |
-|---|---|---|
-| Temps de simulation par tick (20 joueurs) | < 10 ms | **0,04 ms** (pire relevé : 6 ms) |
-| Débit vers l'écran (20 joueurs, pire cas) | tenable en salle | **19,5 Ko/s** |
-| Débit vers l'écran (8 joueurs, cas typique) | — | **8,1 Ko/s** |
-| Débit en conditions réelles (7 joueurs) | < 40 Ko/s | **7,7 Ko/s** |
+**Serveur** — `dance/judge.js` (fenêtres et score), `dance/chart.js`
+(chorégraphies), `dance/songs.js` (catalogue), `danceGameManager.js`,
+`controllers/danceController.js`.
+**Client** — `danceEngine.js` (horloge audio, jugement local, détection de
+tempo), vues hôte et joueur, page de sélection, feuille de style `.dd-*`.
 
-### Trois défauts trouvés par les tests, corrigés
+### Décisions notables
 
-1. **Suicide sur sa propre traînée.** À 130 unités/s et 20 Hz, plusieurs pas
-   tiennent dans une même case : le joueur posait sa traînée puis se tuait dessus
-   au pas suivant. Corrigé par un test `lastCell` — rester sur la case qu'on
-   occupe déjà n'est jamais un évènement.
-2. **Hécatombe au lancement.** Les apparitions par anneaux de 3 cases plaçaient
-   cinq paires de joueurs à moins de 6 cases ; 18 joueurs sur 20 mouraient en six
-   secondes. Corrigé par une distance minimale relâchée par paliers (14 → 10 → 7)
-   plus une invulnérabilité de 1,5 s à l'apparition. **Résultat : 20/20 survivants.**
-3. **Reconnexion cassée.** `removePlayer` supprimait le joueur, donc il n'y avait
-   plus aucun pseudo à retrouver. Corrigé en le marquant absent (comme le
-   capitaine dans Party), avec purge différée entre deux manches et corps figé
-   pendant l'absence.
+**Le jugement est local, la validation serveur.** C'est la seule entorse à la
+règle « serveur autoritaire » du hub, et elle est délibérée : un jeu de rythme
+distingue une frappe parfaite à 25 ms près, alors que la latence du wifi varie
+de 30 à 80 ms. Juger côté serveur aurait noté la qualité de la connexion, pas
+le sens du rythme. Le téléphone juge donc pour la réactivité ; le serveur
+**rejuge** chaque frappe avec la même table (`registerHit`). Le client
+transmet un écart, jamais un verdict ni des points.
 
-### Optimisations réseau
+**Quatre gardes anti-triche**, chacune fermant une fraude distincte : note
+inexistante, note rejouée, écart hors fenêtre, incohérence entre l'écart
+annoncé et l'instant d'arrivée du paquet. Plus un plafond de 25 frappes par
+seconde et par joueur. Toutes testées.
 
-La traînée et la grille étaient renvoyées intégralement dix fois par seconde.
-Désormais : la grille ne part en entier qu'au premier instantané (puis par
-différences `[index, propriétaire]`), et les traînées ne transmettent que les
-cases ajoutées, un numéro de version indiquant au client quand repartir de zéro.
-Mesure : **41 → 19,5 Ko/s** dans le pire cas.
+**Départ synchronisé par instant absolu.** Le serveur n'envoie jamais « pars
+maintenant » mais un horodatage ; chaque téléphone connaît son décalage
+d'horloge (`connection:syncTime`, déjà présent) et convertit. Un joueur dont
+l'annonce arrive 200 ms plus tard démarre malgré tout à l'heure.
 
-> Une correction méthodologique mérite d'être notée : une première mesure
-> annonçait 64 Ko/s après cette optimisation. Le banc d'essai n'appelait
-> `snapshot` qu'un tick sur dix, laissant les différences s'accumuler — le test
-> était faux, pas le code. À la cadence réelle du moteur, le gain est bien réel.
+**L'analyse du tempo se fait dans le navigateur.** Décoder du MP3 côté serveur
+aurait imposé ffmpeg ou un module natif dans l'image Docker, pour un seul jeu.
+La Web Audio API le fait déjà ; le serveur borne les valeurs reçues.
 
-### Vérifications passées
+**Aucun fichier StepMania.** Les packs de chansons sont sous copyright et non
+redistribuables : le catalogue est alimenté par l'hôte, et la chorégraphie est
+générée à partir du tempo.
 
-- **18 tests de bout en bout** contre le vrai serveur : création de salon, six
-  joueurs, manche complète, arrivée en pleine manche, reconnexion par pseudo,
-  classement trié, refus d'un joueur qui tente de piloter la manche.
-- **Non-régression des 6 jeux existants** : tous créent un salon, acceptent un
-  joueur, sont résolus par `/api/room/:code` — et **montent tous en WebSocket**.
-- **Repli polling** vérifié en forçant `transports: ['polling']` : le jeu reste
-  jouable, ce qui valide la garantie « aucune régression possible ».
+### Deux corrections en cours de route
+- **Difficultés inversées.** Les temps forts étant joués inconditionnellement,
+  toute densité inférieure à 1 note/temps était inatteignable : « Facile »
+  sortait plus dense que « Normal ». Corrigé à la racine — les temps forts sont
+  désormais *prioritaires* et non obligatoires, et l'on retient exactement le
+  nombre de notes voulu. Progression obtenue : 1,0 / 1,9 / 3,8 / 5,1 notes/s.
+- **Densité dépendante du tempo.** À 200 BPM, « Normal » valait « Expert ».
+  Ajout d'une normalisation vers un tempo de référence.
 
-### Le comparatif Paper.io-2 (Unity)
+### Vérification
+- `npm test` : **321 assertions vertes** sur 6 suites, aucune régression.
+- `server/test/dance.js` (44) : chorégraphies, jugement, anti-triche, cycle de vie.
+- `server/test/dance-game.js` (24) : partie complète sur de vraies sockets —
+  départ synchronisé, frappes en temps réel, matraquage bloqué, classement.
+- Tables de jugement client et serveur prouvées identiques (risque principal de
+  l'architecture retenue).
+- Build client et ESLint propres ; démarrage serveur vérifié ; routes REST
+  testées, upload protégé (401 sans authentification).
 
-Le dépôt de référence transmis emploie un **maillage polygonal triangulé** et des
-`SphereCollider` posés le long de la traînée. Rien n'en a été repris : c'est du
-solo local sans serveur, la triangulation est intransposable à Node et
-insérialisable à 10 Hz, et le jeu **n'a pas de réapparition** (`Die()` → `GameOver`)
-— l'inverse exact de ce qu'exige un bar où l'on rejoint en cours. Seul détail
-retenu : la traînée semi-transparente, reprise pour la lisibilité de l'écran.
+### Reste à faire par l'utilisateur
+1. **Redémarrer le serveur** (le processus en cours date d'avant ces modifications).
+2. **Ajouter au moins un morceau** via `/dance`, connecté à l'administration.
+   Sans morceau, le jeu s'ouvre mais ne peut rien lancer.
+3. **Fournir la vignette** `client/public/assets/games/dance_dance.webp`, comme
+   pour les autres jeux (la carte d'accueil la référence déjà).
 
-## Reste à faire
-
-- [ ] **Test en salle** : 6 téléphones réels. Rien ne remplace cette étape.
-- [ ] Les 7 autres modes .io, un par un (~150 lignes chacun désormais)
-
-## Point de vigilance signalé (hors périmètre)
-
-`quizController.js:145` appelle `callback({ roomCode })` sans vérifier que le
-callback existe : un client qui émet `create-room` sans fonction de rappel fait
-**tomber le serveur entier** (`TypeError: callback is not a function`, constaté
-pendant les tests). Les autres contrôleurs utilisent un `safeCallback` qui s'en
-protège. À corriger dans un chantier dédié.
+### Piste laissée de côté
+Les notes longues (*hold*) de StepMania ne sont pas implémentées : elles
+demandent un suivi d'appui continu et une seconde logique de jugement. Le jeu
+est complet sans elles ; c'est un ajout naturel si l'envie vient.

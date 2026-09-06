@@ -16,6 +16,7 @@ const tables = require('./party/tables');
 const champions = require('./party/champions');
 const minigames = require('./party/minigames');
 const photos = require('./party/photos');
+const RoomBase = require('./core/RoomBase');
 
 const ROUND_CHOICES = [6, 10, 15];
 
@@ -25,41 +26,45 @@ const DEFAULT_SETTINGS = {
     maxTables: tables.MAX_TABLES,
 };
 
-class PartyGameManager {
+class PartyGameManager extends RoomBase {
     constructor() {
-        this.rooms = new Map(); // Map<roomCode, PartyRoom>
+        super({
+            logTag: 'PARTY',
+            codeFormat: 'num4',
+            stateField: 'state',        // Super LTN Party nomme son état `state`
+            endStates: ['FINAL'],
+            endedTtlMs: 30 * 60 * 1000,
+            staleTtlMs: 2 * 60 * 60 * 1000
+        });
         this.ROUND_CHOICES = ROUND_CHOICES;
-        setInterval(() => this.cleanupRooms(), 10 * 60 * 1000);
-        console.log('[PARTY] Game manager initialized');
     }
 
+    /**
+     * La soirée expire sur l'inactivité seule : des téléphones peuvent rester
+     * connectés sans que personne ne joue.
+     */
     cleanupRooms() {
         const now = Date.now();
-        const ENDED_TTL = 30 * 60 * 1000;
-        const STALE_TTL = 2 * 60 * 60 * 1000;
         for (const [code, room] of this.rooms) {
-            const ref = room.lastActivity || 0;
-            if (room.state === 'FINAL' && (now - ref) > ENDED_TTL) {
+            const ref = room.lastActivity || room.createdAt || 0;
+            if (room.state === 'FINAL' && (now - ref) > this.endedTtlMs) {
                 this.deleteRoom(code);
                 continue;
             }
-            if ((now - ref) > STALE_TTL) this.deleteRoom(code);
+            if ((now - ref) > this.staleTtlMs) this.deleteRoom(code);
         }
     }
 
-    generateRoomCode() {
-        let code;
-        do {
-            code = Math.floor(1000 + Math.random() * 9000).toString();
-        } while (this.rooms.has(code));
-        return code;
+    defaultSettings() {
+        return { ...DEFAULT_SETTINGS };
     }
 
+    /**
+     * Garde-fous : l'hôte pilote l'interface, le serveur reste maître des bornes.
+     */
     createRoom(hostId, settings = {}) {
-        const roomCode = this.generateRoomCode();
         const merged = { ...DEFAULT_SETTINGS, ...settings };
 
-        // Garde-fous : l'hôte pilote l'interface, le serveur reste maître des bornes.
         if (!ROUND_CHOICES.includes(merged.totalRounds)) merged.totalRounds = DEFAULT_SETTINGS.totalRounds;
         if (!Array.isArray(merged.families) || merged.families.length === 0) {
             merged.families = DEFAULT_SETTINGS.families;
@@ -68,16 +73,14 @@ class PartyGameManager {
         if (merged.families.length === 0) merged.families = ['DIGITAL'];
         merged.maxTables = Math.min(Math.max(Number(merged.maxTables) || tables.MAX_TABLES, 2), tables.MAX_TABLES);
 
-        this.rooms.set(roomCode, {
-            code: roomCode,
-            hostId,
-            hostDisconnected: false,
-            players: new Map(),   // Map<socketId, PlayerData>
+        return super.createRoom(hostId, merged);
+    }
+
+    createRoomState() {
+        return {
             tables: new Map(),    // Map<tableId, TableData>
             ownership: map.createOwnership(),
             // LOBBY ROUND_INTRO GAME_VOTE CHAMPION_PICK ENROL REVEAL MINIGAME ROUND_RESULT FINAL
-            state: 'LOBBY',
-            settings: merged,
             roundIndex: 0,        // 0 tant que la partie n'a pas commencé
             contestedZoneId: null,
             lastZoneId: null,
@@ -98,22 +101,13 @@ class PartyGameManager {
             roundResult: null,
             finalResult: null,
             timers: [],
-            lastActivity: Date.now(),
-        });
-
-        console.log(`[PARTY] Room created: ${roomCode}`);
-        return roomCode;
+        };
     }
 
-    getRoom(roomCode) {
-        return this.rooms.get(roomCode);
-    }
-
-    deleteRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (room) this.clearTimers(room);
-        photos.clearRoom(roomCode);
-        if (this.rooms.delete(roomCode)) console.log(`[PARTY] Room ${roomCode} deleted`);
+    /** Les minuteurs de phase et les photos partent avec le salon. */
+    onRoomDisposed(room) {
+        this.clearTimers(room);
+        photos.clearRoom(room.code);
     }
 
     clearTimers(room) {
@@ -125,50 +119,45 @@ class PartyGameManager {
      * Arrivée d'un téléphone. La reconnexion se fait par pseudo, comme partout
      * ailleurs dans le hub : le capitaine retrouve sa table, son rôle et sa place.
      */
-    joinRoom(roomCode, playerId, playerName, avatar) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-        room.lastActivity = Date.now();
+    /** La soirée accueille les arrivants à tout moment : c'est le principe. */
+    canJoinMidGame() {
+        return true;
+    }
 
-        const name = (playerName || '').trim().slice(0, 20);
-        if (!name) return { error: 'Pseudo invalide' };
+    sanitizeName(playerName) {
+        return super.sanitizeName(playerName, 20);
+    }
 
-        for (const [id, player] of room.players) {
-            if (player.name.toLowerCase() !== name.toLowerCase()) continue;
-
-            // Reconnexion : le socket change, la place reste.
-            room.players.delete(id);
-            player.id = playerId;
-            player.disconnected = false;
-            if (avatar) player.avatar = avatar;
-            room.players.set(playerId, player);
-
-            const table = player.tableId ? room.tables.get(player.tableId) : null;
-            if (table) {
-                if (table.captainId === id) {
-                    table.captainId = playerId;
-                    table.captainName = player.name;
-                    table.disconnectedAt = null; // le capitaine est revenu
-                }
-                if (table.enrolled.delete(id)) table.enrolled.add(playerId);
-            }
-
-            return { room, player, reconnected: true };
-        }
-
-        // Nouvelle arrivée : possible à tout moment de la soirée, c'est le principe.
-        const player = {
+    createPlayer(playerId, playerName, avatar) {
+        return {
             id: playerId,
-            name,
+            name: playerName,
             avatar: avatar || null,
             tableId: null,
             role: 'visitor',      // visitor → captain (crée une table) ou guest (scanne)
             disconnected: false,
             joinedAt: Date.now(),
         };
-        room.players.set(playerId, player);
-        return { room, player, reconnected: false };
     }
+
+    /** Le capitaine qui revient doit retrouver sa table et son inscription. */
+    onPlayerRejoin(room, oldId, newId) {
+        const player = room.players.get(newId);
+        const table = player?.tableId ? room.tables.get(player.tableId) : null;
+        if (!table) return;
+
+        if (table.captainId === oldId) {
+            table.captainId = newId;
+            table.captainName = player.name;
+            table.disconnectedAt = null; // le capitaine est revenu
+        }
+        if (table.enrolled.delete(oldId)) table.enrolled.add(newId);
+    }
+
+    // Le contrôleur Party lit `{ room, player, reconnected }` : `describeRejoin`
+    // et `describeJoin` n'ajoutent donc rien au retour de RoomBase.
+    describeRejoin() { return {}; }
+    describeJoin() { return {}; }
 
     /**
      * Déconnexion. On ne supprime jamais un capitaine : il est marqué absent, sa

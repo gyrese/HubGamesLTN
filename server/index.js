@@ -36,8 +36,10 @@ const drawController = require('./controllers/drawController');
 const adminController = require('./controllers/adminController');
 const colorController = require('./controllers/colorController');
 const fakeArtistController = require('./controllers/fakeArtistController');
+const hubController = require('./controllers/hubController');
 const partyController = require('./controllers/partyController');
 const ioArenaController = require('./controllers/ioController');
+const danceController = require('./controllers/danceController');
 
 const rateLimit = require('express-rate-limit');
 
@@ -61,6 +63,8 @@ app.use('/api/', apiLimiter);
 adminController.setupRoutes(app);
 // Setup Color API Routes
 colorController.setupColorRoutes(app);
+// Setup Dance API Routes (catalogue et téléversement des morceaux)
+danceController.setupRoutes(app);
 
 // Servir les fichiers uploadés (Images, etc.)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -96,7 +100,14 @@ app.delete('/api/quizzes/:id', authMiddleware, async (req, res) => {
 // Universal room resolver endpoint (checks all game managers)
 app.get('/api/room/:code', (req, res) => {
     const roomCode = req.params.code.toUpperCase();
-    
+
+    // Code de soirée (PASSEPORT) : testé en premier, c'est le seul code qu'un
+    // joueur est censé saisir quand une soirée est en cours.
+    const hub = require('./core/hubSession');
+    if (hub.getSession(roomCode)) {
+        return res.json({ gameType: 'hub' });
+    }
+
     // Check Neural Quiz
     const quizGameManager = require('./gameManager');
     if (quizGameManager.getRoom(roomCode)) {
@@ -137,6 +148,12 @@ app.get('/api/room/:code', (req, res) => {
     const ioGameManager = require('./ioGameManager');
     if (ioGameManager.getRoom(roomCode)) {
         return res.json({ gameType: 'io' });
+    }
+
+    // Check Dance Dance
+    const danceGameManager = require('./danceGameManager');
+    if (danceGameManager.getRoom(roomCode)) {
+        return res.json({ gameType: 'dance' });
     }
 
     res.status(404).json({ error: 'Salon non trouvé' });
@@ -255,6 +272,8 @@ io.on('connection', (socket) => {
         fakeArtistController.handleConnection(io, socket);
         partyController.handleConnection(io, socket);
         ioArenaController.handleConnection(io, socket);
+        danceController.handleConnection(io, socket);
+        hubController.handleConnection(io, socket);
         console.log('[SERVER] All controllers initialized for socket:', socket.id);
     } catch (error) {
         console.error('[SERVER] ERROR initializing controllers for socket', socket.id, ':', error);

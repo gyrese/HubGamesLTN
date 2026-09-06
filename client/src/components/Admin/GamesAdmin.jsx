@@ -25,6 +25,7 @@ const GAMES = [
     { id: 'fakeartist', name: 'Fake Artist' },
     { id: 'party', name: 'Super LTN Party' },
     { id: 'io', name: 'IO Arena' },
+    { id: 'dance', name: 'Dance Dance' },
     { id: 'apero', name: 'Apéro Quiz (LTNHoot)' },
 ];
 

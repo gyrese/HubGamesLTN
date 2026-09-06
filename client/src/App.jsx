@@ -42,6 +42,11 @@ import IoSelectPage from './pages/io/IoSelectPage';
 import IoHostView from './components/Io/IoHostView';
 import IoPlayerView from './components/Io/IoPlayerView';
 
+// Dance Dance
+import DanceSelectPage from './pages/dance/DanceSelectPage';
+import DanceHostView from './components/Dance/DanceHostView';
+import DancePlayerView from './components/Dance/DancePlayerView';
+
 // Admin
 import AdminView from './components/Admin/AdminView';
 
@@ -126,6 +131,13 @@ function App() {
           <Route path="/io/host" element={<IoHostView />} />
           <Route path="/io/play" element={<IoPlayerView />} />
           <Route path="/io/play/:roomCode" element={<IoPlayerView />} />
+
+          {/* Dance Dance */}
+          <Route path="/dance" element={<DanceSelectPage />} />
+          <Route path="/dance/host" element={<DanceHostView />} />
+          <Route path="/dance/host/:roomCode" element={<DanceHostView />} />
+          <Route path="/dance/play" element={<DancePlayerView />} />
+          <Route path="/dance/play/:roomCode" element={<DancePlayerView />} />
 
           {/* Admin */}
           <Route path="/admin" element={<AdminView />} />

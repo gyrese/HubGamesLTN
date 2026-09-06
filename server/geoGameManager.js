@@ -3,13 +3,22 @@
  */
 
 const crypto = require('crypto');
+const RoomBase = require('./core/RoomBase');
 const geoLocations = require('./geoLocations');
 
-class GeoGameManager {
+class GeoGameManager extends RoomBase {
     constructor() {
-        this.rooms = new Map(); // Map<roomCode, GeoRoom>
-        
-        // Chargement asynchrone du nombre de lieux pour le log (retardé pour laisser SQLite s'initialiser)
+        super({
+            logTag: 'GEO',
+            codeFormat: 'alpha6',
+            cleanupIntervalMs: 5 * 60 * 1000,
+            endStates: ['GAME_END'],
+            endedTtlMs: 30 * 60 * 1000,  // 30 min après GAME_END
+            staleTtlMs: 60 * 60 * 1000   // 1 h sans activité
+        });
+
+        // Chargement asynchrone du nombre de lieux pour le log
+        // (retardé pour laisser SQLite s'initialiser)
         setTimeout(() => {
             geoLocations.getAll().then(locs => {
                 console.log(`[GEO] Loaded ${locs.length} locations from SQLite.`);
@@ -17,122 +26,71 @@ class GeoGameManager {
                 console.error('[GEO] Error getting initial locations count:', err);
             });
         }, 1000);
-
-        // Nettoyage périodique des rooms mortes (toutes les 5 min)
-        setInterval(() => this.cleanupRooms(), 5 * 60 * 1000);
     }
 
+    /**
+     * GeoTrackr date l'inactivité sur le début de manche. Un salon jamais
+     * démarré (roundStartTime null) n'est pas expiré par ce chemin : il part
+     * avec le nettoyage des salons vides.
+     */
     cleanupRooms() {
         const now = Date.now();
-        const GAME_END_TTL = 30 * 60 * 1000; // 30 min après GAME_END
-        const STALE_TTL = 60 * 60 * 1000;    // 1h sans activité
-
         for (const [code, room] of this.rooms) {
             const gameEndRef = room.gameEndTime || room.roundStartTime;
-            if (room.gameState === 'GAME_END' && gameEndRef && (now - gameEndRef) > GAME_END_TTL) {
-                console.log(`[GEO] Cleanup: room ${code} (GAME_END depuis ${Math.round((now - gameEndRef) / 60000)} min)`);
+            if (room.gameState === 'GAME_END' && gameEndRef && (now - gameEndRef) > this.endedTtlMs) {
                 this.deleteRoom(code);
                 continue;
             }
-            const activePlayers = Array.from(room.players.values()).filter(p => !p.disconnected);
-            if (activePlayers.length === 0 && room.players.size > 0 && room.roundStartTime && (now - room.roundStartTime) > STALE_TTL) {
-                console.log(`[GEO] Cleanup: room ${code} (aucun joueur actif depuis ${Math.round((now - room.roundStartTime) / 60000)} min)`);
+            if (this.activePlayers(room).length === 0 && room.players.size > 0
+                && room.roundStartTime && (now - room.roundStartTime) > this.staleTtlMs) {
                 this.deleteRoom(code);
             }
         }
     }
 
-    generateRoomCode() {
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-    }
-
-    createRoom(hostId, settings = {}) {
-        const roomCode = this.generateRoomCode();
-        const defaultSettings = {
+    defaultSettings() {
+        return {
             roundsCount: 5,        // Nombre de manches
             timePerRound: 60,      // Secondes par manche
             maxPoints: 5000,       // Points max par manche
             mapType: 'world'       // world, europe, france, etc.
         };
+    }
 
-        this.rooms.set(roomCode, {
-            code: roomCode,
+    createRoomState(settings = {}) {
+        const d = this.defaultSettings();
+        return {
             // Secret partagé pour la télécommande : seul l'hôte le reçoit (via QR).
             // Empêche un joueur connaissant le code du salon de détourner les commandes.
             remoteToken: crypto.randomBytes(16).toString('hex'),
-            hostId: hostId,
-            players: new Map(),    // Map<socketId, PlayerData>
-            gameState: 'LOBBY',    // LOBBY, PLAYING, ROUND_END, GAME_END
+            // LOBBY, PLAYING, ROUND_END, GAME_END
             currentRound: 0,
-            totalRounds: settings.roundsCount || defaultSettings.roundsCount,
-            timePerRound: settings.timePerRound || defaultSettings.timePerRound,
-            maxPoints: settings.maxPoints || defaultSettings.maxPoints,
-            currentLocation: null, // Vrai lieu {lat, lng, country, city}
+            totalRounds: settings.roundsCount || d.roundsCount,
+            timePerRound: settings.timePerRound || d.timePerRound,
+            maxPoints: settings.maxPoints || d.maxPoints,
+            currentLocation: null,       // Vrai lieu {lat, lng, country, city}
             currentLocationApprox: null, // Lieu approximatif envoyé aux clients
-            locations: [],         // Lieux utilisés dans cette partie (vrais lieux)
+            locations: [],               // Lieux utilisés dans cette partie
             roundStartTime: null,
-            settings: { ...defaultSettings, ...settings }
-        });
-
-        return roomCode;
+        };
     }
 
-    getRoom(roomCode) {
-        return this.rooms.get(roomCode);
+    /** GeoTrackr accepte les arrivants en cours de partie. */
+    canJoinMidGame() {
+        return true;
     }
 
-    joinRoom(roomCode, playerId, playerName, avatar) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-
-        // Vérifier si le joueur existe déjà (Reconnexion)
-        let existingPlayerId = null;
-        for (const [id, p] of room.players) {
-            if (p.name.toLowerCase() === playerName.toLowerCase()) {
-                existingPlayerId = id;
-                break;
-            }
-        }
-
-        if (existingPlayerId) {
-            const playerData = room.players.get(existingPlayerId);
-            room.players.delete(existingPlayerId);
-
-            playerData.id = playerId;
-            playerData.disconnected = false;
-            if (avatar) playerData.avatar = avatar;
-
-            room.players.set(playerId, playerData);
-
-            console.log(`[GEO] Player ${playerName} reconnected to room ${roomCode}`);
-
-            return {
-                success: true,
-                room,
-                reconnected: true,
-                gameState: room.gameState,
-                currentRound: room.currentRound,
-                totalRounds: room.totalRounds,
-                // Ne renvoyer que la position approximative si la manche est en cours
-                location: (room.gameState === 'PLAYING') ? room.currentLocationApprox : room.currentLocation,
-                roundStartTime: room.roundStartTime,
-                timePerRound: room.timePerRound,
-                myScore: playerData.totalScore
-            };
-        }
-
+    createPlayer(playerId, playerName, avatar, room) {
         const isLateJoin = room.gameState !== 'LOBBY';
-        const missedRounds = isLateJoin ? room.currentRound - 1 : 0;
+        // `currentRound` vaut 0 avant la première manche : sans le plancher,
+        // Array(-1) lève une RangeError et l'inscription échoue.
+        const missedRounds = isLateJoin ? Math.max(0, room.currentRound - 1) : 0;
 
-        room.players.set(playerId, {
+        return {
             id: playerId,
             name: playerName,
             avatar: avatar || null,
+            disconnected: false,
             totalScore: 0,
             roundScores: Array(missedRounds).fill(0),
             currentGuess: null,
@@ -141,23 +99,40 @@ class GeoGameManager {
             roundDistances: Array(missedRounds).fill(null),
             roundTimes: Array(missedRounds).fill(null),
             lateJoin: isLateJoin,
-            joinedAtRound: isLateJoin ? room.currentRound : 0
-        });
+            joinedAtRound: isLateJoin ? room.currentRound : 0,
+            missedRounds
+        };
+    }
 
-        console.log(`[GEO] Player ${playerName} joined room ${roomCode}${isLateJoin ? ` (late join at round ${room.currentRound})` : ''}`);
+    /**
+     * Pendant une manche, seule la position approximative circule : la vraie
+     * position permettrait de tricher.
+     */
+    visibleLocation(room) {
+        return room.gameState === 'PLAYING' ? room.currentLocationApprox : room.currentLocation;
+    }
 
+    describeRejoin(room, player) {
         return {
-            success: true,
-            room,
-            lateJoin: isLateJoin,
             gameState: room.gameState,
             currentRound: room.currentRound,
             totalRounds: room.totalRounds,
-            // Ne renvoyer que la position approximative si la manche est en cours
-            location: (room.gameState === 'PLAYING') ? room.currentLocationApprox : room.currentLocation,
+            location: this.visibleLocation(room),
             roundStartTime: room.roundStartTime,
             timePerRound: room.timePerRound,
-            missedRounds
+            myScore: player.totalScore
+        };
+    }
+
+    describeJoin(room, player) {
+        return {
+            gameState: room.gameState,
+            currentRound: room.currentRound,
+            totalRounds: room.totalRounds,
+            location: this.visibleLocation(room),
+            roundStartTime: room.roundStartTime,
+            timePerRound: room.timePerRound,
+            missedRounds: player.missedRounds
         };
     }
 
@@ -610,55 +585,20 @@ class GeoGameManager {
         return { success: true, room };
     }
 
-    kickPlayer(roomCode, playerId) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return { error: 'Salon introuvable' };
-
-        if (room.players.has(playerId)) {
-            room.players.delete(playerId);
-            return { success: true };
-        }
-        return { error: 'Joueur introuvable' };
-    }
-
-    deleteRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (room) {
-            if (room.roundTimer) {
-                clearTimeout(room.roundTimer);
-                room.roundTimer = null;
-            }
-            this.rooms.delete(roomCode);
-            console.log(`[GEO] Room ${roomCode} deleted`);
+    /** Le minuteur de manche ne doit pas survivre au salon. */
+    onRoomDisposed(room) {
+        if (room.roundTimer) {
+            clearTimeout(room.roundTimer);
+            room.roundTimer = null;
         }
     }
 
-    removePlayer(playerId) {
-        for (const [code, room] of this.rooms) {
-            if (room.hostId === playerId) {
-                room.hostDisconnected = true;
-                return { roomCode: code, room, isHost: true };
-            }
-
-            if (room.players.has(playerId)) {
-                if (room.gameState !== 'LOBBY') {
-                    const player = room.players.get(playerId);
-                    player.disconnected = true;
-                    return { roomCode: code, room, isHost: false, type: 'disconnected', player };
-                }
-
-                room.players.delete(playerId);
-                return { roomCode: code, room, isHost: false, type: 'left' };
-            }
-        }
-        return null;
+    /** GeoTrackr expose l'objet joueur complet (tableaux de manches inclus). */
+    describePlayer(p) {
+        return p;
     }
 
-    getPlayersInRoom(roomCode) {
-        const room = this.rooms.get(roomCode);
-        if (!room) return [];
-        return Array.from(room.players.values());
-    }
+    // kickPlayer, deleteRoom et removePlayer viennent de RoomBase.
 
     allPlayersGuessed(roomCode) {
         const room = this.rooms.get(roomCode);

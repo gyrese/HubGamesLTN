@@ -28,7 +28,8 @@ import {
     Play,
     SlidersHorizontal,
     Volume2,
-    VolumeX
+    VolumeX,
+    Music
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -77,6 +78,25 @@ const GAMES = [
         buttonGif: '/assets/games/io_arena.webp',
         hostRoute: '/io/host',
         playRoute: '/io/play'
+    },
+    {
+        id: 'dance',
+        route: '/dance',
+        category: 'arcade',
+        name: 'DANCE_DANCE',
+        tagline: 'Jeu de Rythme Multijoueur',
+        description: 'Les flèches descendent, on tape en rythme. Chacun suit sa piste sur son téléphone, le classement grimpe en direct.',
+        tags: ['Rythme', 'Musique', 'Combo'],
+        color: '#d946ef',
+        colorRgb: '217, 70, 239',
+        icon: Music,
+        players: '1-30 Joueurs',
+        badge: 'NOUVEAU',
+        statusText: 'Chorégraphies Auto-Générées',
+        cardGif: '/assets/games/dance_dance.webp',
+        buttonGif: '/assets/games/dance_dance.webp',
+        hostRoute: '/dance/host',
+        playRoute: '/dance/play'
     },
     {
         id: 'geo',
@@ -191,6 +211,25 @@ const GAMES = [
         buttonGif: '/assets/games/apero_quiz.webp',
         hostRoute: 'https://ltnhoot.ltn.re/',
         playRoute: 'https://ltnhoot.ltn.re/'
+    },
+    {
+        id: 'dance',
+        route: '/dance',
+        category: 'arcade',
+        name: 'DANCE_DANCE',
+        tagline: 'Rythme & Tapis Tactile',
+        description: 'Suivez le tempo, tapez les flèches en cadence sur votre smartphone et enflammez le dancefloor du bar !',
+        tags: ['Rythme', 'DDR Live', 'Grand Écran'],
+        color: '#d946ef',
+        colorRgb: '217, 70, 239',
+        icon: Music,
+        players: '1-50 Joueurs',
+        badge: 'NOUVEAU',
+        statusText: 'Tempo & Flèches',
+        cardGif: '/assets/games/dance_dance.webp',
+        buttonGif: '/assets/games/dance_dance.webp',
+        singleButton: true,
+        singleButtonLabel: 'Lancer Dance Dance'
     }
 ];
 
@@ -368,6 +407,30 @@ function MotionGameCard({ game, index, maintenance }) {
                             <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
                         </span>
                     </a>
+                ) : game.singleButton ? (
+                    <Link
+                        to={maintenance ? '#' : (game.route || game.hostRoute || game.playRoute)}
+                        className={`relative w-full overflow-hidden group/btn flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl font-headline font-black text-xs uppercase tracking-widest text-white transition-all duration-300 active:scale-[0.98] ${
+                            maintenance ? 'pointer-events-none' : 'hover:brightness-110 shadow-lg'
+                        }`}
+                        style={{
+                            background: `linear-gradient(135deg, ${game.color}50 0%, ${game.color}20 100%)`,
+                            border: `1.5px solid ${game.color}80`,
+                            boxShadow: `0 8px 25px ${game.color}30`
+                        }}
+                    >
+                        {/* Arrière-plan GIF du bouton */}
+                        {game.buttonGif && (
+                            <div 
+                                className="absolute inset-0 bg-cover bg-center opacity-35 group-hover/btn:opacity-60 transition-opacity duration-300"
+                                style={{ backgroundImage: `url(${game.buttonGif})` }}
+                            />
+                        )}
+                        <span className="relative z-10 flex items-center gap-2 drop-shadow">
+                            <span>{game.singleButtonLabel || 'Lancer le Jeu'}</span>
+                            <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
+                        </span>
+                    </Link>
                 ) : (
                     <div className="grid grid-cols-2 gap-2.5">
                         {/* Bouton Grand Écran TV (Host) */}

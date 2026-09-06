@@ -27,7 +27,7 @@ const STATES = ['active', 'maintenance', 'hidden'];
 // Identifiants alignés sur le tableau GAMES de `client/src/pages/HomePage.jsx`.
 // Un jeu absent de cette liste est simplement ignoré : ajouter un jeu au hub ne
 // demande donc pas de toucher ce fichier, il sera actif par défaut.
-const KNOWN_GAMES = ['quiz', 'geo', 'draw', 'color', 'fakeartist', 'party', 'io', 'apero'];
+const KNOWN_GAMES = ['quiz', 'geo', 'draw', 'color', 'fakeartist', 'party', 'io', 'dance', 'apero'];
 
 /** Cache mémoire : la page d'accueil interroge ce statut à chaque visite. */
 let cache = null;
